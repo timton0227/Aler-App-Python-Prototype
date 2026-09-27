@@ -71,6 +71,53 @@ you can also build a different town.
 The map needs internet for its street background. Without internet the phones
 still show, on a blank background.
 
+## Desktop app (no browser)
+
+The live demo page can also be a double-click app: one window, no browser, and no
+Python needed on the computer that opens it. `desktop.py` shows the page in its own
+window; `PyInstaller` bundles everything into one app.
+
+### Build it
+
+Both builds need `../alert-mesh/` next to this folder: they copy the town list and the
+icon from it. The first build downloads the build tools into a separate environment
+(`packaging/.venv-mac` or `packaging\.venv-windows`); later builds take about a minute.
+
+| Computer | Command, from this folder | Result |
+|---|---|---|
+| Mac (Apple Silicon) | `packaging/build_mac.sh` | `dist/Alert Mesh.app` (about 290 MB) and `dist/Alert-Mesh-mac.zip` (about 110 MB) |
+| Windows | `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1` | `dist\Alert Mesh\Alert Mesh.exe` and `dist\Alert-Mesh-windows.zip` |
+
+The Mac build was tested with Python 3.14 from python.org. To choose a Python for the
+first build, name it with `PYTHON`, for example:
+
+```bash
+PYTHON=/Library/Frameworks/Python.framework/Versions/3.14/bin/python3 packaging/build_mac.sh
+```
+
+The Windows script has **not been run yet** (see step 12.4 in `PROGRESS.md`).
+
+To try the window without building, install the build tools
+(`python3 -m pip install -r packaging/requirements-build.txt`) and run
+`python3 desktop.py`, or **Run and Debug → Desktop window** in VS Code.
+
+### Open it on another computer
+
+- **Mac:** copy `Alert-Mesh-mac.zip` over, double-click it to unzip, and open
+  **Alert Mesh**. It runs on Apple Silicon Macs (M1 or later); it was tested on macOS 15.
+  The app is not signed by a registered Apple developer, so a copy that arrived by
+  download, AirDrop or e-mail is blocked the first time ("cannot be verified"). Click
+  **Done**, then open **System Settings → Privacy & Security**, scroll down and click
+  **Open Anyway**. This is needed once per computer. A copy from a USB stick usually
+  opens straight away.
+- **Windows:** unzip the whole folder and open **Alert Mesh.exe** inside it (it needs
+  the other files in that folder). If Windows shows "Windows protected your PC",
+  click **More info → Run anyway**.
+- The map's street background needs internet; everything else works offline.
+- The page is only reachable from the computer running the app, not from the network.
+- If the window says the page did not start, the details are in
+  `alert-mesh-server.log` in the computer's temporary folder (on a Mac: `open $TMPDIR`).
+
 ## For contributors
 
 1. Open [`PROGRESS.md`](PROGRESS.md) and take the next unticked step.

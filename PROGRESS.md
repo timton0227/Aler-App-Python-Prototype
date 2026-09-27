@@ -25,8 +25,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
-| 12 Desktop app | 3 | 5 |
-| **All** | **61** | **63** |
+| 12 Desktop app | 4 | 5 |
+| **All** | **62** | **63** |
 
 **Next step:** 12.4
 
@@ -276,7 +276,7 @@ Silicon); the Windows build script cannot be tested on a Mac.
 - [!] 12.4 Windows build script (`packaging/build_windows.ps1`) — blocked: written, but needs a Windows PC to run and check
       Done when: the script builds `dist\Alert Mesh\Alert Mesh.exe` and a zip on a Windows PC, and the app opens and works there
       Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open the .exe
-- [ ] 12.5 README: building the app, and opening it on another computer
+- [x] 12.5 README: building the app, and opening it on another computer
       Done when: the README says how to build on each system and how to get past the first-open warnings
       Verify: read it against what was actually run
 

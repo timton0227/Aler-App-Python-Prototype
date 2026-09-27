@@ -24,6 +24,20 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 12.5 README: the desktop app — 2026-09-27
+- What: a new README section, "Desktop app (no browser)":
+  - how to build on a Mac (`packaging/build_mac.sh`) and on Windows (`packaging\build_windows.ps1`, marked not yet run), what each makes and how big it is, and how to pick the build Python;
+  - how to try the window without building (`python3 desktop.py`, or the VS Code "Desktop window" entry);
+  - how to open the app on another computer: unzip and open; Apple Silicon Macs only; the macOS first-open block for downloaded copies and **Open Anyway** in Privacy & Security; Windows SmartScreen's **More info → Run anyway**; that the map background needs internet; that the page is reachable only from that computer; and where the server log is.
+- Ported from: not applicable.
+- Differences from Swift: not applicable.
+- Verified by: read against what was run.
+  - **Matches what was measured:** the build commands and output paths are those used in 12.3; sizes 287 MB and 112 MB; build time about 45 s; python.org Python 3.14; macOS 15.7.5.
+  - **Not checked here:**
+    - **The macOS first-open block.** This Mac has Gatekeeper switched off (`spctl --assess` reports `override=security disabled`), so the block could not be shown. The README describes macOS 15's documented behaviour for apps not signed by a registered Apple developer.
+    - **"A copy from a USB stick usually opens straight away."** Only downloads, AirDrop and e-mail mark a file as coming from the internet.
+    - **Everything about Windows.** It is untested (step 12.4).
+
 ## 12.4 Windows build script (written, not yet run) — 2026-09-27
 - What: `packaging/build_windows.ps1`, the Windows counterpart of `build_mac.sh`, using the same recipe (`packaging/alert_mesh.spec`). It:
   - makes or reuses `packaging\.venv-windows` with `py -3` (or `$env:PYTHON`);
