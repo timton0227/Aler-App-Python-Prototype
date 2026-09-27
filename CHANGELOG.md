@@ -24,6 +24,13 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 6.2 Town lookup, area code, GeoNames credit — 2026-09-27
+- What: `places.find()`, `places.find_all()`, `places.geohash_of()` (default 7 characters, the SOS precision) and `places.CREDIT`. Lookup ignores case and spaces at the ends. When a name repeats (87 names do), the largest town comes first.
+- Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`Strings.credit`). Name lookup is new: the Swift app never looks places up by name.
+- Differences from Swift: `find`/`find_all` have no Swift equivalent; they exist so the demo can place phones by town name.
+- Finding (Swift side, not changed): the Swift test comments call the `r7hg…` cells "around Fitzroy Crossing, WA", and the reference warning names Mount Barker. In fact `r7hg` is near Brisbane, QLD (centre about −27.51, 153.11). Fitzroy Crossing is `quc2…` and Mount Barker SA is `r1f8…`. Only the comments are wrong; no code depends on the place.
+- Verified by: `python3 -m pytest tests/test_places.py -k lookup` — 5 passed. Sydney encodes to `r3gx2f`, its widely published geohash. Five Northern Territory and WA towns decode to boxes that contain them. Mount Barker gives 2 matches, with SA first.
+
 ## 6.1 Read towns and places from the Swift data file — 2026-09-27
 - What: new module `alertmesh/places.py` with `Place`, `DATA_FILE`, `all_places()` and `towns()`. Reads the `towns` and `places` lists out of the Swift file at run time. Coordinates are stored in thousandths of a degree and converted to degrees. Malformed lines are skipped. A clear error explains what to do if the Swift file is missing.
 - Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`AustralianPlace`, `all`, `parse`); data from `AustralianPlacesData.swift`.

@@ -15,6 +15,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from alertmesh import geohash
+
+# The licence (CC BY 4.0) asks for this credit wherever the names are shown.
+CREDIT = "Place names: GeoNames (geonames.org), CC BY 4.0"
+
 DATA_FILE = (
     Path(__file__).resolve().parents[2]
     / "alert-mesh" / "AlertMesh" / "AlertMesh" / "Utils" / "AustralianPlacesData.swift"
@@ -70,3 +75,24 @@ def all_places() -> tuple[Place, ...]:
 
 def towns() -> list[Place]:
     return [p for p in all_places() if p.is_town]
+
+
+# --- Lookup -------------------------------------------------------------------
+
+
+def find_all(name: str) -> list[Place]:
+    """Every place with this name, case-insensitive. Towns come first, largest first
+    (the file lists towns by size). Some names repeat: Mount Barker is in SA and WA."""
+    wanted = name.strip().casefold()
+    return [p for p in all_places() if p.name.casefold() == wanted]
+
+
+def find(name: str) -> Place | None:
+    """The first place with this name: the largest town, if any town has it."""
+    matches = find_all(name)
+    return matches[0] if matches else None
+
+
+def geohash_of(place: Place, precision: int = 7) -> str:
+    """The place's area code. 7 characters is about 150 m, the SOS precision."""
+    return geohash.encode(place.latitude, place.longitude, precision)
