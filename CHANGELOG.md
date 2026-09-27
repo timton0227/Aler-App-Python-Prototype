@@ -24,6 +24,31 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 12.2 Desktop launcher — 2026-09-27
+- What: `desktop.py` shows the live demo page in its own window, with no browser. Streamlit's server and the window both need the program's main thread, so the program starts a second copy of itself with `--serve PORT --parent PID` to run the page, and shows the page with `pywebview` (Safari's engine on a Mac, Edge's on Windows).
+  - Before the page is up, the window shows "Starting the simulated town…". If the page is not up within 60 s, or the server stops, the window says so and names the log file (`alert-mesh-server.log` in the system temp folder).
+  - Closing the window stops the server. If the window's process is killed instead, the server notices its parent is gone within about a second and exits, so no server is left running.
+  - Streamlit settings are passed on the command line, because the packaged app starts in `/`, where `.streamlit/config.toml` is not found. The page is served on `127.0.0.1` only, so no other computer can reach it; `streamlit run` offers it to the network. Also: light theme, no Deploy button, `global.developmentMode=false` (a bundled Streamlit otherwise believes it is in development).
+  - Other additions:
+    - `packaging/requirements-build.txt`: the build tools PyInstaller 6.22, pywebview 6.2 and Pillow 12, on top of the prototype's libraries.
+    - A separate build environment, `packaging/.venv-mac` (Python 3.14.3), which git ignores, as it does `build/` and `dist/`.
+    - A VS Code Run entry, "Desktop window".
+    - A plain message when pywebview is missing.
+- Ported from: new (packaging).
+- Differences from Swift: not applicable.
+- Verified by:
+  - `python3 -m pytest tests/test_desktop.py` — 6 passed:
+    - the port;
+    - the command in development and packaged form;
+    - the Streamlit flags (127.0.0.1, development mode off);
+    - a real server that starts, answers `/`, and stops;
+    - no waiting on a server that has already stopped;
+    - the server exits when its parent is killed. This test failed as it should with the parent watch switched off on purpose, and passes with it on.
+
+    Full suite: 354 passed.
+  - By eye: `packaging/.venv-mac/bin/python desktop.py` opened a native macOS window titled "Alert Mesh" showing the page, and its tabs worked. `lsof` showed the server listening on `127.0.0.1` only. Closing the window stopped both processes within 1 s, and the server log ended with "Stopping...".
+  - Not tested: the Windows branch of the parent check (it asks Windows whether the parent still runs), because there is no Windows PC here.
+
 ## 12.1 Town list found inside the desktop app — 2026-09-27
 - What: Phase 12 (a desktop app with no browser) is added to PROGRESS.md at the user's request, with 5 steps. This first step makes `alertmesh/places.py` look for the town list in two places, in order:
   1. the Swift app's own file (development, unchanged);

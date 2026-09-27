@@ -5,3 +5,7 @@ __pycache__/
 .venv/
 venv/
 .streamlit/secrets.toml
+# Desktop app build (Phase 12): environments, build folders and the app itself.
+packaging/.venv-*/
+build/
+dist/

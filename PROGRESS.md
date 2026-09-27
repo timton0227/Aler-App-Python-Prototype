@@ -25,10 +25,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
-| 12 Desktop app | 1 | 5 |
-| **All** | **59** | **63** |
+| 12 Desktop app | 2 | 5 |
+| **All** | **60** | **63** |
 
-**Next step:** 12.2
+**Next step:** 12.3
 
 ---
 
@@ -267,7 +267,7 @@ Silicon); the Windows build script cannot be tested on a Mac.
 - [x] 12.1 Town list found inside the app
       Done when: development still reads the Swift app's file; with no Swift folder next to the package, a copy in `alertmesh/data/` is read; the error names every place looked
       Verify: `python3 -m pytest tests/test_places.py`
-- [ ] 12.2 Desktop launcher (`desktop.py`)
+- [x] 12.2 Desktop launcher (`desktop.py`)
       Done when: `python desktop.py` opens a native window showing the page, served on 127.0.0.1 only; closing the window stops the server
       Verify: `python3 -m pytest tests/test_desktop.py`, then run `desktop.py` with the build tools installed and check by eye
 - [ ] 12.3 Mac app (`packaging/build_mac.sh`)

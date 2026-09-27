@@ -6,7 +6,17 @@
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
-      "args": ["run", "app.py"],
+      "args": [
+        "run",
+        "app.py"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Desktop window",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/desktop.py",
       "cwd": "${workspaceFolder}"
     },
     {
@@ -14,7 +24,9 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": ["-q"],
+      "args": [
+        "-q"
+      ],
       "cwd": "${workspaceFolder}"
     }
   ]

@@ -1,0 +1,173 @@
+"""Alert Mesh desktop app: the live demo page in its own window, with no browser.
+
+Run from this folder, with the build tools installed (see packaging/requirements-build.txt):
+
+    python desktop.py
+
+The packaged app (packaging/build_mac.sh, packaging/build_windows.ps1) runs this same file.
+
+How it works. Streamlit's server and the window both need the program's main thread,
+so this program starts a second copy of itself with `--serve PORT` to run the page,
+and shows the page in a native window (pywebview: Safari's engine on a Mac, Edge's on
+Windows). Closing the window stops the second copy; so does the first copy dying.
+The page is served on 127.0.0.1 only, so no other computer can reach it.
+
+This is free and unencumbered software released into the public domain.
+"""
+import argparse
+import html
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+TITLE = "Alert Mesh"
+HOST = "127.0.0.1"
+START_TIMEOUT_S = 60
+
+# Inside the packaged app, PyInstaller unpacks its files into one folder and sets
+# `sys.frozen`; otherwise the files sit next to this one.
+FROZEN = getattr(sys, "frozen", False)
+HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+APP = HERE / "app.py"
+LOG = Path(tempfile.gettempdir()) / "alert-mesh-server.log"
+
+# Passed on the command line, not read from .streamlit/config.toml: the packaged app
+# starts in "/", where that file is not found.
+STREAMLIT_FLAGS = {
+    "server.headless": "true",          # no browser, no first-run e-mail prompt
+    "server.address": HOST,             # this computer only
+    "global.developmentMode": "false",  # a bundled Streamlit otherwise thinks it is in development
+    "server.fileWatcherType": "none",
+    "server.runOnSave": "false",
+    "browser.gatherUsageStats": "false",
+    "theme.base": "light",
+    "client.toolbarMode": "minimal",    # no Deploy button
+}
+
+
+def free_port() -> int:
+    """A port nothing is using right now, on this computer only."""
+    with socket.socket() as s:
+        s.bind((HOST, 0))
+        return s.getsockname()[1]
+
+
+def server_command(port: int) -> list[str]:
+    """How to start the second copy that serves the page. The packaged app is its own
+    executable; in development it is Python running this file."""
+    if FROZEN:
+        return [sys.executable, "--serve", str(port), "--parent", str(os.getpid())]
+    return [sys.executable, str(Path(__file__).resolve()), "--serve", str(port), "--parent", str(os.getpid())]
+
+
+def streamlit_args(port: int) -> list[str]:
+    return ["streamlit", "run", str(APP), f"--server.port={port}",
+            *(f"--{name}={value}" for name, value in STREAMLIT_FLAGS.items())]
+
+
+def serve(port: int, parent: int) -> None:
+    """The second copy: run the page until told to stop, or until the window's copy is gone."""
+    threading.Thread(target=_exit_when_parent_dies, args=(parent,), daemon=True).start()
+    from streamlit.web import cli
+
+    sys.argv = streamlit_args(port)
+    sys.exit(cli.main())
+
+
+def _parent_alive(parent: int) -> bool:
+    if sys.platform == "win32":
+        # Windows keeps reporting the old parent ID, so ask whether that process still runs.
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x00100000, False, parent)  # SYNCHRONIZE
+        if not handle:
+            return False
+        still_running = kernel32.WaitForSingleObject(handle, 0) == 0x102  # WAIT_TIMEOUT
+        kernel32.CloseHandle(handle)
+        return still_running
+    # Elsewhere an orphan is adopted by another process, so its parent ID changes.
+    return os.getppid() == parent
+
+
+def _exit_when_parent_dies(parent: int) -> None:
+    while _parent_alive(parent):
+        time.sleep(1)
+    os._exit(0)
+
+
+def wait_until_up(port: int, server: subprocess.Popen | None = None, timeout: float = START_TIMEOUT_S) -> bool:
+    """True once the page answers; False if the server stopped or time ran out."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if server is not None and server.poll() is not None:
+            return False
+        try:
+            with urllib.request.urlopen(f"http://{HOST}:{port}/_stcore/health", timeout=1) as reply:
+                if reply.read().strip() == b"ok":
+                    return True
+        except OSError:
+            pass
+        time.sleep(0.2)
+    return False
+
+
+def stop(server: subprocess.Popen) -> None:
+    if server.poll() is None:
+        server.terminate()
+        try:
+            server.wait(5)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait()
+
+
+PAGE = """<html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
+font-family:-apple-system,'Segoe UI',sans-serif;color:#333;background:#fff"><div style="text-align:center;max-width:600px">
+<h2>Alert Mesh</h2><p>{message}</p></div></body></html>"""
+
+
+def main() -> None:
+    try:
+        import webview
+    except ImportError:
+        sys.exit("The desktop window needs pywebview. Install the build tools first:\n"
+                 "  python3 -m pip install -r packaging/requirements-build.txt")
+
+    port = free_port()
+    with open(LOG, "w", encoding="utf-8") as log:
+        extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        server = subprocess.Popen(server_command(port), stdout=log, stderr=subprocess.STDOUT, **extra)
+    window = webview.create_window(TITLE, html=PAGE.format(message="Starting the simulated town…"),
+                                   width=1400, height=900, min_size=(900, 600))
+
+    def show_page():
+        if wait_until_up(port, server):
+            window.load_url(f"http://{HOST}:{port}/")
+        else:
+            message = ("The demo page did not start. Details are in "
+                       f"<code>{html.escape(str(LOG))}</code>.")
+            window.load_html(PAGE.format(message=message))
+
+    try:
+        webview.start(show_page)
+    finally:
+        stop(server)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--serve", type=int, metavar="PORT", help="run the page on this port (internal)")
+    parser.add_argument("--parent", type=int, help="stop when this process ends (internal)")
+    # Known arguments only: older macOS adds its own (-psn_…) when opening an app.
+    options, _ = parser.parse_known_args()
+    if options.serve:
+        serve(options.serve, options.parent or os.getppid())
+    else:
+        main()

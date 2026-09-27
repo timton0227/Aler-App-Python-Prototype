@@ -1,0 +1,8 @@
+# Tools to build the desktop app, on top of the prototype's own libraries.
+# Install into a separate environment, never into your everyday Python:
+# packaging/build_mac.sh (or build_windows.ps1) does that for you.
+# Minimums are the versions tested (with Python 3.14.3 on macOS 15).
+-r ../requirements.txt
+pyinstaller>=6.22    # bundles Python, the libraries and the code into one app
+pywebview>=6.2       # the app's own window (Safari's engine on a Mac, Edge's on Windows)
+pillow>=12           # lets PyInstaller turn the PNG icon into a Windows .ico
