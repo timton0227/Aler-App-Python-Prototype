@@ -38,3 +38,18 @@ def test_figures_build():
     assert len(viz.curves_chart(comparison).data) == 2
     table = [{"n": 10, "with mesh": 0.5, "internet only": 0.2}]
     assert len(viz.sweep_chart(table, "n", "phones").data) == 2
+
+
+def test_area_map_draws_each_cell_and_the_centre():
+    fig = viz.area_map(["qvqj9", "qvqjd"], "#BF1A1A", (-14.46, 132.26))
+    outlines = [t for t in fig.data if t.fill == "toself"]
+    assert len(outlines) == 2
+    assert [t.showlegend for t in outlines] == [True, False]
+    assert len(outlines[0].lat) == 5  # four corners, closed
+    assert fig.data[-1].name == "Evacuation centre"
+
+
+def test_fit_zoom_zooms_out_for_a_bigger_area():
+    _, street = viz.fit_zoom([(-14.46, 132.26), (-14.45, 132.27)])
+    _, region = viz.fit_zoom([(-14.0, 132.0), (-15.5, 133.5)])
+    assert street > region

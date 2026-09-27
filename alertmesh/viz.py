@@ -6,10 +6,14 @@ internet the background stays blank, but the phones still show.
 
 This is free and unencumbered software released into the public domain.
 """
+import math
+
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 from alertmesh import metrics
+from alertmesh.console import corners
 from alertmesh.mesh_sim import Mesh
 
 # Colours: red only for the official warning reaching someone, as in the app, where
@@ -89,3 +93,48 @@ def sweep_chart(table: list[dict], parameter: str, label: str, title: str = ""):
                  color_discrete_map={"with mesh": "#d62728", "internet only": "#1f77b4"})
     fig.update_yaxes(tickformat=".0%", range=[0, 1.02])
     return fig
+
+
+# --- Warning areas ------------------------------------------------------------
+
+
+def area_traces(cells, colour: str, name: str = "warning area") -> list:
+    """One filled outline per area cell, for any map figure."""
+    traces = []
+    for i, cell in enumerate(cells):
+        points = corners(cell) + corners(cell)[:1]
+        traces.append(go.Scattermap(
+            lat=[lat for lat, _ in points], lon=[lon for _, lon in points], mode="lines",
+            fill="toself", fillcolor=_with_alpha(colour, 0.18), line={"color": colour, "width": 2},
+            name=name, legendgroup=name, showlegend=i == 0, hoverinfo="text", text=cell,
+        ))
+    return traces
+
+
+def fit_zoom(points: list[tuple[float, float]], minimum: float = 3.0, maximum: float = 14.0) -> tuple[tuple[float, float], float]:
+    """The centre and a map zoom level that shows every (lat, lon) point."""
+    lats = [lat for lat, _ in points]
+    lons = [lon for _, lon in points]
+    centre = ((min(lats) + max(lats)) / 2, (min(lons) + max(lons)) / 2)
+    # A web map at zoom z shows about 360 / 2**z degrees across a 512-pixel-wide view.
+    span = max(max(lons) - min(lons), (max(lats) - min(lats)) * 1.6, 1e-4)
+    return centre, max(minimum, min(maximum, math.log2(360 / span) - 0.3))
+
+
+def area_map(cells, colour: str, centre: tuple[float, float], centre_label: str = "Evacuation centre", height: int = 420):
+    """The picked warning area around the evacuation centre, as the console's map shows it."""
+    points = [centre] + [c for cell in cells for c in corners(cell)]
+    view, zoom = fit_zoom(points, maximum=13.5)
+    fig = go.Figure(area_traces(cells, colour))
+    # Hover text only: the OpenStreetMap style has no font for text drawn on the map.
+    fig.add_trace(go.Scattermap(lat=[centre[0]], lon=[centre[1]], mode="markers", name=centre_label,
+                                hoverinfo="name", marker={"size": 14, "color": "#222222"}))
+    fig.update_layout(map={"style": "open-street-map", "center": {"lat": view[0], "lon": view[1]}, "zoom": zoom},
+                      height=height, margin={"l": 0, "r": 0, "t": 0, "b": 0},
+                      legend={"x": 0, "y": 1, "bgcolor": "rgba(255,255,255,0.7)"})
+    return fig
+
+
+def _with_alpha(hex_colour: str, alpha: float) -> str:
+    r, g, b = (int(hex_colour[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r},{g},{b},{alpha})"

@@ -23,11 +23,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
-| 10 Streamlit | 0 | 4 |
+| 10 Streamlit | 1 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **51** | **58** |
+| **All** | **52** | **58** |
 
-**Next step:** 10.1
+**Next step:** 10.2
 
 ---
 
@@ -216,9 +216,15 @@ Verify each step: `jupyter nbconvert --to notebook --execute demo.ipynb --output
 
 ## Phase 10 — Streamlit (`app.py`)
 
-Verify each step: `streamlit run app.py`, then check the tab in a browser.
+Verify each step two ways: its headless tests (`tests/test_app.py` runs the page with
+Streamlit's test runner, no browser), then `streamlit run app.py` and check the tab by eye.
 
-- [ ] 10.1 Warning console tab (write, sign, send)
+- [x] 10.1 Warning console tab (write, sign, send)
+      Swift: `AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift`, `AlertMesh/AlertMesh/Views/IssueWarningView.swift`,
+      `WarningAreaPicker` in `AlertMesh/AlertMesh/Views/WarningAreaMapView.swift` ·
+      tests: `OfficialAlertIssuerTests.swift`, `IssueWarningViewTests.swift`
+      Done when: a warning written on the page is signed, goes out over Bluetooth from the evacuation centre and to the internet, and is listed as live; update, send again and cancel work
+      Verify: `python3 -m pytest tests/test_console.py tests/test_world.py tests/test_app.py`, then send a warning in the browser
 - [ ] 10.2 Map tab (phones light up as the warning spreads)
 - [ ] 10.3 Phone view tab (one phone's alerts and the loud/quiet reason)
 - [ ] 10.4 Hub board tab (large-type board with the SOS list)

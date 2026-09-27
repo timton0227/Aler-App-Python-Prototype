@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 10.1 Streamlit: warning console tab — 2026-09-27
+- What: `app.py`, the live demo page, with its first tab. The operator writes a warning (hazard, level, headline and what to do with byte counters, how long it lasts, area), sees a preview in the level's colour and a map of the area, and sends it after a confirmation. Live warnings are listed with Update…, Send again and Cancel warning. The sidebar holds the simulated town: a clock, "+1 / +5 / +15 minutes" buttons (time only moves when asked), and a form to build a new town. New modules:
+  - `alertmesh/console.py`: the console (issue, update, resend, cancel, and the outcome line) and the area picker.
+  - `alertmesh/world.py`: one simulated town, the notebook's section 3 town by default, plus an evacuation centre (a Mac, phone "hub") in the middle. The console sends from it.
+  - `alertmesh/labels.py`: the app's words and colours for levels, hazards, report kinds and "how close" lines.
+  - `viz.area_map`: the area picked, as outlined cells around the evacuation centre.
+  - `.streamlit/config.toml`: always the light theme.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift`, `AlertMesh/AlertMesh/Views/IssueWarningView.swift` (layout and English strings), `WarningAreaPicker` in `AlertMesh/AlertMesh/Views/WarningAreaMapView.swift`, `AlertNotificationContent.Strings`, `AlertsView.Strings.proximity` and `untilText`, `AlertSeverityStyle.swift` with `Utils/Theme.swift` (light-theme colours), `CommunityReportStyle.swift` (report words).
+- Differences from Swift:
+  - No key card. The prototype always signs with the development key, so the Swift `noKey` and `signingFailed` errors cannot happen.
+  - The area is picked from a list of towns (nearest first) plus a size, or "Cover the simulated town", instead of by clicking the map. The same rule applies: picking inside a picked cell removes it, a larger cell swallows smaller ones, and a fifth cell is refused. For the same reason the no-area problem reads "Pick an area." instead of "Pick an area on the map."
+  - The outcome line says "1 device" rather than the Swift "1 devices".
+  - Offline, the warning goes out over Bluetooth only and is not queued. In the app, a warning posted with no relay connected may still go out once one connects; here the operator presses Send again.
+  - The confirmation is a box under the Send button, not a macOS dialog.
+  - Times show in this computer's time zone.
+- Verified by: `python3 -m pytest tests/test_console.py tests/test_world.py tests/test_app.py` — 31 passed. These cover 8 ported issuer tests and 6 ported area-picker tests, plus page tests run headless with Streamlit's `AppTest`: send, Back, update, cancel with "Keep it", offline, and time passing. The full suite passed 304. By eye in the browser pane (`streamlit run app.py`): wrote an Emergency Warning, covered the simulated town (`qvqj9`, drawn on the map), confirmed, and saw it in Live warnings with "Until 13:43 · qvqj9". The outcome line read "Sent: … — 1 devices connected over Bluetooth, handed to internet relays", which led to the plural fix above. Two more fixes came from the same check:
+  - The map's "Evacuation centre" label did not show, because the OpenStreetMap style has no font for map text. It is now hover-only, with a caption.
+  - The browser's dark mode made the light-theme level colours hard to read, so the page is now always light.
+
 ## 9.8 Notebook: charts, with the mesh vs internet only — 2026-09-27
 - What: section 8 of `demo.ipynb`. A curve of the share warned over 30 minutes, with the mesh and with internet only, plus a summary table. Three sweep charts, averaging 3 layouts per value: number of phones, share walking about, and Bluetooth reach. It closes with "what this shows, and what it does not", including the simulation caveats.
 - Ported from: new. Uses `metrics.compare`, `metrics.sweep`, `metrics.means` and the `viz` charts.

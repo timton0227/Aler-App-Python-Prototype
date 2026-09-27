@@ -1,0 +1,7 @@
+# Light theme always: the warning colours are the app's light-theme colours, and a
+# projector in a hall reads dark text on white best.
+[theme]
+base = "light"
+
+[browser]
+gatherUsageStats = false
