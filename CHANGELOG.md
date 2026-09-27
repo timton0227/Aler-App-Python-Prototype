@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.1 Notebook: issue a signed warning — 2026-09-27
+- What: new `demo.ipynb` with the introduction (what the app does, how to run, the simulation caveat), a setup cell, and section 1: sign an Emergency Warning for a bushfire near Katherine with the dev key, print its area code and place name, its size (217 of 383 bytes), its first bytes, and that it verifies against the pinned key. `pandas` added to `requirements.txt` for the notebook's tables.
+- Ported from: new. Uses `signer`, `wire`, `geohash` and `places` from earlier steps.
+- Differences from the app: none. The notebook is saved without outputs, to keep the file small and the history readable; **Run All** in VS Code recreates them.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` (output written to the scratchpad) ran with no errors. Printed: "Area code: qvqj9 (Near Katherine)", "Signed warning: 217 bytes (must fit one Bluetooth frame: 383 bytes)", "Signed by the key phones trust? True".
+
 ## 8.3 Sweeps with fixed seeds — 2026-09-27
 - What: `metrics.sweep(base, parameter, values, repeats)` runs any `Scenario` field over a list of values, each value with several seeds (`base.seed`, `+1`, …), with and without the mesh. It gives one row per run. `metrics.means()` averages the repeats. Also tidied the test imports (removed an unused `geohash` import).
 - Ported from: new.
