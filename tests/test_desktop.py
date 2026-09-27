@@ -110,10 +110,10 @@ def test_the_self_check_passes_here():
 
 
 def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
-    """Like the first Mac build: app.py is there, but the alertmesh code is not
+    """Like the first Mac build: the page is there, but the alertmesh code is not
     (only the town-list folder alertmesh/data/ is)."""
     (tmp_path / "alertmesh" / "data").mkdir(parents=True)
-    for name in ("desktop.py", "app.py"):
+    for name in ("desktop.py", "warning_app.py"):
         (tmp_path / name).write_text((desktop.HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
     out = subprocess.run([sys.executable, str(tmp_path / "desktop.py"), "--check"], cwd=tmp_path,
                          capture_output=True, text=True, timeout=120)

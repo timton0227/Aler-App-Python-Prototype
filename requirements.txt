@@ -6,7 +6,7 @@
 cryptography>=46      # Ed25519 signing and verification (same curve as the Swift app)
 plotly>=6.3           # maps and charts in the notebook and the Streamlit page
 pandas>=2.3           # tables in the notebook
-streamlit>=1.51       # clickable live demo (app.py)
+streamlit>=1.51       # the pages (phone_app.py, warning_app.py)
 pytest>=8.4           # tests that check the Python port against the Swift reference
 ipykernel>=6.31       # lets VS Code run demo.ipynb
 nbconvert>=7.16       # runs the notebook top to bottom as a check

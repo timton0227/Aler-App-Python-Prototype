@@ -10,8 +10,8 @@ import pytest
 
 from alertmesh import geohash, wire
 from alertmesh.alert_store import AlertStore, IngestResult
-from alertmesh.console import (AREA_SIZE_NAMES, Action, AreaSize, Console, IssueError, Outcome, corners,
-                               outcome_text, toggle_area)
+from alertmesh.console import (AREA_SIZE_NAMES, Action, AreaSize, Console, IssueError, NetworkShare, Outcome,
+                               corners, outcome_text, toggle_area)
 from alertmesh.signer import Problem, WarningDraft
 from alertmesh.wire import HazardType, Severity
 
@@ -174,6 +174,86 @@ def test_outcome_text():
     assert outcome_text(Outcome(Action.CANCELLED, "Leave now", 0, False)) == (
         "Cancellation sent: Leave now — 0 devices connected over Bluetooth, not online: no relay")
     assert "1 device connected" in outcome_text(Outcome(Action.RESENT, "Leave now", 1, True))
+
+
+
+def test_outcome_text_says_whether_phone_apps_got_it():
+    assert outcome_text(Outcome(Action.ISSUED, "Leave now", 3, True, True)).endswith(
+        ", sent to phone apps on the local network")
+    assert outcome_text(Outcome(Action.ISSUED, "Leave now", 3, True, False)).endswith(
+        ", not sent to the local network")
+
+
+# --- The real-time copy for phone apps (NetworkShare; new, no Swift test) ---
+
+REAL_MS = 1_790_000_000_000
+
+
+@pytest.fixture
+def recorder():
+    return Recorder()
+
+
+def draft_saying(headline: str) -> WarningDraft:
+    d = draft()
+    d.headline = headline
+    return d
+
+
+def shared_console(recorder: Recorder):
+    """A console whose warnings also go to a phone app's store, on the real clock."""
+    sent = []
+    clock = {"now": REAL_MS}
+    share = NetworkShare(lambda payload: sent.append(payload) or True, now_ms=lambda: clock["now"])
+    console = make_console(recorder)
+    console._share = share
+    phone_store = AlertStore(clock=lambda: clock["now"])
+    return console, share, sent, clock, phone_store
+
+
+def test_share_signs_a_real_time_copy(recorder):
+    console, _, sent, _, phone_store = shared_console(recorder)
+    alert = console.issue(draft())
+    real = wire.decode(sent[0])
+    assert real.alert_id == alert.alert_id and real.headline == alert.headline
+    assert (real.issued_at, real.expires_at - real.issued_at) == (REAL_MS, alert.expires_at - alert.issued_at)
+    assert console.last_outcome.shared is True
+    # The town's copy is from 2023 and a phone app refuses it; the real copy is taken.
+    assert phone_store.ingest_payload(recorder.broadcast[0]) is IngestResult.REJECTED
+    assert phone_store.ingest_payload(sent[0]) is IngestResult.ACCEPTED
+
+
+def test_share_update_resend_and_cancel(recorder):
+    console, _, sent, clock, phone_store = shared_console(recorder)
+    alert = console.issue(draft())
+    phone_store.ingest_payload(sent[-1])
+    updated = console.update(alert, draft_saying("Now leave by the south road"))
+    assert phone_store.ingest_payload(sent[-1]) is IngestResult.ACCEPTED  # a later version, even in the same ms
+    assert [a.headline for a in phone_store.live_alerts()] == ["Now leave by the south road"]
+    console.resend(updated)
+    assert sent[-1] == sent[-2]  # the same bytes again
+    clock["now"] += 1000
+    console.cancel(updated)
+    assert phone_store.ingest_payload(sent[-1]) is IngestResult.ACCEPTED
+    assert phone_store.live_alerts() == []
+
+
+def test_withdraw_all_cancels_what_is_still_out(recorder):
+    console, share, sent, _, phone_store = shared_console(recorder)
+    for _ in range(2):
+        console.issue(draft())
+        phone_store.ingest_payload(sent[-1])
+    share.withdraw_all()
+    for payload in sent[2:]:
+        phone_store.ingest_payload(payload)
+    assert len(sent) == 4 and phone_store.live_alerts() == []
+
+
+def test_cancelling_something_never_shared_sends_nothing():
+    sent = []
+    share = NetworkShare(sent.append, now_ms=lambda: REAL_MS)
+    assert share(wire.AlertCancellation(bytes(16), REAL_MS, bytes(64))) is False
+    assert sent == []
 
 
 # --- Picking the area (map clicks in the app) ---

@@ -34,7 +34,7 @@ START_TIMEOUT_S = 60
 # `sys.frozen`; otherwise the files sit next to this one.
 FROZEN = getattr(sys, "frozen", False)
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-APP = HERE / "app.py"
+APP = HERE / "warning_app.py"
 LOG = Path(tempfile.gettempdir()) / "alert-mesh-server.log"
 # --check also writes its result here: a Windows window app has no text output to print to.
 CHECK_RESULT = Path(tempfile.gettempdir()) / "alert-mesh-check.txt"
@@ -131,7 +131,7 @@ def stop(server: subprocess.Popen) -> None:
 
 
 def check() -> int:
-    """Import everything app.py imports and read the town list, without a window.
+    """Import everything the page imports and read the town list, without a window.
     The build runs this on the finished app, so an app with a missing part fails
     the build instead of showing an error page to whoever opens it."""
     import ast
@@ -154,7 +154,7 @@ def check() -> int:
                 return _report(f"missing: {name} ({error})", 1)
     from alertmesh import places
 
-    return _report(f"ok: {len(set(names))} imports of app.py load; {len(places.towns())} towns from {places.DATA_FILE}", 0)
+    return _report(f"ok: {len(set(names))} imports of {APP.name} load; {len(places.towns())} towns from {places.DATA_FILE}", 0)
 
 
 def _report(message: str, code: int) -> int:

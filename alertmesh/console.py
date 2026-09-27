@@ -9,15 +9,20 @@ Ported from:
 
 Like the Swift issuer, the console does not know about Bluetooth or the internet
 itself: it is handed a `broadcast` function and a `publish` function. The Streamlit
-page wires those to the simulated mesh; the tests wire them to a recorder.
+page wires those to the simulated mesh; the tests wire them to a recorder. It can also
+be handed a `share` function, which the warning app wires to real phone apps on the
+local network (`NetworkShare`).
 
 This is free and unencumbered software released into the public domain.
 """
+import time
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 
 from alertmesh import geohash, wire
-from alertmesh.signer import OfficialAlertSigner, Problem, WarningDraft, new_alert_id, next_issued_at
+from alertmesh.signer import (
+    DURATION_RANGE, HOUR_MS, OfficialAlertSigner, Problem, WarningDraft, new_alert_id, next_issued_at,
+)
 from alertmesh.wire import AlertCancellation, OfficialAlert
 
 # --- Picking the area ---------------------------------------------------------
@@ -85,6 +90,9 @@ class Outcome:
     headline: str
     nearby_devices: int
     posted_online: bool
+    # Sent to real phone apps on the local network: True, False (it failed), or None
+    # when the console has no network share.
+    shared: bool | None = None
 
 
 class IssueError(Exception):
@@ -102,11 +110,14 @@ class Console:
       there is no internet (the warning still went out over Bluetooth).
     - `connected_peer_count()`: devices in Bluetooth range, for the outcome line.
     - `now_ms()`: the clock that stamps each version.
+    - `share(item) -> bool`: optional; also send the warning or cancellation to real
+      phone apps (see `NetworkShare`).
     """
 
     def __init__(self, broadcast, publish, connected_peer_count, now_ms,
-                 signer: OfficialAlertSigner | None = None, make_alert_id=new_alert_id):
+                 signer: OfficialAlertSigner | None = None, make_alert_id=new_alert_id, share=None):
         self._broadcast = broadcast
+        self._share = share
         self._publish = publish
         self._connected_peer_count = connected_peer_count
         self._now_ms = now_ms
@@ -152,7 +163,60 @@ class Console:
         payload = wire.encode(item)
         self._broadcast(payload)
         online = self._publish(payload, tuple(area), expires_at)
-        self.last_outcome = Outcome(action, headline, nearby, online)
+        shared = self._share(item) if self._share else None
+        self.last_outcome = Outcome(action, headline, nearby, online, shared)
+
+
+def _real_clock_ms() -> int:
+    return int(time.time() * 1000)
+
+
+class NetworkShare:
+    """Sends each console action to real phone apps too (the warning app's Wi-Fi link).
+
+    The simulated town keeps its own clock, which only moves when the operator lets
+    time pass, and it starts in 2023. Real phone apps check warnings against the real
+    clock, so each warning is signed again for them with the real time: the same event
+    ID, words, area and length. An update gets a later version, a cancellation cancels
+    the real copy, and "send again" repeats the same real bytes.
+
+    `send(payload) -> bool` puts the signed bytes on the network (`lan.Broadcaster.send`).
+    """
+
+    def __init__(self, send, now_ms=_real_clock_ms, signer: OfficialAlertSigner | None = None):
+        self._send = send
+        self._now_ms = now_ms
+        self._signer = signer or OfficialAlertSigner()
+        self._real: dict[bytes, OfficialAlert] = {}  # event ID -> the real copy last sent
+        self._simulated_version: dict[bytes, int] = {}  # event ID -> the town's version it copies
+
+    def __call__(self, item) -> bool:
+        if isinstance(item, AlertCancellation):
+            real = self._real.pop(item.alert_id, None)
+            self._simulated_version.pop(item.alert_id, None)
+            return real is not None and self._cancel(real)
+        held = self._real.get(item.alert_id)
+        if held is not None and self._simulated_version.get(item.alert_id) == item.issued_at:
+            return self._send(wire.encode(held))  # the same version again
+        hours = round((item.expires_at - item.issued_at) / HOUR_MS)
+        draft = WarningDraft(wire.HazardType(item.hazard_code), item.severity, item.headline, item.action_text,
+                             min(max(hours, DURATION_RANGE.start), DURATION_RANGE.stop - 1), list(item.area_cells))
+        real = self._signer.sign(draft, item.alert_id,
+                                 next_issued_at(self._now_ms(), held.issued_at if held else None))
+        self._real[item.alert_id] = real
+        self._simulated_version[item.alert_id] = item.issued_at
+        return self._send(wire.encode(real))
+
+    def withdraw_all(self) -> None:
+        """Cancel every real copy still out: the town they belonged to is gone."""
+        for real in self._real.values():
+            self._cancel(real)
+        self._real.clear()
+        self._simulated_version.clear()
+
+    def _cancel(self, real: OfficialAlert) -> bool:
+        cancellation = self._signer.cancel(real.alert_id, next_issued_at(self._now_ms(), real.issued_at))
+        return self._send(wire.encode(cancellation))
 
 
 # --- Words (IssueWarningView.Strings, English) --------------------------------
@@ -182,4 +246,8 @@ def outcome_text(outcome: Outcome) -> str:
     devices = "device" if outcome.nearby_devices == 1 else "devices"
     nearby = f"{outcome.nearby_devices} {devices} connected over Bluetooth"
     online = "handed to internet relays" if outcome.posted_online else "not online: no relay"
-    return f"{_ACTION_TEXT[outcome.action]}: {outcome.headline} — {nearby}, {online}"
+    text = f"{_ACTION_TEXT[outcome.action]}: {outcome.headline} — {nearby}, {online}"
+    if outcome.shared is not None:
+        text += (", sent to phone apps on the local network" if outcome.shared
+                 else ", not sent to the local network")
+    return text

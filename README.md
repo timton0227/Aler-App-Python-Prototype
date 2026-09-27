@@ -51,21 +51,21 @@ Windows and Linux too, but that has not been tested.
 |---|---|
 | Tests | `python3 -m pytest -q`, or the Testing panel in VS Code |
 | Story notebook | Open `demo.ipynb` in VS Code and choose **Run All** |
-| Live demo page | `streamlit run app.py`, or **Run and Debug → Streamlit demo** in VS Code |
+| Warning app (console, map, hub board) | `streamlit run warning_app.py`, or **Run and Debug → Warning app** in VS Code |
+| Phone app (Now, Report, Chat) | `streamlit run phone_app.py`, or **Run and Debug → Phone app** in VS Code |
 | Cross-check with the Swift app (Mac with Swift only) | `python3 tools/cross_check_swift.py` |
 
-### The live demo page
+### The warning app
 
-`streamlit run app.py` opens a page in the browser with one simulated town: about 300
+`streamlit run warning_app.py` opens a page in the browser with one simulated town: about 300
 phones around Katherine, a few with internet, and an evacuation centre in the middle.
 Time only moves when you press **+1**, **+5** or **+15** minutes in the sidebar, where
 you can also build a different town.
 
 | Tab | What it does |
 |---|---|
-| Warning console | Write a warning, pick its area, check the preview, and send it. It goes out over Bluetooth from the evacuation centre and to the internet. |
+| Warning console | Write a warning, pick its area, check the preview, and send it. In the simulated town it goes out over Bluetooth from the evacuation centre and to the internet; it also goes to real phone apps on this network. |
 | Map | Watch a warning spread: blue phones read it on the internet, red phones got it over Bluetooth. |
-| Phone view | One phone's warnings, why each was loud or quiet, and its notifications. Send a call for help, "I'm safe" or a hazard report from it. |
 | Hub board | The evacuation centre's wall display, in large type. |
 
 The map needs internet for its street background. Without internet the phones

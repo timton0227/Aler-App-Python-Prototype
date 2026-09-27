@@ -1,14 +1,20 @@
-"""Alert Mesh — live demo page.
+"""Alert Mesh — the warning app: the Bureau's side.
 
 Run from this folder:
 
-    streamlit run app.py
+    streamlit run warning_app.py
 
-or use Run and Debug -> "Streamlit demo" in VS Code.
+or use Run and Debug -> "Warning app" in VS Code.
 
-One simulated town lives in the page: about 300 phones, a few with internet, and an
-evacuation centre (a Mac) in the middle. The warning console sends into that town.
-Time only moves when you press a "+ minutes" button in the sidebar.
+Write and send official warnings (Warning console), watch one spread through a
+simulated town (Map), and see the evacuation centre's wall display (Hub board).
+
+Each warning goes two ways:
+- into the simulated town: about 300 phones, a few with internet, and an evacuation
+  centre (a Mac) in the middle. Time there only moves when you press a "+ minutes"
+  button in the sidebar;
+- to real phone apps (phone_app.py) on the same local network or computer, signed
+  again with the real time (see `console.NetworkShare`).
 
 This is free and unencumbered software released into the public domain.
 """
@@ -16,14 +22,14 @@ import html
 
 import streamlit as st
 
-from alertmesh import hub, labels, metrics, notifications, places, reports, viz, world
-from alertmesh.console import AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, outcome_text, toggle_area
-from alertmesh.proximity import Urgency
-from alertmesh.reports import ReportKind, ReportSeverity
+from alertmesh import hub, labels, lan, metrics, places, viz, world
+from alertmesh.console import (
+    AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, NetworkShare, outcome_text, toggle_area,
+)
 from alertmesh.signer import DURATION_RANGE, WarningDraft
 from alertmesh.wire import ACTION_TEXT_MAX_BYTES, HEADLINE_MAX_BYTES, HazardType, Severity
 
-st.set_page_config(page_title="Alert Mesh prototype", layout="wide")
+st.set_page_config(page_title="Alert Mesh warnings", layout="wide")
 
 state = st.session_state
 
@@ -34,8 +40,22 @@ MAP_CONFIG = {"scrollZoom": False}
 # --- The town -----------------------------------------------------------------
 
 
+@st.cache_resource
+def network() -> lan.Broadcaster:
+    """One sender for the whole program, shared by every browser tab."""
+    return lan.Broadcaster()
+
+
+@st.cache_resource
+def network_share() -> NetworkShare:
+    return NetworkShare(network().send)
+
+
 def new_town(scenario: metrics.Scenario) -> None:
-    state.world = world.build(scenario)
+    # A new town (also: a new browser tab, or reloading the page) cannot see the warnings
+    # the old one sent, so it could never cancel them: withdraw them from phone apps.
+    network_share().withdraw_all()
+    state.world = world.build(scenario, share=network_share())
     state.c_online = True
     state.c_editing = None
     state.c_confirm = False
@@ -57,7 +77,9 @@ def town_names() -> list[str]:
 def sidebar() -> None:
     s = w.scenario
     st.sidebar.title("Alert Mesh")
-    st.sidebar.caption("A simulated town. Nothing here uses real Bluetooth or the real internet.")
+    st.sidebar.caption("A simulated town, plus real phone apps on this network. Nothing here uses the real "
+                       "internet.")
+    st.sidebar.caption(f"Local network: {network().status}")
     st.sidebar.metric("Simulated time", labels.clock(w.mesh.now_ms), f"minute {w.minutes:g}", delta_color="off")
     st.sidebar.write("Let time pass, in minutes:")
     cols = st.sidebar.columns(3)
@@ -84,8 +106,8 @@ def sidebar() -> None:
 
 # --- Warning console (IssueWarningView) -----------------------------------------
 
-CONFIRM_BODY = ("It goes to nearby devices over Bluetooth and to phones in the area over the internet. "
-                "Phones treat it as an official warning.")
+CONFIRM_BODY = ("It goes to nearby devices over Bluetooth and to phones in the area over the internet, and "
+                "to phone apps on this network. Phones treat it as an official warning.")
 
 
 def draft_from_form() -> WarningDraft:
@@ -322,173 +344,6 @@ def map_tab() -> None:
                   args=(alert_id, minutes))
 
 
-# --- Phone view (AlertsView, CommunityReportsView, SOSView) ----------------------
-
-
-def phone_label(phone) -> str:
-    facts = ["internet" if phone.has_internet else "no internet"]
-    if phone.route:
-        facts.append("walking")
-    if not phone.bluetooth_on:
-        facts.append("Bluetooth off")
-    if not phone.location_on:
-        facts.append("location off")
-    name = phone.author.nickname if phone.author.nickname != phone.id else phone.id
-    return f"{name} ({', '.join(facts)})"
-
-
-def where_words(lat: float, lon: float) -> str:
-    rough = places.describe(lat, lon)
-    return places.text(rough) if rough else "Somewhere in Australia"
-
-
-def report_place(report) -> str:
-    return places.label(report.geohash) or report.geohash
-
-
-def active_sos(phone) -> bool:
-    """This phone's own call for help is out: its latest check-in is an SOS still live."""
-    last = phone.author.last_check_in
-    return bool(last and last.kind is ReportKind.SOS and last.expires_at > w.mesh.now_ms)
-
-
-def notification_card(content: notifications.Content, loud: bool) -> None:
-    body = "<br>".join(html.escape(line) for line in content.body.split("\n"))
-    style = "loud (time-sensitive)" if loud else "quiet"
-    st.markdown(hub.one_line(f"""
-<div style="border:1px solid #bbb;border-radius:12px;padding:8px 12px;background:#f6f6f6">
-  <div style="font-size:.8em;opacity:.6">Notification · {style}</div>
-  <div style="font-weight:700">{html.escape(content.title)}</div><div>{body}</div>
-</div>"""), unsafe_allow_html=True)
-
-
-def warning_card(item: world.PhoneWarning) -> None:
-    """One warning as the phone lists it: level colour, headline, how close, what to do."""
-    alert = item.alert
-    fill, on_fill = labels.SEVERITY_FILL[alert.severity], labels.SEVERITY_ON_FILL[alert.severity]
-    st.markdown(hub.one_line(f"""
-<div style="border:1px solid {fill};border-radius:10px;overflow:hidden;margin-bottom:6px">
-  <div style="background:{fill};color:{on_fill};padding:8px 10px;font-weight:700">{labels.title(alert)}</div>
-  <div style="padding:8px 10px">
-    <div style="font-size:1.15em;font-weight:700">{html.escape(alert.headline)}</div>
-    <div style="opacity:.75">{labels.proximity(item.now)} · {labels.until(alert.expires_at, w.mesh.now_ms)}</div>
-    <div style="margin-top:6px"><b>What to do</b><br>{html.escape(alert.action_text)}</div>
-  </div>
-</div>"""), unsafe_allow_html=True)
-    loud = item.now.urgency is Urgency.LOUD
-    st.markdown(f"**{'Loud' if loud else 'Quiet'} now:** {labels.REASON_TEXT[item.now.reason.kind]}.")
-    content = item.notification()
-    if content is None:
-        st.caption("No notification shown for this version.")
-    else:
-        notification_card(content, item.notified.urgency is Urgency.LOUD)
-
-
-def report_line(report, phone) -> None:
-    kind = labels.REPORT_KIND_NAMES[report.kind]
-    if report.kind is ReportKind.HAZARD:
-        kind += f" · {labels.hazard_name(report.hazard)} · {labels.REPORT_SEVERITY_NAMES.get(report.severity, '')}"
-    who = "You" if report.author_signing_key == phone.author.public_key else report.author_nickname
-    icon = {ReportKind.SOS: ":material/sos:", ReportKind.SAFE: ":material/check_circle:",
-            ReportKind.HAZARD: ":material/warning:"}[report.kind]
-    with st.container(border=True):
-        st.markdown(f"{icon} **{kind}** — {html.escape(who)}, {report_place(report)}")
-        if report.note:
-            st.caption(report.note)
-
-
-def send_sos(phone) -> None:
-    w.mesh.send_sos(phone, state.p_sos_note)
-
-
-def send_safe(phone) -> None:
-    w.mesh.send_safe(phone, "")
-
-
-def send_hazard(phone) -> None:
-    w.mesh.send_hazard(phone, state.p_hazard, state.p_how_bad, state.p_report_note)
-    state.p_report_note = ""
-
-
-def phone_tab() -> None:
-    st.caption("One phone in the town: what it shows, and why it was loud or quiet. Change its settings, "
-               "or send a call for help or a report from it; then let time pass to watch it spread.")
-    # Options are IDs, not phones: Streamlit copies its options, and a phone holds a private key.
-    ids = [p.id for p in w.phones()]
-    default = next(i for i, p in enumerate(w.phones()) if not p.has_internet)
-    phone_id = st.selectbox("Phone", ids, index=default, key="p_phone",
-                            format_func=lambda i: phone_label(w.mesh.phones[i]))
-    phone = w.mesh.phones[phone_id]
-
-    left, right = st.columns([2, 3], gap="large")
-    with left:
-        st.markdown(f"**Where:** {where_words(phone.lat, phone.lon)}")
-        name = st.text_input("Nickname (anyone can pick any name)", phone.author.nickname,
-                             max_chars=reports.NICKNAME_MAX_BYTES, key=f"p_name_{phone.id}")
-        phone.author.nickname = name.strip() or phone.id
-        st.toggle("Bluetooth", phone.bluetooth_on, key=f"p_bt_{phone.id}",
-                  on_change=lambda: w.set_phone(phone, bluetooth=state[f"p_bt_{phone.id}"]))
-        st.toggle("Location", phone.location_on, key=f"p_loc_{phone.id}",
-                  on_change=lambda: w.set_phone(phone, location=state[f"p_loc_{phone.id}"]))
-        st.toggle("Internet", phone.has_internet, key=f"p_net_{phone.id}",
-                  on_change=lambda: w.set_phone(phone, internet=state[f"p_net_{phone.id}"]))
-        towns = [None] + places_by_distance()[:40]
-        st.selectbox("Watch a place (for people who keep location off)", towns, key=f"p_watch_{phone.id}",
-                     format_func=lambda p: "No watched place" if p is None else p.name,
-                     on_change=lambda: w.set_phone(phone, watched=state[f"p_watch_{phone.id}"]))
-
-        st.subheader("Call for help")
-        if phone.geohash() is None:
-            st.caption("Turn on location first, so people know where to come.")
-        elif active_sos(phone):
-            st.warning("**Your call for help is out.** It keeps travelling between phones for six hours.")
-            with st.container(horizontal=True):
-                st.button("I'm safe now", type="primary", on_click=send_safe, args=(phone,))
-                st.button("Send it again", on_click=send_sos, args=(phone,))
-        else:
-            st.caption("This is not 000. If you have any phone signal at all, call emergency services first.")
-            st.text_input("Note", placeholder="who is with you, what is wrong (optional)",
-                          max_chars=reports.NOTE_MAX_BYTES, key="p_sos_note")
-            st.button("Send call for help", type="primary", on_click=send_sos, args=(phone,))
-
-        st.subheader("Report a hazard")
-        if phone.geohash() is None:
-            st.caption("A report needs a place. Turn on location to send one.")
-        else:
-            st.selectbox("Type", list(HazardType), format_func=labels.hazard_name, key="p_hazard")
-            st.radio("How bad", list(ReportSeverity), format_func=labels.REPORT_SEVERITY_NAMES.get,
-                     horizontal=True, key="p_how_bad")
-            st.text_input("What's happening here?", max_chars=reports.NOTE_MAX_BYTES, key="p_report_note")
-            st.button("Send report", on_click=send_hazard, args=(phone,))
-
-    with right:
-        st.subheader("Warnings")
-        items = w.warnings_on(phone)
-        if not items:
-            st.markdown("**No current warnings**")
-            st.caption("Keep Bluetooth on. A warning reaches this phone from the internet or from any nearby "
-                       "phone that has it, even with no signal.")
-        for item in items:
-            warning_card(item)
-
-        st.subheader("Community reports")
-        st.caption("What people nearby are reporting. These are not official warnings and nobody has checked them.")
-        own = [r for r in phone.report_store.live_reports()]
-        if not own:
-            st.caption("No reports nearby.")
-        for report in own:
-            report_line(report, phone)
-
-        told = phone.report_notifications
-        if told:
-            st.subheader("Calls for help it was told about")
-            for n in reversed(told[-5:]):
-                content = notifications.sos_content(
-                    reports.CommunityReport(n.kind, b"", n.geohash, 0, None, n.note, b"", n.nickname, 0, 0, b""),
-                    n.urgency)
-                notification_card(content, n.urgency is Urgency.LOUD)
-
-
 # --- Hub board (HubBoardView) -------------------------------------------------------
 
 
@@ -502,12 +357,10 @@ def hub_tab() -> None:
 # --- Page -----------------------------------------------------------------------
 
 sidebar()
-console, spread, phone_view, board = st.tabs(["Warning console", "Map", "Phone view", "Hub board"])
+console, spread, board = st.tabs(["Warning console", "Map", "Hub board"])
 with console:
     console_tab()
 with spread:
     map_tab()
-with phone_view:
-    phone_tab()
 with board:
     hub_tab()

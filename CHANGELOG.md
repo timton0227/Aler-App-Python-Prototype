@@ -24,6 +24,26 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.7 Warning app — 2026-09-27
+- What:
+  - `app.py` is now `warning_app.py`, with three tabs (Warning console, Map, Hub board); the Phone view tab gave way to the phone app. `tests/test_app.py` is now `tests/test_warning_app.py`.
+  - Each warning, update, cancellation and "send again" also goes to real phone apps on the local network, through `console.NetworkShare` (`Console` has a new optional `share`, and `world.build` passes it on). The line under the Send button says whether that worked.
+  - Building a new town, opening a second browser tab or reloading the page withdraws the warnings sent earlier, since the new town could not cancel them.
+  - `desktop.py`, the PyInstaller recipe, VS Code ("Warning app") and the README point at `warning_app.py`.
+  - The tests use their own network port (`tests/conftest.py`, `ALERTMESH_LAN_PORT`), so a phone app running on the same computer never sees test warnings.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift` and `AlertMesh/AlertMesh/Views/IssueWarningView.swift` (unchanged console); the network copy is new.
+- Differences from Swift: the simulated town runs on its own clock, which starts in 2023 and only moves when the operator lets time pass. Real phone apps check the real clock. So the copy sent to phone apps is signed again with the real time: same event ID, words, area and length. The Mac issuer signs once, with the real time.
+- Verified by:
+  - `python3 -m pytest tests/test_warning_app.py tests/test_console.py` — 13 + 20 passed. They cover:
+    - a sent warning reaches a listener with the pinned signature and today's time;
+    - a phone store refuses the town's 2023 copy and takes the real one;
+    - update, "send again" (same bytes) and cancel reach the phone store;
+    - a new town withdraws what the old one sent.
+  - End to end on this Mac, in a browser, with the warning app and the phone app running side by side:
+    - a warning sent from the console appeared on the phone app as "You are in this area", loud, 30 s later (the phone app had started listening just after the first send, so it came with the repeat), and the page updated by itself;
+    - "Cancel warning" cleared it from the phone app within 3 s.
+  - Found on the way: reloading the warning page used to leave its warnings on phone apps with no way to cancel them; fixed as above.
+
 ## 13.6 Phone app — 2026-09-27
 - What:
   - `alertmesh/phone.py`, the phone app's engine:

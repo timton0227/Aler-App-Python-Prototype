@@ -20,6 +20,7 @@ regardless. Phone apps get both copies; the store keeps one.
 
 This is free and unencumbered software released into the public domain.
 """
+import os
 import socket
 import struct
 import threading
@@ -29,10 +30,14 @@ from alertmesh import wire
 
 # An "administratively scoped" group: for use inside one organisation's network only.
 GROUP = "239.255.77.7"
-PORT = 47147
+PORT = 47147  # ALERTMESH_LAN_PORT overrides it (the tests use their own)
 MAGIC = b"AMW1"  # Alert Mesh warning, format 1
 MAX_PACKET_BYTES = 1024
 REPEAT_S = 30.0
+
+
+def configured_port() -> int:
+    return int(os.environ.get("ALERTMESH_LAN_PORT", PORT))
 
 
 def packet(payload: bytes) -> bytes:
@@ -62,8 +67,8 @@ class Broadcaster:
     """The warning app's side. `send()` sends at once, then again every `repeat_s`
     until the warning ends. Times are milliseconds since 1970."""
 
-    def __init__(self, group: str = GROUP, port: int = PORT, repeat_s: float = REPEAT_S, clock=time.time):
-        self.address = (group, port)
+    def __init__(self, group: str = GROUP, port: int | None = None, repeat_s: float = REPEAT_S, clock=time.time):
+        self.address = (group, port or configured_port())
         self.repeat_s = repeat_s
         self.clock = clock
         self.status = "on"
@@ -124,7 +129,8 @@ class Listener:
     """The phone app's side: hands every warning packet heard to `on_payload`.
     Several phone apps on one computer can listen at once."""
 
-    def __init__(self, on_payload, group: str = GROUP, port: int = PORT):
+    def __init__(self, on_payload, group: str = GROUP, port: int | None = None):
+        port = port or configured_port()
         self.on_payload = on_payload
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

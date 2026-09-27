@@ -174,8 +174,9 @@ class PhoneWarning:
         return notifications.alert_content(self.alert, self.notified.urgency, where)
 
 
-def build(scenario: metrics.Scenario = DEFAULT_SCENARIO) -> World:
-    """A fresh town: the scenario's phones, plus the evacuation centre at the middle."""
+def build(scenario: metrics.Scenario = DEFAULT_SCENARIO, share=None) -> World:
+    """A fresh town: the scenario's phones, plus the evacuation centre at the middle.
+    `share`: optional, also send each warning to real phone apps (`console.NetworkShare`)."""
     mesh, _ = metrics.build(scenario)
     place = places.find(scenario.town)
     hub = mesh.add_phone(HUB_ID, place.latitude, place.longitude, has_internet=True, nickname=HUB_NICKNAME)
@@ -185,5 +186,6 @@ def build(scenario: metrics.Scenario = DEFAULT_SCENARIO) -> World:
         publish=world._publish,
         connected_peer_count=lambda: len(mesh.neighbours(hub)),
         now_ms=mesh.clock,
+        share=share,
     )
     return world

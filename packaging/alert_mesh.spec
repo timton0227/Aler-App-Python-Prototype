@@ -19,9 +19,9 @@ if sys.platform == "darwin":
 else:
     icon = SWIFT_ICONS / "icon_256x256.png"          # PyInstaller turns it into .ico (needs Pillow)
 
-datas = [(str(ROOT / "app.py"), "."), (str(SWIFT_PLACES), "alertmesh/data")]
+datas = [(str(ROOT / "warning_app.py"), "."), (str(SWIFT_PLACES), "alertmesh/data")]
 binaries = []
-# Streamlit runs app.py itself, so PyInstaller cannot see what app.py imports: list
+# Streamlit runs the page itself, so PyInstaller cannot see what it imports: list
 # every alertmesh module from the folder. (collect_submodules("alertmesh") finds nothing
 # here, because it runs where alertmesh cannot be imported, and the app then fails.)
 hiddenimports = ["alertmesh"] + sorted(
