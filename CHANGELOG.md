@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 0.3 VS Code setup, package and smoke test — 2026-09-27
+- What: `.vscode/settings.json` (pytest in the Testing panel), `.vscode/launch.json` ("Streamlit demo" and "Run all tests"), `pytest.ini`, empty `alertmesh` package, `tests/test_smoke.py`, and `tools/update_status.py`, which recounts the Status table in `PROGRESS.md` so it never drifts.
+- Ported from: new.
+- Differences from Swift: not applicable.
+- Verified by: `python3 -m pytest -q` — 1 passed. `python3 tools/update_status.py` — "3/56 steps done. Next step: 1.1".
+
 ## 0.2 Progress checklist and changelog — 2026-09-27
 - What: `PROGRESS.md` lists all 56 steps, each with its Swift source and verify command. This file records each step.
 - Ported from: new.

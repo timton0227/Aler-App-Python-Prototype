@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 
 | Phase | Done | Total |
 |---|---|---|
-| 0 Setup | 2 | 3 |
+| 0 Setup | 3 | 3 |
 | 1 Geohash | 0 | 4 |
 | 2 Official alert format | 0 | 10 |
 | 3 Community reports | 0 | 4 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **2** | **56** |
+| **All** | **3** | **56** |
 
-**Next step:** 0.3
+**Next step:** 1.1
 
 ---
 
@@ -39,8 +39,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 - [x] 0.2 `PROGRESS.md` (this file) and `CHANGELOG.md`
       Done when: every step below is listed with its Swift source and verify command
       Verify: read this file
-- [ ] 0.3 `.vscode/` settings and launch file, empty `alertmesh` package, smoke test
-      Done when: VS Code finds the tests, and the package imports
+- [x] 0.3 `.vscode/` settings and launch file, empty `alertmesh` package, smoke test, `tools/update_status.py`
+      Done when: VS Code finds the tests, the package imports, and the Status table recounts itself
       Verify: `python3 -m pytest -q` shows 1 passed
 
 ## Phase 1 — Geohash
@@ -229,6 +229,6 @@ Verify each step: `streamlit run app.py`, then check the tab in a browser.
 2. Write the Python code. Port the matching Swift test cases.
 3. Run the step's **Verify** command. It must pass. Also run `python3 -m pytest -q` so
    nothing else broke.
-4. Tick the box `[x]`, update the Status table and **Next step**, and add a
-   [`CHANGELOG.md`](CHANGELOG.md) entry.
+4. Tick the box `[x]`, then run `python3 tools/update_status.py` to recount the Status
+   table and **Next step**. Add a [`CHANGELOG.md`](CHANGELOG.md) entry.
 5. Commit only that step's files, with a message that explains why.
