@@ -24,6 +24,24 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.9 README: the two apps and the two-laptop check — 2026-09-27
+- What: the README now covers:
+  - the two apps, and what is and is not covered (no iPhone compatibility);
+  - a "Phone app" section: picking a town, where the profile is kept, the three tabs, and a table of what travels over Bluetooth and what over the local network;
+  - "Bluetooth and network permission (Mac)": run from VS Code or the packaged app, not Terminal, and allow Bluetooth and Local Network;
+  - the Windows firewall;
+  - a six-step "Two-laptop check";
+  - desktop apps for both, with sizes and how to open each on another computer.
+  - `tools/ble_probe.py` and `phone_app.py` now say to run from VS Code, not Terminal.
+- Ported from: new.
+- Differences from Swift: not applicable.
+- Verified by: read against what was run in steps 13.1 to 13.8:
+  - the Terminal and iTerm Info.plists have no Bluetooth usage description and VS Code's does;
+  - the Bluetooth status wording is the page's own;
+  - the app sizes are from the 13.8 build;
+  - the 30 s repeat is what brought a warning to a phone app started late.
+  - The two-laptop steps themselves have not been run (step 13.4).
+
 ## 13.8 Two desktop apps — 2026-09-27
 - What:
   - `desktop.py` knows two pages (`PAGES`: phone and warning), takes `--app`, and can be the phone app's Bluetooth process (`--bluetooth`, used by the packaged app). Its self-check also imports the modules a page loads only later (Bluetooth and network libraries).

@@ -14,9 +14,10 @@ Run it on two laptops a few metres apart: each should list the other under "Aler
 laptops", and each writes a hello to the other. One laptop alone only checks that
 advertising starts and that scanning finds something.
 
-The first run asks for Bluetooth permission for the program that runs Python
-(Terminal, VS Code, ...). If it is refused, allow it in System Settings > Privacy &
-Security > Bluetooth, then run again.
+On a Mac, run it from VS Code's terminal: macOS stops any program that uses Bluetooth
+unless the app running it says why, and Terminal and iTerm do not. The first run asks
+for Bluetooth permission for VS Code. If it is refused, allow it in System Settings >
+Privacy & Security > Bluetooth, then run again.
 
 This is free and unencumbered software released into the public domain.
 """

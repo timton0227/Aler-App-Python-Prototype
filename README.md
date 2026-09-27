@@ -1,8 +1,13 @@
 # Alert Mesh — Python prototype
 
-A computer-only version of the core ideas in the Alert Mesh iPhone app, for the
-competition demo. It runs in VS Code (or Jupyter) on any laptop. It does not run on a
-phone, and it does not use real Bluetooth.
+A computer-only version of the Alert Mesh iPhone app, for the competition demo. It
+runs on laptops, in VS Code or as two double-click apps:
+
+- the **phone app**, like the iPhone app: text people nearby, read official warnings,
+  report hazards and call for help. Laptops pass messages to each other over **real
+  Bluetooth**, hopping through laptops in between;
+- the **warning app**, the Bureau's side: write and send official warnings, watch one
+  spread through a simulated town, and show the evacuation centre's wall display.
 
 The Swift app in `../alert-mesh/` is the **reference**. This folder never changes it.
 Every Python module names the Swift file it was ported from, and every step of the port
@@ -17,8 +22,13 @@ is listed in [`PROGRESS.md`](PROGRESS.md) and recorded in [`CHANGELOG.md`](CHANG
 - A simulation of phones on a map passing warnings to each other over Bluetooth range,
   up to 7 hops, including phones that carry a warning as they move.
 - Numbers for judges: how many people get warned, and how fast, with and without the mesh.
+- Chat: a Nearby conversation everyone in range reads, and private conversations only
+  the other person can open, laptop to laptop over Bluetooth.
+- Warnings from the warning app reach phone apps over the local network (Wi-Fi), and
+  phone apps pass them on over Bluetooth to laptops without a network.
 
-Not covered: real Bluetooth, Tor, internet relays (Nostr), private chat, voice, images.
+Not covered: talking to real iPhones (the laptops' Bluetooth format is their own), Tor,
+internet relays (Nostr), voice, images, read receipts.
 
 ## Set up (once)
 
@@ -43,7 +53,7 @@ Not covered: real Bluetooth, Tor, internet relays (Nostr), private chat, voice, 
    notebook, the Testing panel and Run and Debug all use it.
 
 Tested on macOS with Python 3.13 and 3.14, from a fresh clone. It should work on
-Windows and Linux too, but that has not been tested.
+Windows and Linux too, but that has not been tested (on Linux, Bluetooth needs BlueZ).
 
 ## Run
 
@@ -71,11 +81,74 @@ you can also build a different town.
 The map needs internet for its street background. Without internet the phones
 still show, on a blank background.
 
-## Desktop app (no browser)
+The simulated town keeps its own clock, which starts in 2023, so the copy sent to real
+phone apps is signed again with the real time. Building a new town, opening a second
+browser tab or reloading the page withdraws the warnings sent before: the new town
+could not cancel them.
 
-The live demo page can also be a double-click app: one window, no browser, and no
-Python needed on the computer that opens it. `desktop.py` shows the page in its own
-window; `PyInstaller` bundles everything into one app.
+### The phone app
+
+`streamlit run phone_app.py` (from VS Code's terminal, see below) opens the phone app.
+Pick your town in the sidebar first: a laptop has no GPS, so the town stands in for
+where you are. It decides which warnings are for you, and a call for help says you are
+there. Your nickname, town and keys are kept in `~/Library/Application Support/Alert Mesh/`
+(Mac) or `%APPDATA%\Alert Mesh` (Windows); messages are not kept.
+
+| Tab | What it does |
+|---|---|
+| Now | A **Call for help** button (then **I'm safe now**). People asking for help, then official warnings, loud when they cover your town. |
+| Report | Tell people nearby about a hazard, and see what they report. Reports are not official warnings. |
+| Chat | **Nearby**, which everyone in range reads, and private conversations. **People in range** lists the laptops heard recently; **Message** opens a private conversation. |
+
+What travels how:
+
+| | Between laptops over Bluetooth | From the warning app over the local network |
+|---|---|---|
+| Nearby and private messages | yes, up to 7 hops | no |
+| Calls for help, "I'm safe", hazard reports | yes, up to 7 hops | no |
+| Official warnings | yes, passed on by any laptop that has one | yes, repeated every 30 s |
+
+Bluetooth reaches about 10 m indoors. One computer cannot talk to itself over
+Bluetooth, so trying the chat needs two laptops (see "Two-laptop check").
+
+### Bluetooth and network permission (Mac)
+
+macOS stops any program that uses Bluetooth unless the app running it says why. VS
+Code says why; **Terminal and iTerm do not**. So run the phone app from VS Code's
+terminal or its Run and Debug panel, or use the packaged app. If it is run from
+Terminal, the phone app still opens, but its sidebar says "Bluetooth: off" and why.
+
+The first time, macOS asks to allow Bluetooth, and to find devices on the local
+network. Allow both. Until the local network is allowed, macOS
+quietly drops warnings between computers; on one computer they always arrive. To
+change your mind later: **System Settings → Privacy & Security → Bluetooth** or
+**Local Network**.
+
+On Windows, allow the apps through Windows Firewall on private networks when asked.
+
+### Two-laptop check
+
+Not yet done: it needs two computers. On each laptop, open the phone app (the packaged
+**Alert Mesh**, or `python3 desktop.py` from VS Code) and pick a town. Keep them within a
+few metres. On one laptop, also open the warning app.
+
+1. Within about 30 s, each phone app lists the other under **Chat → People in range**,
+   and the sidebar says "Bluetooth: on, 1 laptop in range".
+2. Write in **Nearby** on each laptop: the message appears on the other.
+3. Press **Message** and write privately, both ways.
+4. Send a call for help from one laptop: it appears first on the other laptop's **Now**.
+5. Send a warning from the warning app: both phone apps show it.
+6. Turn Wi-Fi off on laptop 2 and send another warning: laptop 2 still gets it, over
+   Bluetooth from laptop 1.
+
+If step 1 fails, try `python3 tools/ble_probe.py` on both laptops (from VS Code's
+terminal): each should list the other under "Alert Mesh laptops".
+
+## Desktop apps (no browser)
+
+Both apps can also be double-click apps: one window each, no browser, and no Python
+needed on the computer that opens them. `desktop.py` shows a page in its own window;
+`PyInstaller` bundles everything.
 
 ### Build it
 
@@ -85,8 +158,8 @@ icon from it. The first build downloads the build tools into a separate environm
 
 | Computer | Command, from this folder | Result |
 |---|---|---|
-| Mac (Apple Silicon) | `packaging/build_mac.sh` | `dist/Alert Mesh.app` (about 290 MB) and `dist/Alert-Mesh-mac.zip` (about 110 MB) |
-| Windows | `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1` | `dist\Alert Mesh\Alert Mesh.exe` and `dist\Alert-Mesh-windows.zip` |
+| Mac (Apple Silicon) | `packaging/build_mac.sh` | `dist/Alert Mesh.app`, the phone app (about 250 MB; zip about 100 MB), and `dist/Alert Mesh Warnings.app` (about 290 MB; zip about 110 MB) |
+| Windows | `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1` | `dist\Alert Mesh\Alert Mesh.exe` and `dist\Alert Mesh Warnings\Alert Mesh Warnings.exe`, and a zip of each |
 
 The Mac build was tested with Python 3.14 from python.org. To choose a Python for the
 first build, name it with `PYTHON`, for example:
@@ -97,24 +170,28 @@ PYTHON=/Library/Frameworks/Python.framework/Versions/3.14/bin/python3 packaging/
 
 The Windows script has **not been run yet** (see step 12.4 in `PROGRESS.md`).
 
-To try the window without building, install the build tools
+To try the windows without building, install the build tools
 (`python3 -m pip install -r packaging/requirements-build.txt`) and run
-`python3 desktop.py`, or **Run and Debug → Desktop window** in VS Code.
+`python3 desktop.py` (phone app) or `python3 desktop.py --app warning`, or
+**Run and Debug → Desktop window: phone app / warning app** in VS Code.
 
 ### Open it on another computer
 
-- **Mac:** copy `Alert-Mesh-mac.zip` over, double-click it to unzip, and open
-  **Alert Mesh**. It runs on Apple Silicon Macs (M1 or later); it was tested on macOS 15.
+- **Mac:** copy `Alert-Mesh-mac.zip` (the phone app) and, where warnings are sent from,
+  `Alert-Mesh-Warnings-mac.zip` over, double-click to unzip, and open the app. They run
+  on Apple Silicon Macs (M1 or later); they were tested on macOS 15.
   The app is not signed by a registered Apple developer, so a copy that arrived by
   download, AirDrop or e-mail is blocked the first time ("cannot be verified"). Click
   **Done**, then open **System Settings → Privacy & Security**, scroll down and click
   **Open Anyway**. This is needed once per computer. A copy from a USB stick usually
   opens straight away.
-- **Windows:** unzip the whole folder and open **Alert Mesh.exe** inside it (it needs
-  the other files in that folder). If Windows shows "Windows protected your PC",
+- **Windows:** unzip the whole folder and open **Alert Mesh.exe** (or
+  **Alert Mesh Warnings.exe**) inside it (it needs the other files in that folder). If Windows shows "Windows protected your PC",
   click **More info → Run anyway**.
+- Allow Bluetooth and the local network when asked (see "Bluetooth and network permission").
 - The map's street background needs internet; everything else works offline.
-- The page is only reachable from the computer running the app, not from the network.
+- Each app's page is only reachable from the computer running it, not from the network.
+  What goes over the network is the signed warnings, and over Bluetooth the messages.
 - If the window says the page did not start, the details are in
   `alert-mesh-server.log` in the computer's temporary folder (on a Mac: `open $TMPDIR`).
 

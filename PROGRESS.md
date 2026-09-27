@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 7 | 9 |
-| **All** | **69** | **72** |
+| 13 Two apps: phone app and warning app | 8 | 9 |
+| **All** | **70** | **72** |
 
 **Next step:** 12.4
 
@@ -327,7 +327,7 @@ to laptops, not to iPhones.
 - [x] 13.8 Two desktop apps
       Done when: `packaging/build_mac.sh` builds and checks `Alert Mesh.app` and `Alert Mesh Warnings.app`; a warning sent from one reaches the other on the same Mac
       Verify: `packaging/build_mac.sh`, then open both apps
-- [ ] 13.9 README: the two apps and the two-laptop check
+- [x] 13.9 README: the two apps and the two-laptop check
       Done when: the README says how to run both apps, what needs Wi-Fi and what needs Bluetooth, and how to test with two laptops
       Verify: read it against what was actually run
 

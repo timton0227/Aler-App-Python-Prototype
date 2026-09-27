@@ -1,6 +1,7 @@
 """Alert Mesh — the phone app, on a laptop.
 
-Run from this folder, from VS Code's terminal (see README, "Bluetooth permission"):
+Run from this folder, from VS Code's terminal (see README, "Bluetooth and network
+permission"):
 
     streamlit run phone_app.py
 
