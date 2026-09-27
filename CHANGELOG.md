@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 5.1 Warning store: versions — 2026-09-27
+- What: new module `alertmesh/alert_store.py` with `IngestResult` and `AlertStore` (`ingest`, `ingest_payload`, `live_alerts`, `sync_candidates`). Keeps one version per event: newer replaces, equal is a duplicate, older is rejected. Checks the signature first; a store with no key accepts nothing. `live_alerts()` sorts most severe first, then newest.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`ingest`, `ingestAlertLocked` version rules, `liveAlerts`, `syncCandidates`, `ordered`).
+- Differences from Swift: (1) Swift stores the whole mesh packet (`BitchatPacket`); Python stores the warning's wire payload, because the simulation has no packet header. (2) No saving to disk, no thread queue, no Combine publishers: the simulation runs in one process and memory only. (3) Time rules, cancellations and the 500 cap come in steps 5.2–5.4.
+- Verified by: `python3 -m pytest tests/test_alert_store.py -k versions` — 6 passed. Ports `alertSignedByAnotherKeyIsRejectedAndNotStored`, `storeWithoutAPublisherKeyAcceptsNothing`, `ingestStoresAndDeduplicates`, `sameVersionFromDifferentPacketIsDuplicate`, `newerVersionOfSameEventReplacesStoredAlert`, `olderVersionArrivingLaterIsRejected`. One extra test: malformed bytes are rejected.
+
 ## 4.3 No location and the remembered area — 2026-09-27
 - What: `proximity.decide()` gains `remembered_cell` and the unknown-location rule. With no location and no watched place, a warning is quiet with the reason "location unknown", never silent. With no live location, a warning inside or covering the remembered rough area counts as inside, so Watch and Act or higher is loud.
 - Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (the `rememberedCell` and `locationUnknown` branches of `decide`).

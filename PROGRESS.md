@@ -18,16 +18,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 2 Official alert format | 10 | 10 |
 | 3 Community reports | 4 | 4 |
 | 4 Proximity | 3 | 3 |
-| 5 Stores | 0 | 5 |
+| 5 Stores | 1 | 5 |
 | 6 Places | 0 | 2 |
 | 7 Mesh simulation | 0 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **24** | **56** |
+| **All** | **25** | **56** |
 
-**Next step:** 5.1
+**Next step:** 5.2
 
 ---
 
@@ -135,7 +135,7 @@ tests: `AlertMeshTests/AlertMesh/Services/AlertProximityTests.swift`
 Swift: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift`, `AlertMesh/AlertMesh/Services/CommunityReportStore.swift` ·
 tests: `OfficialAlertStoreTests.swift`, `CommunityReportStoreTests.swift`
 
-- [ ] 5.1 Alert store: accept, duplicate, reject by `issuedAt`
+- [x] 5.1 Alert store: accept, duplicate, reject by `issuedAt`
       Done when: newer replaces, equal is a duplicate, older is rejected; bad signature rejected
       Verify: `python3 -m pytest tests/test_alert_store.py -k versions`
 - [ ] 5.2 Time rules
