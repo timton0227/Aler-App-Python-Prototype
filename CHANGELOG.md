@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.1 Simulated phone — 2026-09-27
+- What: new module `alertmesh/mesh_sim.py` with `Phone` and the helpers `offset_m()` and `flat_distance_m()`. Each phone has its own `AlertStore`, `ReportStore` and `ReportAuthor`. It has internet, Bluetooth and location switches, watched places (`bookmarks`), and a route it drives along at a set speed. It gives its own 8-character area code (None with location off) and keeps its last 4-character area as the remembered area. Also defines `OFFICIAL_ALERT_TYPE` (0x2D) and `COMMUNITY_REPORT_TYPE` (0x2E).
+- Ported from: new. The remembered area follows `AlertMesh/AlertMesh/Services/RememberedArea.swift` (last precision-4 cell, kept while location is off).
+- Differences from the plan: the Bluetooth range is set once for the whole mesh (step 7.2), not per phone. All simulated phones have the same radio, and one range keeps the neighbour search simple.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k phone` — 4 passed. A first draft asserted an 8-character Katherine code written from memory; it failed and now checks against `geohash.encode` and the `qvqj9w` prefix verified in step 6.2.
+
 ## 6.3 Rough place in words — 2026-09-27
 - What: `places.describe()`, `places.label()`, `places.text()`, `places.rounded_km()`, `places.distance_km()`, `places.compass_point()`, the result types `Near` and `Away`, and the limits (15 km town, 5 km place, factor 2, 300 km, 5-character minimum).
 - Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`describe`, `label(forGeohash:)`, `roundedKm`, `distanceKm`, `compassPoint`, `Limits`, and the English defaults in `Strings.text`).
