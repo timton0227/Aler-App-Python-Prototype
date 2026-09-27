@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 4.2 Loud-or-quiet decision with location and watched places — 2026-09-27
+- What: `proximity.Urgency`, `ReasonKind`, `Reason`, `Decision`, and `decide(severity, area_cells, device_geohash, bookmarks)`.
+- Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (`AlertUrgency`, `AlertProximityReason`, `AlertProximityDecision`, `AlertProximity.decide`).
+- Differences from Swift: (1) Swift's reason is an enum with attached values; Python uses `Reason(kind, cell, bookmark)`, and `ReasonKind` values are the Swift case names. (2) This step leaves out the no-location rule and the remembered area; step 4.3 adds both. Until then, a phone with no location and no watched place gets "quiet, outside the area".
+- Verified by: `python3 -m pytest tests/test_proximity.py -k decide` — 13 passed. Ports all cases of `insideMapsBySeverity`, `adjacentIsAlwaysQuiet`, `elsewhereIsQuietWhenLocationIsKnown`, plus `bookmarkInsideAreaIsLoudWithoutAnyDeviceLocation`, `bookmarkElsewhereWithNoDeviceLocationIsNotLocationUnknown`, `deviceLocationOutranksAWeakerBookmarkMatchAndViceVersa`. One extra test covers a watched place next to the area.
+
 ## 4.1 Proximity match for one place — 2026-09-27
 - What: new module `alertmesh/proximity.py` with `Match` (ELSEWHERE, ADJACENT, INSIDE), `MINIMUM_PRECISION_FOR_ADJACENCY` (5) and `match(place, area_cells)`.
 - Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (`AlertProximityMatch`, `AlertProximity.match(place:areaCells:)` and its private single-cell `match`).
