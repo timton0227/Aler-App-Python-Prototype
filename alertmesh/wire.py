@@ -230,3 +230,22 @@ def signing_bytes_of(alert: OfficialAlert) -> bytes:
         alert.alert_id, alert.hazard_code, alert.severity, alert.area_cells,
         alert.headline, alert.action_text, alert.issued_at, alert.expires_at,
     )
+
+
+# --- Encode -------------------------------------------------------------------
+
+
+def encode_alert(alert: OfficialAlert) -> bytes:
+    """The warning as wire bytes, fields in the same order as the Swift encoder."""
+    out = put_tlv(TLVType.KIND, bytes([WireKind.ALERT]))
+    out += put_tlv(TLVType.ALERT_ID, alert.alert_id)
+    for cell in alert.area_cells:
+        out += put_tlv(TLVType.AREA_GEOHASH, cell.encode())
+    out += put_tlv(TLVType.HEADLINE, alert.headline.encode())
+    out += put_tlv(TLVType.ACTION_TEXT, alert.action_text.encode())
+    out += put_tlv(TLVType.ISSUED_AT, _u64(alert.issued_at))
+    out += put_tlv(TLVType.EXPIRES_AT, _u64(alert.expires_at))
+    out += put_tlv(TLVType.HAZARD_TYPE, bytes([alert.hazard_code]))
+    out += put_tlv(TLVType.SEVERITY, bytes([int(alert.severity)]))
+    out += put_tlv(TLVType.SIGNATURE, alert.signature)
+    return out

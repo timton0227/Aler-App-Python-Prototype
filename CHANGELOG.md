@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.5 Encode a warning — 2026-09-27
+- What: `wire.encode_alert()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.encode`, `.alert` case).
+- Differences from Swift: none. Same field order.
+- Verified by: `python3 -m pytest tests/test_wire.py -k frozen_vector_prefix` — 3 passed. (1) Signed in Python with the dev key: 215 bytes, first 151 equal the frozen vector (the spec's rule). (2) With the Swift-made signature: all 215 bytes equal. (3) First 7 bytes frozen (`encodedPrefixIsFrozen`).
+
 ## 2.4 Warning signing bytes — 2026-09-27
 - What: `wire.alert_signing_bytes()`, `wire.signing_bytes_of()`, and the private helpers `_context`, `_len16`, `_u64`. The tests now hold the frozen alert and cancellation vectors, copied from `AlertPacketsTests.swift`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`OfficialAlertPacket.signingBytes`) and `AlertMesh/Protocols/BoardPackets.swift` (`BoardWireEncoding.appendContext`, `appendLengthPrefixed`, `appendUInt64`).

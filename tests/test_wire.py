@@ -179,3 +179,36 @@ def test_signing_bytes_are_what_the_swift_signature_covers():
     swift_signature = bytes.fromhex(FROZEN_ALERT_HEX)[-64:]
     key = Ed25519PublicKey.from_public_bytes(wire.PINNED_PUBLIC_KEY)
     key.verify(swift_signature, wire.alert_signing_bytes(**FROZEN_FIELDS))  # raises if wrong
+
+
+def _frozen_alert(signature: bytes) -> wire.OfficialAlert:
+    return wire.OfficialAlert(**FROZEN_FIELDS, signature=signature)
+
+
+def test_frozen_vector_prefix_matches_first_151_bytes():
+    """docs/ALERT-WIRE-FORMAT.md: everything before the signature must match byte for byte.
+
+    Python's signer is deterministic (RFC 8032) and Apple's is randomised, so the
+    signature bytes themselves differ; they only have to verify.
+    """
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    dev_private = bytes.fromhex("9077bd3b4bf110ba5c9bc7375e7e771d11597918ffa4a9ddc7a2f089a291f8cc")
+    signature = Ed25519PrivateKey.from_private_bytes(dev_private).sign(
+        wire.alert_signing_bytes(**FROZEN_FIELDS)
+    )
+    encoded = wire.encode_alert(_frozen_alert(signature))
+    assert len(encoded) == 215
+    assert encoded[:151] == bytes.fromhex(FROZEN_ALERT_HEX)[:151]
+
+
+def test_frozen_vector_prefix_whole_packet_with_the_swift_signature():
+    """With the Swift-made signature, all 215 bytes are identical."""
+    frozen = bytes.fromhex(FROZEN_ALERT_HEX)
+    assert wire.encode_alert(_frozen_alert(frozen[-64:])) == frozen
+
+
+def test_frozen_vector_prefix_first_seven_bytes():
+    """Swift: encodedPrefixIsFrozen. kind TLV, then the alertID TLV header."""
+    encoded = wire.encode_alert(_frozen_alert(bytes(64)))
+    assert encoded[:7] == bytes([0x01, 0x00, 0x01, 0x01, 0x02, 0x00, 0x10])

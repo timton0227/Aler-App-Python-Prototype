@@ -15,7 +15,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 |---|---|---|
 | 0 Setup | 3 | 3 |
 | 1 Geohash | 4 | 4 |
-| 2 Official alert format | 4 | 10 |
+| 2 Official alert format | 5 | 10 |
 | 3 Community reports | 0 | 4 |
 | 4 Proximity | 0 | 3 |
 | 5 Stores | 0 | 5 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **11** | **56** |
+| **All** | **12** | **56** |
 
-**Next step:** 2.5
+**Next step:** 2.6
 
 ---
 
@@ -77,7 +77,7 @@ tests: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift`
 - [x] 2.4 Alert signing bytes
       Done when: the first 22 bytes are the frozen context prefix
       Verify: `python3 -m pytest tests/test_wire.py -k signing_bytes`
-- [ ] 2.5 Encode an alert
+- [x] 2.5 Encode an alert
       Done when: the first 151 bytes equal the frozen 215-byte vector
       Verify: `python3 -m pytest tests/test_wire.py -k frozen_vector_prefix`
 - [ ] 2.6 Decode an alert and verify its signature
