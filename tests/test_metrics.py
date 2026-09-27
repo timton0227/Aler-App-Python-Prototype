@@ -1,4 +1,6 @@
 """Tests for alertmesh.metrics (new code: no Swift tests to port)."""
+from dataclasses import replace
+
 from alertmesh import geohash, metrics, places
 from alertmesh.metrics import Scenario
 
@@ -45,3 +47,36 @@ def test_coverage_time_to_share():
     assert result.time_to_share(1.01) is None
     t = result.time_to_share(result.final_share)
     assert t is not None and t <= SMALL.duration_s
+
+
+# --- With vs without the mesh (step 8.2)
+
+
+def test_compare_same_people_same_places():
+    on, _ = metrics.build(replace(SMALL, mesh_on=True))
+    off, _ = metrics.build(replace(SMALL, mesh_on=False))
+    assert [(p.lat, p.lon, p.has_internet) for p in on.phones.values()] == \
+           [(p.lat, p.lon, p.has_internet) for p in off.phones.values()]
+    assert all(p.bluetooth_on for p in on.phones.values())
+    assert not any(p.bluetooth_on for p in off.phones.values())
+
+
+def test_compare_internet_only_reaches_exactly_the_online_phones():
+    comparison = metrics.compare(SMALL)
+    mesh, _ = metrics.build(SMALL)
+    online = sum(p.has_internet for p in mesh.phones.values()) / SMALL.n_phones
+    assert comparison.without_mesh.warned_share == [online] * len(comparison.without_mesh.times_s)
+
+
+def test_compare_the_mesh_never_does_worse_and_here_does_better():
+    comparison = metrics.compare(SMALL)
+    for w, wo in zip(comparison.with_mesh.warned_share, comparison.without_mesh.warned_share):
+        assert w >= wo
+    assert comparison.with_mesh.final_share > comparison.without_mesh.final_share
+
+
+def test_compare_summary_has_both_rows():
+    s = metrics.compare(SMALL).summary()
+    assert set(s) == {"with mesh", "internet only"}
+    assert set(s["with mesh"]) == {"warned after 10 min", "warned at end", "minutes to 80%", "told loudly"}
+    assert s["internet only"]["warned after 10 min"] == s["internet only"]["warned at end"]

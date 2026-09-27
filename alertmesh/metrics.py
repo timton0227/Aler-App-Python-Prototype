@@ -11,7 +11,7 @@ This is free and unencumbered software released into the public domain.
 """
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from alertmesh import geohash, mesh_sim, places, proximity, wire
 from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh
@@ -128,3 +128,39 @@ def run(scenario: Scenario) -> Result:
     first = {p.id: (p.first_heard_ms[alert.alert_id] - START_MS) / 1000
              for p in mesh.phones.values() if alert.alert_id in p.first_heard_ms}
     return Result(scenario, times, shares, loud / len(area) if area else 0.0, len(area), first)
+
+
+# --- With vs without the mesh ------------------------------------------------
+
+
+@dataclass
+class Comparison:
+    with_mesh: Result
+    without_mesh: Result
+
+    def summary(self, share: float = 0.8) -> dict:
+        """The headline numbers, ready to print or put in a table."""
+        def row(r: Result) -> dict:
+            return {
+                "warned after 10 min": _share_at(r, 600),
+                "warned at end": r.final_share,
+                f"minutes to {share:.0%}": None if r.time_to_share(share) is None else r.time_to_share(share) / 60,
+                "told loudly": r.loud_share,
+            }
+        return {"with mesh": row(self.with_mesh), "internet only": row(self.without_mesh)}
+
+
+def _share_at(result: Result, seconds: float) -> float:
+    """The warned share at the last sample at or before `seconds`."""
+    share = 0.0
+    for t, s in zip(result.times_s, result.warned_share):
+        if t > seconds:
+            break
+        share = s
+    return share
+
+
+def compare(scenario: Scenario) -> Comparison:
+    """The same people in the same places, once with Bluetooth mesh and once with
+    internet only. "Internet only" is what a warning app without the mesh reaches."""
+    return Comparison(run(replace(scenario, mesh_on=True)), run(replace(scenario, mesh_on=False)))

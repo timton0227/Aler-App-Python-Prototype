@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 8.2 With the mesh vs internet only — 2026-09-27
+- What: `metrics.compare()` and `Comparison` (with `summary()`: warned after 10 minutes, warned at the end, minutes to 80%, told loudly, for both). "Internet only" is the same scenario with Bluetooth off on every phone, so only phones with internet are warned: what a warning app without the mesh would reach.
+- Ported from: new.
+- Differences from the app: not applicable.
+- Verified by: `python3 -m pytest tests/test_metrics.py -k compare` — 4 passed. Both runs have the same phones in the same places, with Bluetooth on or off. Internet only reaches exactly the online phones, at every sample. The mesh never does worse and, in the test scenario, does better. The summary has both rows. Default scenario (300 still phones in 1 km², 10% online): internet only 9.7%, with mesh 64.3%, both flat from the first minute. Full suite: 261 passed.
+
 ## 8.1 Share of phones in the area warned over time — 2026-09-27
 - What: new module `alertmesh/metrics.py` with `Scenario` (town, number of phones, square size, share online, Bluetooth range, share moving, speed, mesh on/off, level, duration, sample interval, seed), `Result` (`times_s`, `warned_share`, `loud_share`, `in_area`, `first_heard_s`, `final_share`, `time_to_share()`), `area_cells()`, `build()` and `run()`. The warning is signed with the dev key, published to the internet at time 0, and covers the whole square. The measure counts phones where they really are, whatever their location setting.
 - Ported from: new.
