@@ -128,3 +128,66 @@ def test_decide_watched_place_near_area():
     d = proximity.decide(Severity.EMERGENCY_WARNING, [cell], None, bookmarks=[geohash.neighbors(cell)[0]])
     assert d.urgency == Urgency.QUIET
     assert d.reason.kind == ReasonKind.WATCHED_PLACE_NEAR_AREA
+
+
+# --- No location and remembered area (step 4.3)
+
+
+def test_unknown_location_keeps_emergency_warnings_quiet_not_silent():
+    """Swift: unknownLocationKeepsEmergencyWarningsQuietNotSilent."""
+    d = proximity.decide(Severity.EMERGENCY_WARNING, ["r7hg"], None)
+    assert d.urgency == Urgency.QUIET
+    assert d.reason == Reason(ReasonKind.LOCATION_UNKNOWN)
+
+
+@pytest.mark.parametrize("severity", [Severity.ADVICE, Severity.WATCH_AND_ACT])
+def test_unknown_location_keeps_lower_severities_quiet_too(severity):
+    """Swift: unknownLocationKeepsLowerSeveritiesQuietToo. An empty string is unknown too."""
+    assert proximity.decide(severity, ["r7hg"], None).reason == Reason(ReasonKind.LOCATION_UNKNOWN)
+    assert proximity.decide(severity, ["r7hg"], "").reason == Reason(ReasonKind.LOCATION_UNKNOWN)
+    assert proximity.decide(severity, ["r7hg"], None).urgency == Urgency.QUIET
+
+
+def test_remembered_area_warning_inside_it_is_loud():
+    """Swift: aWarningInsideTheRememberedAreaIsLoud."""
+    d = proximity.decide(Severity.WATCH_AND_ACT, ["r7hg5x"], None, remembered_cell="r7hg")
+    assert d.urgency == Urgency.LOUD
+    assert d.match == Match.INSIDE
+    assert d.reason == Reason(ReasonKind.LAST_KNOWN_AREA, "r7hg5x")
+
+
+def test_remembered_area_warning_covering_it_is_loud():
+    """Swift: aWarningCoveringTheRememberedAreaIsLoud."""
+    d = proximity.decide(Severity.EMERGENCY_WARNING, ["9q8y", "r7"], None, remembered_cell="r7hg")
+    assert d.urgency == Urgency.LOUD
+    assert d.reason == Reason(ReasonKind.LAST_KNOWN_AREA, "r7")
+
+
+def test_remembered_area_advice_stays_quiet():
+    """Swift: adviceInTheRememberedAreaStaysQuiet."""
+    assert proximity.decide(Severity.ADVICE, ["r7hg5x"], None, remembered_cell="r7hg").urgency == Urgency.QUIET
+
+
+def test_remembered_area_a_live_fix_wins():
+    """Swift: aLiveFixWinsOverTheRememberedArea."""
+    d = proximity.decide(Severity.WATCH_AND_ACT, ["r7hg5x"], "9q8yy5x2", remembered_cell="r7hg")
+    assert d.urgency == Urgency.QUIET
+    assert d.reason == Reason(ReasonKind.OUTSIDE_AREA)
+
+
+def test_remembered_area_that_does_not_match_is_still_location_unknown():
+    """Swift: aRememberedAreaThatDoesNotMatchIsStillLocationUnknown."""
+    d = proximity.decide(Severity.WATCH_AND_ACT, ["9q8y"], None, remembered_cell="r7hg")
+    assert d.urgency == Urgency.QUIET
+    assert d.reason == Reason(ReasonKind.LOCATION_UNKNOWN)
+
+
+def test_no_rule_ever_returns_silent():
+    """Warn everyone (Swift Task 8.38): across every case above, never SILENT."""
+    cases = [(DEVICE, ()), (None, ()), ("", ()), (None, ("9q8yy",)), ("9q8yy5x2", ("r7hg5",))]
+    for severity in Severity:
+        for cells in (["r7hg"], ["9q8y"], ["r7hg5x", "r7hu"]):
+            for device, bookmarks in cases:
+                for remembered in (None, "r7hg", "9q8y"):
+                    d = proximity.decide(severity, cells, device, bookmarks, remembered)
+                    assert d.urgency != Urgency.SILENT

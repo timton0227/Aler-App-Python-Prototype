@@ -17,7 +17,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 1 Geohash | 4 | 4 |
 | 2 Official alert format | 10 | 10 |
 | 3 Community reports | 4 | 4 |
-| 4 Proximity | 2 | 3 |
+| 4 Proximity | 3 | 3 |
 | 5 Stores | 0 | 5 |
 | 6 Places | 0 | 2 |
 | 7 Mesh simulation | 0 | 7 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **23** | **56** |
+| **All** | **24** | **56** |
 
-**Next step:** 4.3
+**Next step:** 5.1
 
 ---
 
@@ -126,7 +126,7 @@ tests: `AlertMeshTests/AlertMesh/Services/AlertProximityTests.swift`
 - [x] 4.2 `decide` with device location and bookmarks
       Done when: inside + Watch and Act or above = loud; everything else = quiet
       Verify: `python3 -m pytest tests/test_proximity.py -k decide`
-- [ ] 4.3 Remembered area and unknown location
+- [x] 4.3 Remembered area and unknown location
       Done when: no location = quiet, never silent; remembered area can make it loud, never quieter
       Verify: `python3 -m pytest tests/test_proximity.py`
 

@@ -99,12 +99,21 @@ class Decision:
     reason: Reason
 
 
-def decide(severity: Severity, area_cells, device_geohash: str | None, bookmarks=()) -> Decision:
+def decide(
+    severity: Severity,
+    area_cells,
+    device_geohash: str | None,
+    bookmarks=(),
+    remembered_cell: str | None = None,
+) -> Decision:
     """The decision for one warning, given what this phone knows.
 
     - `device_geohash`: the phone's current building-level area code, or None.
     - `bookmarks`: places the person chose to watch ("watch my suburb"), for people
       who will not share their location.
+    - `remembered_cell`: the phone's last rough area (4 characters, ~40 km), used
+      only when there is no live location. It can make a warning loud, never
+      quieter, and never marks it "for another area": the person may have moved.
 
     Only a warning that covers the person, at Watch and Act or above, is loud.
     """
@@ -119,6 +128,20 @@ def decide(severity: Severity, area_cells, device_geohash: str | None, bookmarks
         if cell is not None and m > best:
             kind = ReasonKind.WATCHED_PLACE_INSIDE_AREA if m == Match.INSIDE else ReasonKind.WATCHED_PLACE_NEAR_AREA
             best, reason = m, Reason(kind, cell, bookmark)
+
+    # No live location, but the phone remembers its rough area. A warning cell
+    # inside that area, or containing it, may cover the person, so it counts as
+    # inside: over-notifying is the safer error.
+    if not device_geohash and best < Match.INSIDE and remembered_cell:
+        cell = next((c for c in area_cells if remembered_cell.startswith(c) or c.startswith(remembered_cell)), None)
+        if cell is not None:
+            best, reason = Match.INSIDE, Reason(ReasonKind.LAST_KNOWN_AREA, cell)
+
+    if best == Match.ELSEWHERE and not device_geohash and not bookmarks:
+        # Nothing to compare against (a remembered area that did not match lands
+        # here too). Unknown location must never silence a warning: quiet, not
+        # silent. A later fix inside the area raises it to loud.
+        return Decision(Urgency.QUIET, Match.ELSEWHERE, Reason(ReasonKind.LOCATION_UNKNOWN))
 
     if best == Match.INSIDE:
         urgency = Urgency.LOUD if severity >= Severity.WATCH_AND_ACT else Urgency.QUIET

@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 4.3 No location and the remembered area — 2026-09-27
+- What: `proximity.decide()` gains `remembered_cell` and the unknown-location rule. With no location and no watched place, a warning is quiet with the reason "location unknown", never silent. With no live location, a warning inside or covering the remembered rough area counts as inside, so Watch and Act or higher is loud.
+- Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (the `rememberedCell` and `locationUnknown` branches of `decide`).
+- Differences from Swift: none. Where the remembered area comes from (`RememberedArea.swift`, the last 4-character cell) is not ported yet; the simulation can pass it in.
+- Verified by: `python3 -m pytest tests/test_proximity.py` — 35 passed. New in this step: `unknownLocationKeepsEmergencyWarningsQuietNotSilent`, both cases of `unknownLocationKeepsLowerSeveritiesQuietToo`, `aWarningInsideTheRememberedAreaIsLoud`, `aWarningCoveringTheRememberedAreaIsLoud`, `adviceInTheRememberedAreaStaysQuiet`, `aLiveFixWinsOverTheRememberedArea`, `aRememberedAreaThatDoesNotMatchIsStillLocationUnknown`. One extra test runs 135 combinations (3 levels × 3 areas × 5 location set-ups × 3 remembered areas) and checks that none is silent. Every test in `AlertProximityTests.swift` now has a Python match. Full suite: 145 passed.
+
 ## 4.2 Loud-or-quiet decision with location and watched places — 2026-09-27
 - What: `proximity.Urgency`, `ReasonKind`, `Reason`, `Decision`, and `decide(severity, area_cells, device_geohash, bookmarks)`.
 - Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (`AlertUrgency`, `AlertProximityReason`, `AlertProximityDecision`, `AlertProximity.decide`).
