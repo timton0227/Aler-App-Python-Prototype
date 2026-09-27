@@ -15,7 +15,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 |---|---|---|
 | 0 Setup | 3 | 3 |
 | 1 Geohash | 4 | 4 |
-| 2 Official alert format | 8 | 10 |
+| 2 Official alert format | 9 | 10 |
 | 3 Community reports | 0 | 4 |
 | 4 Proximity | 0 | 3 |
 | 5 Stores | 0 | 5 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **15** | **56** |
+| **All** | **16** | **56** |
 
-**Next step:** 2.9
+**Next step:** 2.10
 
 ---
 
@@ -89,7 +89,7 @@ tests: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift`
 - [x] 2.8 Cancellation: signing bytes, encode, decode
       Done when: the first 37 bytes equal the frozen 101-byte vector, and its signature verifies
       Verify: `python3 -m pytest tests/test_wire.py -k cancellation`
-- [ ] 2.9 Size budget
+- [x] 2.9 Size budget
       Done when: a maximal alert encodes to 370 bytes, within the 383-byte budget
       Verify: `python3 -m pytest tests/test_wire.py -k budget`
 - [ ] 2.10 Warning draft checks and dev signer

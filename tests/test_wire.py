@@ -508,3 +508,24 @@ def test_cancellation_frozen_vector():
     assert ours_encoded[:37] == data[:37]
     assert wire.verify_pinned(ours)
     assert wire.encode(wire.AlertCancellation(bytes(range(16)), 1_700_003_600_000, data[-64:])) == data
+
+
+# --- Size budget (step 2.9)
+
+
+def test_budget_maximal_alert_fits_one_ble_frame():
+    """Swift: maximalAlertFitsOneBLEFrame. Spec: a maximal alert is 370 of the 383 bytes."""
+    alert = make_signed_alert(
+        area_cells=("r7hg2bcd",) * wire.MAX_AREA_CELLS,
+        headline="h" * wire.HEADLINE_MAX_BYTES,
+        action_text="a" * wire.ACTION_TEXT_MAX_BYTES,
+    )
+    encoded = wire.encode(alert)
+    assert len(encoded) == 370
+    assert len(encoded) <= wire.MAX_ENCODED_BYTES
+    assert wire.decode(encoded) == alert
+
+
+def test_budget_frozen_examples():
+    assert len(bytes.fromhex(FROZEN_ALERT_HEX)) == 215
+    assert len(bytes.fromhex(FROZEN_CANCELLATION_HEX)) == 101

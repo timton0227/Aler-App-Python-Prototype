@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.9 Size budget — 2026-09-27
+- What: tests only, no code change.
+- Ported from: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift` (`maximalAlertFitsOneBLEFrame`).
+- Differences from Swift: the Swift test checks `<= 383`. Python also checks the exact figure of 370 from the spec, so any growth shows up at once. It also checks the two frozen example sizes (215 and 101).
+- Verified by: `python3 -m pytest tests/test_wire.py -k budget` — 3 passed (2 new, plus the 2.1 budget-constant test, whose name also contains "budget").
+
 ## 2.8 Cancellations — 2026-09-27
 - What: `wire.AlertCancellation`, `wire.cancellation_signing_bytes()`, `wire.encode_cancellation()`, and `wire.encode()`, which handles either kind. `decode()` and `verify()` now handle cancellations too.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertCancellationPacket`, the `.cancellation` cases of `AlertWire.encode` / `decode`).
