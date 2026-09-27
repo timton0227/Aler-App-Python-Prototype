@@ -87,6 +87,19 @@ def proximity(decision: Decision) -> str:
     return "Location unknown"
 
 
+# Why the phone decided how loud to be, in plain words (new: the app does not spell
+# this out; the notebook and the page do, for judges).
+REASON_TEXT = {
+    ReasonKind.INSIDE_AREA: "You are inside the warning area",
+    ReasonKind.ADJACENT_TO_AREA: "You are next to the warning area",
+    ReasonKind.WATCHED_PLACE_INSIDE_AREA: "A place you watch is inside the warning area",
+    ReasonKind.WATCHED_PLACE_NEAR_AREA: "A place you watch is next to the warning area",
+    ReasonKind.OUTSIDE_AREA: "The warning is for another area",
+    ReasonKind.LOCATION_UNKNOWN: "Location unknown: told gently, never silenced",
+    ReasonKind.LAST_KNOWN_AREA: "Your last known area is covered",
+}
+
+
 def clock(ms: int) -> str:
     """A time of day, as the hub board's clock shows it. Uses this computer's time zone."""
     return datetime.fromtimestamp(ms / 1000).strftime("%H:%M")

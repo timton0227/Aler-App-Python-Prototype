@@ -18,12 +18,14 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from alertmesh import geohash, metrics, places, proximity, viz, wire
+from alertmesh import geohash, metrics, notifications, places, proximity, viz, wire
 from alertmesh.console import Console
-from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh, Phone
+from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh, Notification, Phone
 
 HUB_ID = "hub"
 HUB_NICKNAME = "Evacuation centre"
+# A watched place is a suburb-sized cell (~1 km), like a bookmarked location channel.
+WATCHED_PRECISION = 6
 
 # The town the page starts with: the notebook's section 3 town.
 DEFAULT_SCENARIO = metrics.Scenario(n_phones=300, area_m=1_200, share_online=0.10,
@@ -101,6 +103,39 @@ class World:
             "told loudly": sum(p.loudest(alert_id) >= proximity.Urgency.LOUD for p in phones),
         }
 
+    # --- One phone (the phone view tab) ---
+
+    def phones(self) -> list[Phone]:
+        """Every phone except the evacuation centre, in the order they were made."""
+        return [p for p in self.mesh.phones.values() if p.id != HUB_ID]
+
+    def set_phone(self, phone: Phone, *, bluetooth: bool | None = None, location: bool | None = None,
+                  internet: bool | None = None, watched: places.Place | None | bool = False) -> None:
+        """Change one phone's settings. `watched`: a place to watch, None for none,
+        False to leave it as it is. The phone re-checks its warnings at once, as the
+        app does when location changes (a warning can get louder, never quieter)."""
+        if bluetooth is not None:
+            phone.bluetooth_on = bluetooth
+            self.mesh._grid = None  # who is in range has changed
+        if location is not None:
+            phone.location_on = location
+            phone._remember()
+        if internet is not None:
+            phone.has_internet = internet
+        if watched is not False:
+            phone.bookmarks = () if watched is None else (places.geohash_of(watched, WATCHED_PRECISION),)
+        phone.reevaluate()
+
+    def warnings_on(self, phone: Phone) -> list["PhoneWarning"]:
+        """The phone's warning list: each live warning, how the phone would decide
+        now, and the loudest notification it showed for this version."""
+        out = []
+        for alert in phone.alert_store.live_alerts():
+            shown = [n for n in phone.notifications if (n.alert_id, n.issued_at) == (alert.alert_id, alert.issued_at)]
+            loudest = max(shown, key=lambda n: n.urgency, default=None)
+            out.append(PhoneWarning(alert, phone.decide(alert), loudest))
+        return out
+
     # --- Console wiring ---
 
     def _broadcast(self, payload: bytes) -> None:
@@ -115,6 +150,20 @@ class World:
             return False
         self.mesh.publish(payload)
         return True
+
+
+@dataclass(frozen=True)
+class PhoneWarning:
+    alert: wire.OfficialAlert
+    now: proximity.Decision              # how the phone would decide at this moment
+    notified: Notification | None        # the loudest notification shown for this version
+
+    def notification(self) -> notifications.Content | None:
+        """The words of that notification, as the phone showed them."""
+        if self.notified is None:
+            return None
+        where = notifications.whereabouts(self.notified.reason.kind)
+        return notifications.alert_content(self.alert, self.notified.urgency, where)
 
 
 def build(scenario: metrics.Scenario = DEFAULT_SCENARIO) -> World:

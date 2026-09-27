@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 10.3 Streamlit: phone view tab — 2026-09-27
+- What: the page's third tab: one phone in the town. Pick a phone (it starts on one with no internet). It shows roughly where the phone is ("Near Katherine"), a nickname anyone can change, and switches for Bluetooth, location, internet, and a watched place.
+  - Warnings: each live warning as the phone lists it (level colour, headline, "You are in this area" / "Near you" / "Another area", until when, what to do). Under each: why it is loud or quiet now, in plain words, and the notification the phone showed, worded as the app words it.
+  - Community reports: the phone's report list (calls for help, hazards, "safe"), with who sent each and roughly where. Calls for help it was told about show as their notifications ("p0 needs help nearby").
+  - Actions: send a call for help with a note, then "I'm safe now" or "Send it again", and send a hazard report (type, how bad, note). Without location, both are replaced by the app's "turn on location" lines.
+  - New module `alertmesh/notifications.py`: what a notification says.
+  - `labels.REASON_TEXT`: the reasons in plain words, now shared with the notebook's section 4, which used its own copy.
+  - New in `world.py`: `phones`, `set_phone` (the phone re-checks its warnings at once) and `warnings_on`.
+- Ported from: `AlertMesh/AlertMesh/Services/AlertNotificationContent.swift` (`make`, `Whereabouts`, the level emoji) and `SOSNotificationContent.swift` (`make`); strings and layout from `AlertsView.swift`, `CommunityReportsView.swift` and `SOSView.swift`.
+- Differences from Swift:
+  - Previews are always shown on the page. `alert_content` and `sos_content` still take `hide_previews`, and its tests are ported.
+  - No notification identifiers: the prototype does not replace banners.
+  - A watched place is one town's suburb-sized cell (6 characters). The app bookmarks location channels of any size.
+  - "Send it again" re-sends from where the phone is now, like the app. There is no "Show on map" or "Call 000" sheet.
+  - The plain-words reason line is new. The app shows only the "how close" line.
+- Verified by: `python3 -m pytest tests/test_notifications.py tests/test_world.py tests/test_app.py` — 44 passed. These cover 16 ported notification-wording tests, 3 world tests (list and notification, Bluetooth off, watched place with location off), and 5 headless page tests: an empty phone, a warning with its reason and notification, location off, call for help then safe (including the notification on a phone that heard it), and a hazard report that is not a warning. The full suite passed 333, and the notebook still runs with the same section 4 table.
+- By eye in the browser pane: sent an Emergency Warning and let 5 minutes pass. Phone p0 (no internet, walking) then showed the red card, "You are in this area · Until 13:43", "Loud now: You are inside the warning area." and the notification "🔴 Emergency Warning · Flood". Sent a call for help from p0: the page showed "Your call for help is out" with "I'm safe now" and "Send it again", and the report list showed "Needs help — You, Near Katherine".
+- Found while building it: a phone cannot be a picker option, because Streamlit copies its options and a phone holds a private key that cannot be copied. The picker lists phone IDs instead.
+
 ## 10.2 Streamlit: map tab — 2026-09-27
 - What: the page's second tab. Pick any warning the console has sent (newest first, marked "(ended or cancelled)" when no longer live). The map shows every phone in the simulated town: blue = warned by internet, red = got it over Bluetooth, grey = not warned yet. It also shows the warning area in the level's colour and the evacuation centre as a black dot. Four counts sit under the map:
   - warned, out of all phones;

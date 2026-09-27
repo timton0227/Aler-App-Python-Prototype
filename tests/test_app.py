@@ -6,7 +6,7 @@ looks is checked by eye in a browser (see PROGRESS.md, Phase 10).
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from alertmesh import wire
+from alertmesh import reports, wire
 from alertmesh.wire import HazardType, Severity
 
 TIMEOUT = 30
@@ -113,7 +113,7 @@ def test_time_passes_only_when_asked(app):
 
 
 def test_the_map_waits_for_a_warning(app):
-    assert [t.label for t in app.tabs] == ["Warning console", "Map"]
+    assert [t.label for t in app.tabs][:2] == ["Warning console", "Map"]
     assert any("No warning yet" in i.value for i in app.info)
 
 
@@ -133,3 +133,70 @@ def test_the_map_shows_how_far_a_warning_has_got_and_plays_minutes(app):
     assert played_id == alert.alert_id
     assert sorted(frames["minute"].unique()) == list(range(11))
     assert int(next(m for m in app.metric if m.label.startswith("Warned")).value) > phones
+
+
+# --- Phone view ---
+
+
+def chosen_phone(at: AppTest):
+    return at.session_state.world.mesh.phones[at.selectbox(key="p_phone").value]
+
+
+def test_the_phone_view_starts_on_a_phone_without_internet(app):
+    assert "Phone view" in [t.label for t in app.tabs]
+    assert not chosen_phone(app).has_internet
+    assert any(m.value == "**No current warnings**" for m in app.markdown)
+
+
+def test_a_phone_shows_the_warning_why_and_its_notification(app):
+    fill_warning(app)
+    send(app)
+    button(app, "+5").click().run()
+    phone = chosen_phone(app)
+    assert phone.alert_store.live_alerts(), "the chosen phone should have heard it within 5 minutes"
+    text = " ".join(m.value for m in app.markdown)
+    assert "You are in this area" in text
+    assert "**Loud now:** You are inside the warning area." in text
+    assert "🔴 Emergency Warning · Bushfire" in text  # the notification it showed
+
+
+def test_location_off_keeps_the_remembered_area(app):
+    phone = chosen_phone(app)
+    app.toggle(key=f"p_loc_{phone.id}").set_value(False).run()
+    assert not phone.location_on and phone.geohash() is None
+    assert phone.remembered_cell  # still loud for its own area
+    assert any("Turn on location first" in c.value for c in app.caption)
+
+
+def test_call_for_help_then_safe(app):
+    phone = chosen_phone(app)
+    app.text_input(key="p_sos_note").input("Car stuck at the causeway").run()
+    button(app, "Send call for help").click().run()
+    assert not app.exception
+    [sos] = [r for r in phone.report_store.live_reports() if r.kind is reports.ReportKind.SOS]
+    assert sos.note == "Car stuck at the causeway"
+    assert any("Your call for help is out" in w.value for w in app.warning)
+
+    button(app, "+5").click().run()
+    holding = sum(any(r.report_id == sos.report_id for r in p.report_store.live_reports())
+                  for p in app.session_state.world.phones())
+    assert holding > 1
+    # A phone that heard it shows the call for help as a notification, in plain words.
+    told = next(p for p in app.session_state.world.phones() if p.report_notifications)
+    app.selectbox(key="p_phone").set_value(told.id).run()
+    assert any(f"{phone.id} needs help nearby" in m.value and "Car stuck at the causeway" in m.value
+               for m in app.markdown)
+
+    app.selectbox(key="p_phone").set_value(phone.id).run()
+    button(app, "I'm safe now").click().run()
+    assert [r.kind for r in phone.report_store.live_reports()] == [reports.ReportKind.SAFE]
+    assert button(app, "Send call for help")  # the form is back
+
+
+def test_a_hazard_report_is_not_a_warning(app):
+    phone = chosen_phone(app)
+    app.text_input(key="p_report_note").input("Causeway under water").run()
+    button(app, "Send report").click().run()
+    [report] = phone.report_store.live_reports()
+    assert report.kind is reports.ReportKind.HAZARD and report.note == "Causeway under water"
+    assert phone.alert_store.live_alerts() == []

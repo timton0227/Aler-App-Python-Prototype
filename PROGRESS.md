@@ -23,11 +23,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
-| 10 Streamlit | 2 | 4 |
+| 10 Streamlit | 3 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **53** | **58** |
+| **All** | **54** | **58** |
 
-**Next step:** 10.3
+**Next step:** 10.4
 
 ---
 
@@ -229,7 +229,12 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
       Swift: none (the simulation view is new); it uses the step 9.3 map
       Done when: a sent warning's spread shows on the map with its area and the evacuation centre; "Let N minutes pass" records every minute and ▶ plays them; the counts match the phones
       Verify: `python3 -m pytest tests/test_world.py tests/test_app.py -k "map or spread or play"`, then send a warning and play 10 minutes in the browser
-- [ ] 10.3 Phone view tab (one phone's alerts and the loud/quiet reason)
+- [x] 10.3 Phone view tab (one phone's alerts and the loud/quiet reason)
+      Swift: `AlertMesh/AlertMesh/Services/AlertNotificationContent.swift`, `SOSNotificationContent.swift`;
+      screens `AlertsView.swift`, `CommunityReportsView.swift`, `SOSView.swift` ·
+      tests: `AlertNotificationContentTests.swift`, content tests in `SOSNotificationsModelTests.swift`
+      Done when: a chosen phone lists its warnings with "how close", why it is loud or quiet, and the notification it showed; its settings change what it decides; it can send a call for help, "I'm safe" and a hazard report
+      Verify: `python3 -m pytest tests/test_notifications.py tests/test_world.py tests/test_app.py`, then check a phone in the browser
 - [ ] 10.4 Hub board tab (large-type board with the SOS list)
 
 ## Phase 11 — Final check

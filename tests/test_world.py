@@ -1,5 +1,5 @@
 """The page's simulated town: the console sends into the mesh from the evacuation centre."""
-from alertmesh import labels, metrics, world
+from alertmesh import labels, metrics, places, world
 from alertmesh.console import Action
 from alertmesh.proximity import Decision, Match, Reason, ReasonKind, Urgency
 from alertmesh.signer import WarningDraft
@@ -131,3 +131,50 @@ def test_play_records_each_minute_with_the_towns_own_minutes():
     now = w.phones_now(alert.alert_id)
     assert set(now["minute"]) == {7}
     assert list(now["status"]) == list(frames[frames["minute"] == 7]["status"])
+
+
+# --- The phone view tab ---
+
+
+def test_a_phone_lists_the_warning_with_its_decision_and_notification():
+    w = world.build(SMALL)
+    alert = w.console.issue(warning(w))
+    w.advance(10)
+    phone = next(p for p in w.phones() if alert.alert_id in p.first_heard_ms)
+    [item] = w.warnings_on(phone)
+    assert item.alert == alert
+    assert item.now.urgency is Urgency.LOUD
+    assert item.notified.urgency is Urgency.LOUD
+    content = item.notification()
+    assert content.title == "🔴 Emergency Warning · Flood"
+    assert content.body == "Flooding - leave now\nGo to the evacuation centre."
+
+
+def test_bluetooth_off_takes_a_phone_out_of_the_mesh():
+    w = world.build(SMALL)
+    phone = next(p for p in w.phones() if not p.has_internet and not p.route and w.mesh.neighbours(p))
+    w.set_phone(phone, bluetooth=False)
+    assert w.mesh.neighbours(phone) == []
+    alert = w.console.issue(warning(w))
+    w.advance(10)
+    assert alert.alert_id not in phone.first_heard_ms
+
+
+def test_a_watched_place_makes_a_far_warning_loud_with_location_off():
+    w = world.build(SMALL)
+    phone = w.phones()[0]
+    w.set_phone(phone, location=False)
+    phone.remembered_cell = None  # nothing remembered: only the watched place can match
+    darwin = places.find("Darwin")
+    far = WarningDraft(HazardType.CYCLONE, Severity.EMERGENCY_WARNING, "Cyclone near Darwin", "Shelter now.", 6,
+                       [places.geohash_of(darwin, 5)])
+    alert = w.console.issue(far)
+    item = next(i for i in w.warnings_on(w.hub) if i.alert == alert)
+    assert item.now.reason.kind is ReasonKind.OUTSIDE_AREA  # the centre is in Katherine
+
+    w.set_phone(phone, watched=darwin)
+    assert phone.bookmarks == (places.geohash_of(darwin, world.WATCHED_PRECISION),)
+    assert phone.decide(alert).urgency is Urgency.LOUD
+    assert phone.decide(alert).reason.kind is ReasonKind.WATCHED_PLACE_INSIDE_AREA
+    w.set_phone(phone, watched=None)
+    assert phone.bookmarks == ()
