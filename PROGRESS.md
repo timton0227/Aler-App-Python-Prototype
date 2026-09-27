@@ -19,15 +19,15 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 3 Community reports | 4 | 4 |
 | 4 Proximity | 3 | 3 |
 | 5 Stores | 5 | 5 |
-| 6 Places | 2 | 3 |
+| 6 Places | 3 | 3 |
 | 7 Mesh simulation | 0 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **31** | **57** |
+| **All** | **32** | **57** |
 
-**Next step:** 6.3
+**Next step:** 7.1
 
 ---
 
@@ -162,7 +162,7 @@ tests: `AlertMeshTests/AlertMesh/Utils/AustralianPlacesTests.swift`
 - [x] 6.2 Town lookup and geohash, plus the GeoNames credit
       Done when: known towns give the expected geohash prefix
       Verify: `python3 -m pytest tests/test_places.py -k lookup`
-- [ ] 6.3 Rough place in words ("Near Katherine", "About 60 km south of Katherine")
+- [x] 6.3 Rough place in words ("Near Katherine", "About 60 km south of Katherine")
       Swift: `AustralianPlaces.describe`, `label(forGeohash:)`, `roundedKm`, `distanceKm`, `compassPoint`
       Done when: the Swift rules and examples give the same answers
       Verify: `python3 -m pytest tests/test_places.py`

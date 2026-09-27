@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 6.3 Rough place in words — 2026-09-27
+- What: `places.describe()`, `places.label()`, `places.text()`, `places.rounded_km()`, `places.distance_km()`, `places.compass_point()`, the result types `Near` and `Away`, and the limits (15 km town, 5 km place, factor 2, 300 km, 5-character minimum).
+- Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`describe`, `label(forGeohash:)`, `roundedKm`, `distanceKm`, `compassPoint`, `Limits`, and the English defaults in `Strings.text`).
+- Differences from Swift: (1) English only; Swift translates the words into 30 languages and formats "60 km" per locale. (2) The direction is a plain word ("south-west") instead of a Swift enum. (3) Rounding is written to round halves up, like Swift's `rounded()`, because Python's `round()` rounds halves to even. A test pins this.
+- Verified by: `python3 -m pytest tests/test_places.py` — 27 passed (19 new in this step). Ports every rule and list test in `AustralianPlacesTests.swift`: `aNearbyTownBeatsACloserSmallPlace`, `aSmallPlaceNamesTheSpotWhenNoTownIsNear`, the 5 cases of `furtherOutItSaysHowFarAndWhichWay`, both landmark tests, `distancesAreRounded`, `nothingWithin300KilometresSaysNothing`, `aCoarseCellGetsNoName`, `wordsCarryTheNameAndTheDistance`, the 4 cases of `territoryTownsReadAsThemselves`, `theDesertGetsADistanceAndDirection`, `outsideAustraliaSaysNothing`. Full suite: 213 passed.
+
 ## 6.2 Town lookup, area code, GeoNames credit — 2026-09-27
 - What: `places.find()`, `places.find_all()`, `places.geohash_of()` (default 7 characters, the SOS precision) and `places.CREDIT`. Lookup ignores case and spaces at the ends. When a name repeats (87 names do), the largest town comes first.
 - Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`Strings.credit`). Name lookup is new: the Swift app never looks places up by name.
