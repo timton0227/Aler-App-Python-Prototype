@@ -16,7 +16,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 0 Setup | 3 | 3 |
 | 1 Geohash | 4 | 4 |
 | 2 Official alert format | 10 | 10 |
-| 3 Community reports | 1 | 4 |
+| 3 Community reports | 2 | 4 |
 | 4 Proximity | 0 | 3 |
 | 5 Stores | 0 | 5 |
 | 6 Places | 0 | 2 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **18** | **56** |
+| **All** | **19** | **56** |
 
-**Next step:** 3.2
+**Next step:** 3.3
 
 ---
 
@@ -105,7 +105,7 @@ tests: `AlertMeshTests/AlertMesh/Protocols/CommunityReportPacketsTests.swift`
 - [x] 3.1 Kinds, severities, constants
       Done when: values match the spec table
       Verify: `python3 -m pytest tests/test_reports.py -k constants`
-- [ ] 3.2 Report signing bytes
+- [x] 3.2 Report signing bytes
       Done when: the kind is signed, so an SOS cannot be replayed as "safe"
       Verify: `python3 -m pytest tests/test_reports.py -k signing`
 - [ ] 3.3 Encode, decode and validate

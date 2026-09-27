@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 3.2 Report data class and signing bytes — 2026-09-27
+- What: `reports.CommunityReport` (frozen data class, with a `hazard` property), `reports.report_signing_bytes()`, `reports.signing_bytes_of()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportPacket`, `CommunityReportPacket.signingBytes`).
+- Differences from Swift: none in behaviour. The Python module reuses the byte helpers `_context`, `_len16`, `_u64` from `wire.py`, as the Swift file reuses `BoardWireEncoding`.
+- Verified by: `python3 -m pytest tests/test_reports.py -k signing` — 6 passed (5 new, plus the 3.1 signing-context test). Checks the frozen prefix `0x13 "alertmesh-report-v1"` then the kind byte (`signingContextIsFrozenAndDistinct`), every field's position against the spec, that SOS and "safe" sign different bytes, and that severity and hazard are signed.
+
 ## 3.1 Report constants, kinds and severities — 2026-09-27
 - What: new module `alertmesh/reports.py` with the field limits, lifetimes, signing context, `MESSAGE_TYPE` (0x2E), and the `ReportKind`, `ReportSeverity`, `ReportTLVType` enums.
 - Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportWireConstants`, `CommunityReportKind`, `CommunityReportSeverity`, `CommunityReportTLVType`).
