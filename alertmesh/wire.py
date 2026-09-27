@@ -76,3 +76,42 @@ class TLVType(IntEnum):
 class WireKind(IntEnum):
     ALERT = 0x01
     CANCELLATION = 0x02
+
+
+# --- TLV fields: type (1 byte) | length (2 bytes, big-endian) | value ----------
+
+
+def put_tlv(tlv_type: int, value: bytes) -> bytes:
+    """One field, ready to append to a payload."""
+    return bytes([tlv_type]) + len(value).to_bytes(2, "big") + value
+
+
+def read_tlvs(
+    data: bytes, known_types: set[int], repeatable: frozenset[int] = frozenset()
+) -> list[tuple[int, bytes]] | None:
+    """Split a payload into (type, value) fields, or None if it is malformed.
+
+    Follows the Swift decode loop exactly:
+    - a field whose length runs past the end rejects the payload;
+    - one or two stray bytes at the very end are ignored (too short to be a field);
+    - a known type that appears twice rejects the payload, except the `repeatable`
+      ones. Last-wins would let the fast relay-path severity peek (first copy) and
+      the full decode (last copy) disagree, and buy a forged warning extra hops;
+    - unknown types are returned too; callers skip them (forward compatibility).
+    """
+    fields = []
+    seen = set()
+    off = 0
+    while off + 3 <= len(data):
+        t = data[off]
+        length = (data[off + 1] << 8) | data[off + 2]
+        off += 3
+        if off + length > len(data):
+            return None
+        if t in known_types and t not in repeatable:
+            if t in seen:
+                return None
+            seen.add(t)
+        fields.append((t, bytes(data[off : off + length])))
+        off += length
+    return fields

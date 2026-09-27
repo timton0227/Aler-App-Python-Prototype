@@ -46,3 +46,43 @@ def test_constants_retired_tlv_0x06_is_not_reused():
 
 def test_constants_pinned_key_is_the_documented_dev_key():
     assert wire.PINNED_PUBLIC_KEY.hex() == "365182c9ee5be834763d712e7f0a26b0b6bbe77ed7e5c405e82b340acfdcf043"
+
+
+_KNOWN = {t.value for t in wire.TLVType}
+_REPEAT = frozenset({wire.TLVType.AREA_GEOHASH})
+
+
+def test_tlv_put_writes_type_big_endian_length_and_value():
+    assert wire.put_tlv(0x04, b"AB") == bytes([0x04, 0x00, 0x02, 0x41, 0x42])
+    assert wire.put_tlv(0x0B, bytes(300))[:3] == bytes([0x0B, 0x01, 0x2C])
+
+
+def test_tlv_read_round_trips_and_keeps_order():
+    data = wire.put_tlv(0x01, b"\x01") + wire.put_tlv(0x03, b"r7hg") + wire.put_tlv(0x03, b"r7hu")
+    assert wire.read_tlvs(data, _KNOWN, _REPEAT) == [(1, b"\x01"), (3, b"r7hg"), (3, b"r7hu")]
+
+
+def test_tlv_read_returns_unknown_types_for_the_caller_to_skip():
+    data = wire.put_tlv(0x7F, b"\xde\xad") + wire.put_tlv(0x06, bytes(32))
+    assert wire.read_tlvs(data, _KNOWN, _REPEAT) == [(0x7F, b"\xde\xad"), (0x06, bytes(32))]
+
+
+def test_tlv_read_rejects_a_repeated_known_field():
+    data = wire.put_tlv(0x0A, b"\x03") + wire.put_tlv(0x0A, b"\x01")
+    assert wire.read_tlvs(data, _KNOWN, _REPEAT) is None
+
+
+def test_tlv_read_allows_repeated_unknown_fields():
+    data = wire.put_tlv(0x7F, b"a") + wire.put_tlv(0x7F, b"b")
+    assert wire.read_tlvs(data, _KNOWN, _REPEAT) is not None
+
+
+def test_tlv_read_rejects_a_field_running_past_the_end():
+    data = wire.put_tlv(0x04, b"ABC")[:-1]
+    assert wire.read_tlvs(data, _KNOWN, _REPEAT) is None
+
+
+def test_tlv_read_ignores_one_or_two_stray_trailing_bytes():
+    data = wire.put_tlv(0x04, b"AB")
+    assert wire.read_tlvs(data + b"\x00\x00", _KNOWN, _REPEAT) == [(4, b"AB")]
+    assert wire.read_tlvs(b"", _KNOWN, _REPEAT) == []

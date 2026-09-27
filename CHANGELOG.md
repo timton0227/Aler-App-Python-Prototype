@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.2 Field reader and writer (TLV) — 2026-09-27
+- What: `wire.put_tlv()` and `wire.read_tlvs()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.encode` → `putTLV`, and the loop at the top of `AlertWire.decode`).
+- Differences from Swift: the Swift loop reads fields and checks values in one pass. Python splits this into `read_tlvs()` (structure and duplicates) and the decoder (values, step 2.6). The rules are the same: a truncated field rejects; 1–2 stray trailing bytes are ignored; a repeated known field rejects, except the ones marked repeatable; unknown types pass through for the caller to skip. `read_tlvs()` is reused for community reports (step 3.3).
+- Verified by: `python3 -m pytest tests/test_wire.py -k tlv` — 8 passed (7 new tests, plus the 2.1 test about the retired 0x06 field, whose name also contains "tlv").
+
 ## 2.1 Warning constants, hazard and severity values — 2026-09-27
 - What: `alertmesh/wire.py` with the field limits, `MAX_ENCODED_BYTES`, signing contexts, `PINNED_PUBLIC_KEY`, and the `HazardType`, `Severity`, `TLVType`, `WireKind` enums.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWireConstants`, `AlertHazardType`, `AlertSeverity`, `AlertTLVType`, `AlertWireKind`) and `AlertPublisherKey.swift`.
