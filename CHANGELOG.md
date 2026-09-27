@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.6 Loud or quiet on each phone — 2026-09-27
+- What: `Notification`, and on `Phone`: `decide()`, `evaluate()`, `reevaluate()`, `loudest()` and the `notifications` list. A phone decides on arrival and again every tick. It notifies only when a warning version deserves a louder level than it already got, so each version notifies at most once per level. With location off, the remembered area is used.
+- Ported from: `AlertMesh/AlertMesh/Services/AlertNotificationsModel.swift` (`evaluate`, `reevaluate`, `versionKey` = event + version) and `NotificationLedger` (loudest level per version); the decision itself is `proximity.decide` from step 4.
+- Differences from the app: (1) The app re-checks when it comes to the screen; the simulation re-checks every tick, as if every app were open. (2) The unseen-badge count and the notification wording (`AlertNotificationContent`) are not modelled.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k urgency` — 5 passed. In the area at Watch and Act: loud, reason "inside area"; 50 km away: quiet, reason "outside area". Advice in the area: quiet. One notification per version, and an escalation notifies again. A car driving 20 km into the area gets quiet, then loud. With location off: the remembered area and a watched suburb both make it loud; a phone with nothing to go on gets quiet with reason "location unknown", never silent. Full suite: 242 passed.
+
 ## 7.5 Phones with internet — 2026-09-27
 - What: `Mesh.publish()` and `Mesh.internet_feed`. Every phone with `has_internet` reads new items at once and on each tick. What its store accepts, it floods to its Bluetooth neighbours, so one connected phone warns its camp. A phone that comes online later catches up on everything it missed.
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (every phone subscribes to all kind-1403 warnings, verifies them, and hands them to its mesh) and `OfficialAlertIssuer` (the console sends over both routes).

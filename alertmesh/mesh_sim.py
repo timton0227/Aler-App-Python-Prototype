@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from collections import defaultdict, deque
 
-from alertmesh import geohash, reports, wire
+from alertmesh import geohash, proximity, reports, wire
 from alertmesh.alert_store import AlertStore, IngestResult
 from alertmesh.report_store import ReportStore
 
@@ -56,6 +56,18 @@ def flat_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return math.hypot(d_north, d_east)
 
 
+@dataclass(frozen=True)
+class Notification:
+    """A notification a phone showed (Swift: AlertNotificationsModel -> notify)."""
+
+    time_ms: int
+    alert_id: bytes
+    issued_at: int
+    urgency: proximity.Urgency
+    reason: proximity.Reason
+    headline: str
+
+
 @dataclass
 class Phone:
     """One simulated phone.
@@ -87,6 +99,10 @@ class Phone:
         self.remembered_cell: str | None = None
         # When this phone first held each warning event (alert_id -> ms).
         self.first_heard_ms: dict[bytes, int] = {}
+        # Every notification shown, and the loudest level per warning VERSION so
+        # far (Swift: NotificationLedger), so a version never notifies twice at a level.
+        self.notifications: list[Notification] = []
+        self._notified: dict[tuple[bytes, int], proximity.Urgency] = {}
         self._remember()
 
     def geohash(self, precision: int = 8) -> str | None:
@@ -119,10 +135,43 @@ class Phone:
                 item = wire.decode(payload)
                 if isinstance(item, wire.OfficialAlert):
                     self.first_heard_ms.setdefault(item.alert_id, self.clock())
+                    self.evaluate(item)
             return result
         if msg_type == COMMUNITY_REPORT_TYPE:
             return self.report_store.ingest_payload(payload)
         return IngestResult.REJECTED
+
+    # --- Loud or quiet ---
+
+    def decide(self, alert: wire.OfficialAlert) -> proximity.Decision:
+        return proximity.decide(
+            alert.severity, alert.area_cells, self.geohash(), self.bookmarks,
+            None if self.location_on else self.remembered_cell,
+        )
+
+    def evaluate(self, alert: wire.OfficialAlert) -> None:
+        """Notify if this version now deserves a louder level than it already got.
+        Port of AlertNotificationsModel.evaluate."""
+        decision = self.decide(alert)
+        if decision.urgency <= proximity.Urgency.SILENT:
+            return
+        key = (alert.alert_id, alert.issued_at)
+        if decision.urgency <= self._notified.get(key, proximity.Urgency.SILENT):
+            return
+        self._notified[key] = decision.urgency
+        self.notifications.append(Notification(
+            self.clock(), alert.alert_id, alert.issued_at, decision.urgency, decision.reason, alert.headline,
+        ))
+
+    def reevaluate(self) -> None:
+        """Check every live warning again, e.g. after moving into the area."""
+        for alert in self.alert_store.live_alerts():
+            self.evaluate(alert)
+
+    def loudest(self, alert_id: bytes) -> proximity.Urgency:
+        """The loudest notification this phone has shown for any version of a warning."""
+        levels = [n.urgency for n in self.notifications if n.alert_id == alert_id]
+        return max(levels, default=proximity.Urgency.SILENT)
 
     def _remember(self) -> None:
         if self.location_on:
@@ -321,8 +370,8 @@ class Mesh:
 
     def step(self) -> None:
         """Advance one tick: time moves on, phones on a route drive, phones online
-        read the internet, and neighbours sync (pairs that just met at once,
-        everyone every 60 s)."""
+        read the internet, neighbours sync (pairs that just met at once,
+        everyone every 60 s), and every phone re-checks how loud each warning is."""
         self.now_ms += int(self.tick_s * 1000)
         for phone in self.phones.values():
             if phone.route:
@@ -330,6 +379,8 @@ class Mesh:
                 self._grid = None
         self._pull_internet()
         self._sync()
+        for phone in self.phones.values():
+            phone.reevaluate()
 
     def run(self, seconds: float) -> None:
         for _ in range(int(round(seconds / self.tick_s))):

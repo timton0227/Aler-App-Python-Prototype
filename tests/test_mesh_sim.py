@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from alertmesh import geohash, mesh_sim, reports, wire
 from alertmesh.alert_store import IngestResult
 from alertmesh.mesh_sim import COMMUNITY_REPORT_TYPE, OFFICIAL_ALERT_TYPE, Mesh, Phone
+from alertmesh.proximity import ReasonKind, Urgency
 from alertmesh.signer import OfficialAlertSigner, WarningDraft, new_alert_id
 from alertmesh.wire import HazardType, Severity
 
@@ -302,3 +303,76 @@ def test_internet_cancellation_reaches_phones_through_the_same_route():
     mesh.run(60)
     mesh.publish(wire.encode(signer.cancel(alert.alert_id, mesh.now_ms)))
     assert all(p.alert_store.live_alerts() == [] for p in b)
+
+
+# --- Loud or quiet on each phone (step 7.6)
+
+
+def town_with_outsider(outsider_km=50):
+    """Three phones in town and one far away, all with internet, so each hears every warning."""
+    mesh = Mesh(start_ms=T0)
+    town = [mesh.add_phone(f"t{i}", *mesh_sim.offset_m(*KATHERINE, 0, i * 30)) for i in range(3)]
+    far = mesh.add_phone("far", *mesh_sim.offset_m(*KATHERINE, outsider_km * 1000, 0), has_internet=True)
+    for p in town:
+        p.has_internet = True
+    return mesh, town, far
+
+
+def test_urgency_inside_the_area_at_watch_and_act_is_loud_elsewhere_quiet():
+    mesh, town, far = town_with_outsider()
+    alert = signed_warning(mesh, Severity.WATCH_AND_ACT, cells=[geohash.encode(*KATHERINE, 5)])
+    mesh.publish(wire.encode(alert))
+    assert all(p.loudest(alert.alert_id) is Urgency.LOUD for p in town)
+    assert town[0].notifications[0].reason.kind is ReasonKind.INSIDE_AREA
+    assert far.loudest(alert.alert_id) is Urgency.QUIET  # everyone hears, far away gently
+    assert far.notifications[0].reason.kind is ReasonKind.OUTSIDE_AREA
+
+
+def test_urgency_advice_inside_is_quiet():
+    mesh, town, far = town_with_outsider()
+    alert = signed_warning(mesh, Severity.ADVICE)
+    mesh.publish(wire.encode(alert))
+    assert all(p.loudest(alert.alert_id) is Urgency.QUIET for p in town)
+
+
+def test_urgency_a_version_notifies_once_per_level_and_an_update_notifies_again():
+    mesh, town, far = town_with_outsider()
+    alert = signed_warning(mesh, Severity.WATCH_AND_ACT)
+    mesh.publish(wire.encode(alert))
+    mesh.run(120)
+    assert len(town[0].notifications) == 1
+    signer = OfficialAlertSigner()
+    draft = WarningDraft.updating(alert, mesh.now_ms)
+    draft.severity = Severity.EMERGENCY_WARNING
+    mesh.publish(wire.encode(signer.sign(draft, alert.alert_id, mesh.now_ms)))
+    assert len(town[0].notifications) == 2
+
+
+def test_urgency_driving_into_the_area_raises_quiet_to_loud():
+    mesh = Mesh(start_ms=T0)
+    target = geohash.encode(*KATHERINE, 5)
+    start = mesh_sim.offset_m(*KATHERINE, 0, -20_000)  # 20 km west
+    car = mesh.add_phone("car", *start, has_internet=True, route=[KATHERINE], speed_mps=25)
+    alert = signed_warning(mesh, Severity.EMERGENCY_WARNING, cells=[target])
+    mesh.publish(wire.encode(alert))
+    assert car.loudest(alert.alert_id) is Urgency.QUIET
+    mesh.run(20 * 60)
+    assert car.loudest(alert.alert_id) is Urgency.LOUD
+    assert [n.urgency for n in car.notifications] == [Urgency.QUIET, Urgency.LOUD]
+
+
+def test_urgency_location_off_uses_bookmarks_or_the_remembered_area():
+    mesh, town, far = town_with_outsider()
+    town[0].location_on = False                      # remembers Katherine's rough area
+    town[1].location_on = False
+    town[1].remembered_cell = None
+    town[1].bookmarks = (geohash.encode(*KATHERINE, 6),)  # watches their suburb
+    town[2].location_on = False
+    town[2].remembered_cell = None                   # knows nothing
+    alert = signed_warning(mesh, Severity.EMERGENCY_WARNING)
+    mesh.publish(wire.encode(alert))
+    assert town[0].notifications[0].reason.kind is ReasonKind.LAST_KNOWN_AREA
+    assert town[1].notifications[0].reason.kind is ReasonKind.WATCHED_PLACE_INSIDE_AREA
+    assert town[0].loudest(alert.alert_id) is town[1].loudest(alert.alert_id) is Urgency.LOUD
+    assert town[2].loudest(alert.alert_id) is Urgency.QUIET  # never silent
+    assert town[2].notifications[0].reason.kind is ReasonKind.LOCATION_UNKNOWN
