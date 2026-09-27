@@ -23,11 +23,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
-| 10 Streamlit | 3 | 4 |
+| 10 Streamlit | 4 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **54** | **58** |
+| **All** | **55** | **58** |
 
-**Next step:** 10.4
+**Next step:** 11.1
 
 ---
 
@@ -235,7 +235,10 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
       tests: `AlertNotificationContentTests.swift`, content tests in `SOSNotificationsModelTests.swift`
       Done when: a chosen phone lists its warnings with "how close", why it is loud or quiet, and the notification it showed; its settings change what it decides; it can send a call for help, "I'm safe" and a hazard report
       Verify: `python3 -m pytest tests/test_notifications.py tests/test_world.py tests/test_app.py`, then check a phone in the browser
-- [ ] 10.4 Hub board tab (large-type board with the SOS list)
+- [x] 10.4 Hub board tab (large-type board with the SOS list)
+      Swift: `AlertMesh/AlertMesh/Views/HubBoardView.swift` · tests: `HubBoardViewTests.swift`
+      Done when: the most serious live warning is in large type with up to 3 more under it, the footer counts devices nearby and any warnings that did not fit, and calls for help the centre heard are listed
+      Verify: `python3 -m pytest tests/test_hub.py tests/test_world.py tests/test_app.py`, then check the board in the browser
 
 ## Phase 11 — Final check
 

@@ -24,6 +24,32 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 10.4 Streamlit: hub board tab — 2026-09-27
+- What: the page's fourth tab, the evacuation centre's wall display. It has:
+  - a header with the title and a clock;
+  - the most serious live warning in large type: a strip in its level colour, then the headline, what to do, until when, and its area cells;
+  - up to 3 more warnings as rows;
+  - a footer with "N devices nearby" (or "No devices nearby yet") and "N more warnings not shown" when some did not fit;
+  - when nothing is live, "No current warnings" with the board's "this board is live" line.
+
+  Under the warnings is a list of calls for help the centre has heard, with who sent each, roughly where, how long ago, and the note. New module `alertmesh/hub.py` holds the board's rules and its HTML. New `World.board()`. The README now describes the four tabs.
+- Ported from: `AlertMesh/AlertMesh/Views/HubBoardView.swift` (`maxRows`, `hiddenCount`, `peersText`, `clockText`, the hero, rows, empty state and footer, the English strings and the board's own large type sizes).
+- Differences from Swift:
+  - The calls-for-help list is new. The Swift board shows official warnings only, and the Mac notifies for calls for help instead. It is added because this step's checklist line asked for it, and it is labelled as unchecked reports, not official warnings.
+  - The board does not refresh every second. It changes when simulated time passes or something is sent. The Swift board ticks its clock every second so a quiet board visibly stays alive.
+  - No full-screen mode and no Escape key. The caption suggests collapsing the sidebar and using the browser's full screen.
+  - No hub-mode switch. The Swift `HubModeController` also turns on the mesh bridge and keeps the display awake. Here the centre is always the online hub.
+- Verified by: `python3 -m pytest tests/test_hub.py tests/test_world.py tests/test_app.py` — 38 passed. These include:
+  - 5 ported board tests (footer says none rather than zero, warnings past the third row are counted, clock is a time only, the worst warning is the hero, empty and populated boards draw) and a row with no action and an unknown hazard;
+  - a calls-for-help test (only SOS reports are listed);
+  - a world test (the board shows the centre's warning and a call for help that reached it);
+  - a headless page test.
+
+  The full suite passed 343. By eye in the browser pane:
+  - Sent an Emergency Warning, sent a call for help from phone p0, and let 15 minutes pass. The board showed the warning in large type, "Until 13:43 #qvqj9", "Calls for help nearby: p0, Near Katherine (qvqj9wy), 15 min ago — Car stuck at the causeway", and "4 devices nearby".
+  - The empty board showed "No current warnings" with the live-board line.
+- Found by reading the board's HTML: a warning with no "what to do" left a blank line followed by an indented line. In Markdown that ends the HTML block and prints the rest of the card as code. Every HTML block on the page is now one line (`hub.one_line`), with a test that fails on the old output.
+
 ## 10.3 Streamlit: phone view tab — 2026-09-27
 - What: the page's third tab: one phone in the town. Pick a phone (it starts on one with no internet). It shows roughly where the phone is ("Near Katherine"), a nickname anyone can change, and switches for Bluetooth, location, internet, and a watched place.
   - Warnings: each live warning as the phone lists it (level colour, headline, "You are in this area" / "Near you" / "Another area", until when, what to do). Under each: why it is loud or quiet now, in plain words, and the notification the phone showed, worded as the app words it.

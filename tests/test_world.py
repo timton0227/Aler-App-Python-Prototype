@@ -178,3 +178,20 @@ def test_a_watched_place_makes_a_far_warning_loud_with_location_off():
     assert phone.decide(alert).reason.kind is ReasonKind.WATCHED_PLACE_INSIDE_AREA
     w.set_phone(phone, watched=None)
     assert phone.bookmarks == ()
+
+
+# --- The hub board tab ---
+
+
+def test_the_board_shows_the_centres_warnings_and_calls_for_help():
+    w = world.build(SMALL)
+    assert w.board().hero is None
+    alert = w.console.issue(warning(w))
+    # Calls for help travel over Bluetooth only, so the caller stands next to the centre.
+    caller = w.mesh.neighbours(w.hub)[0]
+    w.mesh.send_sos(caller, "Car stuck")
+    w.advance(10)
+    b = w.board()
+    assert b.hero == alert
+    assert b.peers == len(w.mesh.neighbours(w.hub))
+    assert [r.note for r in b.sos] == ["Car stuck"]

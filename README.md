@@ -38,6 +38,23 @@ Not covered: real Bluetooth, Tor, internet relays (Nostr), private chat, voice, 
 | Story notebook | Open `demo.ipynb` in VS Code and choose **Run All** |
 | Live demo page | `streamlit run app.py`, or **Run and Debug → Streamlit demo** in VS Code |
 
+### The live demo page
+
+`streamlit run app.py` opens a page in the browser with one simulated town: about 300
+phones around Katherine, a few with internet, and an evacuation centre in the middle.
+Time only moves when you press **+1**, **+5** or **+15** minutes in the sidebar, where
+you can also build a different town.
+
+| Tab | What it does |
+|---|---|
+| Warning console | Write a warning, pick its area, check the preview, and send it. It goes out over Bluetooth from the evacuation centre and to the internet. |
+| Map | Watch a warning spread: blue phones read it on the internet, red phones got it over Bluetooth. |
+| Phone view | One phone's warnings, why each was loud or quiet, and its notifications. Send a call for help, "I'm safe" or a hazard report from it. |
+| Hub board | The evacuation centre's wall display, in large type. |
+
+The map needs internet for its street background. Without internet the phones
+still show, on a blank background.
+
 ## For contributors
 
 1. Open [`PROGRESS.md`](PROGRESS.md) and take the next unticked step.

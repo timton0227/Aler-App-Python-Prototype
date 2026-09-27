@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from alertmesh import geohash, metrics, notifications, places, proximity, viz, wire
+from alertmesh import geohash, hub, metrics, notifications, places, proximity, viz, wire
 from alertmesh.console import Console
 from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh, Notification, Phone
 
@@ -135,6 +135,14 @@ class World:
             loudest = max(shown, key=lambda n: n.urgency, default=None)
             out.append(PhoneWarning(alert, phone.decide(alert), loudest))
         return out
+
+    # --- The evacuation-centre board (the hub board tab) ---
+
+    def board(self) -> hub.Board:
+        """What the centre's board shows: its own store's warnings, the devices in
+        Bluetooth range, and the calls for help it has heard."""
+        return hub.board(self.hub.alert_store.live_alerts(), len(self.mesh.neighbours(self.hub)),
+                         self.hub.report_store.live_reports())
 
     # --- Console wiring ---
 

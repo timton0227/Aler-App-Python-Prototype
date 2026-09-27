@@ -200,3 +200,16 @@ def test_a_hazard_report_is_not_a_warning(app):
     [report] = phone.report_store.live_reports()
     assert report.kind is reports.ReportKind.HAZARD and report.note == "Causeway under water"
     assert phone.alert_store.live_alerts() == []
+
+
+# --- Hub board ---
+
+
+def test_the_board_is_empty_then_shows_the_warning(app):
+    assert "Hub board" in [t.label for t in app.tabs]
+    assert any("No current warnings" in m.value for m in app.markdown)
+    fill_warning(app)
+    send(app)
+    board = next(m.value for m in app.markdown if "Evacuation centre board" in m.value)
+    assert "Emergency Warning · Bushfire" in board
+    assert "Bushfire near Katherine - leave now" in board

@@ -16,7 +16,7 @@ import html
 
 import streamlit as st
 
-from alertmesh import labels, metrics, notifications, places, reports, viz, world
+from alertmesh import hub, labels, metrics, notifications, places, reports, viz, world
 from alertmesh.console import AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, outcome_text, toggle_area
 from alertmesh.proximity import Urgency
 from alertmesh.reports import ReportKind, ReportSeverity
@@ -156,12 +156,12 @@ def preview_card(draft: WarningDraft) -> None:
     level = f"{labels.SEVERITY_NAMES[draft.severity]} · {labels.hazard_name(draft.hazard)}"
     headline = html.escape(draft.headline.strip()) or '<span style="opacity:.5">Headline</span>'
     action = html.escape(draft.action_text.strip()) or "What to do"
-    st.markdown(f"""
+    st.markdown(hub.one_line(f"""
 <div style="border:1px solid {fill};border-radius:10px;overflow:hidden">
   <div style="background:{fill};color:{on_fill};padding:10px;font-weight:700">{level}</div>
   <div style="padding:10px"><div style="font-size:1.25em;font-weight:700">{headline}</div>
   <div style="opacity:.75">{action}</div></div>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
 
 def places_by_distance() -> list:
@@ -355,18 +355,18 @@ def active_sos(phone) -> bool:
 def notification_card(content: notifications.Content, loud: bool) -> None:
     body = "<br>".join(html.escape(line) for line in content.body.split("\n"))
     style = "loud (time-sensitive)" if loud else "quiet"
-    st.markdown(f"""
+    st.markdown(hub.one_line(f"""
 <div style="border:1px solid #bbb;border-radius:12px;padding:8px 12px;background:#f6f6f6">
   <div style="font-size:.8em;opacity:.6">Notification · {style}</div>
   <div style="font-weight:700">{html.escape(content.title)}</div><div>{body}</div>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
 
 def warning_card(item: world.PhoneWarning) -> None:
     """One warning as the phone lists it: level colour, headline, how close, what to do."""
     alert = item.alert
     fill, on_fill = labels.SEVERITY_FILL[alert.severity], labels.SEVERITY_ON_FILL[alert.severity]
-    st.markdown(f"""
+    st.markdown(hub.one_line(f"""
 <div style="border:1px solid {fill};border-radius:10px;overflow:hidden;margin-bottom:6px">
   <div style="background:{fill};color:{on_fill};padding:8px 10px;font-weight:700">{labels.title(alert)}</div>
   <div style="padding:8px 10px">
@@ -374,7 +374,7 @@ def warning_card(item: world.PhoneWarning) -> None:
     <div style="opacity:.75">{labels.proximity(item.now)} · {labels.until(alert.expires_at, w.mesh.now_ms)}</div>
     <div style="margin-top:6px"><b>What to do</b><br>{html.escape(alert.action_text)}</div>
   </div>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
     loud = item.now.urgency is Urgency.LOUD
     st.markdown(f"**{'Loud' if loud else 'Quiet'} now:** {labels.REASON_TEXT[item.now.reason.kind]}.")
     content = item.notification()
@@ -489,13 +489,25 @@ def phone_tab() -> None:
                 notification_card(content, n.urgency is Urgency.LOUD)
 
 
+# --- Hub board (HubBoardView) -------------------------------------------------------
+
+
+def hub_tab() -> None:
+    st.caption("The evacuation centre's wall display: every live warning its Mac holds, the most serious in "
+               "large type. For a hall, collapse the sidebar and make the browser full screen. It changes "
+               "only when time passes or something is sent.")
+    st.markdown(hub.board_html(w.board(), w.mesh.now_ms), unsafe_allow_html=True)
+
+
 # --- Page -----------------------------------------------------------------------
 
 sidebar()
-console, spread, phone_view = st.tabs(["Warning console", "Map", "Phone view"])
+console, spread, phone_view, board = st.tabs(["Warning console", "Map", "Phone view", "Hub board"])
 with console:
     console_tab()
 with spread:
     map_tab()
 with phone_view:
     phone_tab()
+with board:
+    hub_tab()
