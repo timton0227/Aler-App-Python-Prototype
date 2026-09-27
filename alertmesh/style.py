@@ -14,6 +14,8 @@ setting as the iPhone app does.
 This is free and unencumbered software released into the public domain.
 """
 import html
+import inspect
+import json
 import sys
 import time
 
@@ -258,6 +260,9 @@ CSS = f"""
   color:var(--am-red-text);}}
 [class*="st-key-cancel_yes_"] button{{background:var(--am-red);border-color:var(--am-red);color:#fff;}}
 
+/* The keyboard shortcuts' script takes no room. */
+.st-key-am_keys{{display:none!important;}}
+
 /* Side columns move under the main column in a narrow window. */
 @media (max-width:1100px){{
   .st-key-am_now [data-testid="stHorizontalBlock"]{{flex-wrap:wrap;}}
@@ -314,12 +319,17 @@ def nav(pages: list[tuple[str, str]], badges: dict[str, int], brand: str) -> str
     st.sidebar.markdown(f'<div class="am-brand"><span class="am-appicon">{APP_ICON}</span><span>{esc(brand)}</span>'
                         f'</div>', unsafe_allow_html=True)
     tabs = st.sidebar.container(key="am_nav")
-    for name, icon in pages:
+    for number, (name, icon) in enumerate(pages, start=1):
         count = badges.get(name, 0)
         tabs.button(name + (f" :red-badge[{count}]" if count else ""), key=nav_key(name), icon=icon,
-                          type="primary" if state.view == name else "tertiary", width="stretch",
-                          on_click=state.update, kwargs={"view": name})
+                    type="primary" if state.view == name else "tertiary", width="stretch",
+                    on_click=state.update, kwargs={"view": name}, help=f"{name} ({shortcut_label(str(number))})")
     return state.view
+
+
+def nav_shortcuts(pages: list[tuple[str, str]]) -> dict[str, dict[str, str]]:
+    """⌘1, ⌘2, ⌘3 (Ctrl on Windows) for the tabs."""
+    return {str(number): {"key": nav_key(name)} for number, (name, _) in enumerate(pages, start=1)}
 
 
 def nav_key(name: str) -> str:
@@ -377,6 +387,62 @@ def bubbles(messages: list[tuple[bool, str, str, str, int]]) -> str:
         when = f'<span class="am-time">{clock(sent_at)}</span>' if last else ""
         rows.append(f'<div class="{classes}">{who}<span class="am-bub">{esc(text)}</span>{when}</div>')
     return f'<div class="am-msgs">{"".join(rows)}</div>'
+
+
+def shortcut_label(key: str, shift: bool = False) -> str:
+    """How a shortcut is written on this system: "⌘1" and "⌘⇧H" on a Mac, "Ctrl+1" and
+    "Ctrl+Shift+H" on Windows."""
+    if MAC:
+        return "⌘" + ("⇧" if shift else "") + key.upper()
+    return "Ctrl+" + ("Shift+" if shift else "") + key.upper()
+
+
+# Presses the page's own buttons, found by their keys. With ⌘ on a Mac and Ctrl
+# elsewhere. A button that is not on the page (the help bar outside Now) is reached by
+# first pressing `via` (its tab), then waiting for it to appear.
+_SHORTCUT_SCRIPT = """
+(function () {
+  const doc = window.frameElement ? window.parent.document : document;
+  const bindings = %s, mac = %s;
+  const press = (key) => { const b = doc.querySelector('.st-key-' + key + ' button');
+    if (b && !b.disabled) { b.click(); return true; } return !!b; };
+  if (doc.amShortcuts) doc.removeEventListener('keydown', doc.amShortcuts, true);
+  doc.amShortcuts = function (e) {
+    if (!(mac ? e.metaKey : e.ctrlKey) || e.altKey || (mac && e.ctrlKey)) return;
+    const code = e.code || '';
+    const key = code.startsWith('Digit') ? code.slice(5) : code === 'Comma' ? ',' :
+      code.startsWith('Key') ? code.slice(3).toLowerCase() : (e.key || '').toLowerCase();
+    const binding = bindings[(e.shiftKey ? 'shift+' : '') + key];
+    if (!binding) return;
+    e.preventDefault(); e.stopPropagation();
+    if (press(binding.key) || !binding.via) return;
+    press(binding.via);
+    let tries = 0;
+    const again = setInterval(() => { if (press(binding.key) || ++tries > 30) clearInterval(again); }, 100);
+  };
+  doc.addEventListener('keydown', doc.amShortcuts, true);
+})();
+"""
+
+
+def shortcut_script(bindings: dict[str, dict[str, str]]) -> str:
+    """The script for `bindings`: {"1": {"key": "nav_now"}, "shift+h": {"key": "need_help",
+    "via": "nav_now"}, ...}, where each key is a button's key."""
+    return _SHORTCUT_SCRIPT % (json.dumps(bindings), "true" if MAC else "false")
+
+
+def shortcuts(bindings: dict[str, dict[str, str]]) -> None:
+    """Keyboard shortcuts for the page's buttons (see `shortcut_script`)."""
+    import streamlit as st
+
+    script = f"<script>{shortcut_script(bindings)}</script>"
+    with st.container(key="am_keys"):
+        if "unsafe_allow_javascript" in inspect.signature(st.html).parameters:
+            st.html(script, unsafe_allow_javascript=True)  # newer Streamlit: in the page itself
+        else:
+            import streamlit.components.v1 as components
+
+            components.html(script, height=0)  # earlier: in a frame, reaching up to the page
 
 
 def inject() -> None:

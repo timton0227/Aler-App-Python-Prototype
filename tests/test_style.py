@@ -1,6 +1,7 @@
 """The shared look (alertmesh/style.py): the theme the apps and the desktop launcher use,
 and the stylesheet's colours. How the pages look is checked by eye (PROGRESS.md, Phase 14).
 """
+import json
 import re
 from pathlib import Path
 
@@ -88,3 +89,24 @@ def test_bubbles_yours_on_the_right_theirs_named():
     html = style.bubbles([(False, "jun", "Jun", "Is the bridge open?", 0), (True, "you", "You", "Closed <b>", 1)])
     assert '<div class="am-msg"><span class="am-from">Jun</span><span class="am-bub">Is the bridge open?</span>' in html
     assert '<div class="am-msg am-out am-gap"><span class="am-bub">Closed &lt;b&gt;</span>' in html
+
+
+def test_shortcut_labels_follow_the_system(monkeypatch):
+    monkeypatch.setattr(style, "MAC", True)
+    assert (style.shortcut_label("1"), style.shortcut_label(","), style.shortcut_label("h", shift=True)) == (
+        "⌘1", "⌘,", "⌘⇧H")
+    monkeypatch.setattr(style, "MAC", False)
+    assert (style.shortcut_label("1"), style.shortcut_label(","), style.shortcut_label("h", shift=True)) == (
+        "Ctrl+1", "Ctrl+,", "Ctrl+Shift+H")
+
+
+def test_the_shortcut_script_presses_the_buttons_it_is_given(monkeypatch):
+    pages = [("Now", ""), ("Report", ""), ("Chat", "")]
+    bindings = {**style.nav_shortcuts(pages), "shift+h": {"key": "need_help", "via": "nav_now"}}
+    assert bindings["1"] == {"key": "nav_now"} and bindings["3"] == {"key": "nav_chat"}
+    for mac in (True, False):
+        monkeypatch.setattr(style, "MAC", mac)
+        script = style.shortcut_script(bindings)
+        assert json.dumps(bindings) in script
+        assert f"mac = {'true' if mac else 'false'}" in script
+    assert "'.st-key-' + key + ' button'" in script

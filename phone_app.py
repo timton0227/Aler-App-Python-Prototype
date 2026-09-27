@@ -139,7 +139,7 @@ def sidebar_foot() -> None:
     with st.sidebar.container(key="am_foot"):
         st.button(f"{p.nickname} · {p.profile.town or 'Pick your town'}", key="open_settings",
                   icon=":material/settings:", width="stretch", on_click=open_settings,
-                  help="Settings: your nickname and town")
+                  help=f"Settings: your nickname and town ({style.shortcut_label(',')})")
 
 
 def status_bar() -> None:
@@ -228,7 +228,8 @@ def help_bar() -> None:
         st.button("I need help", key="need_help", icon=":material/sos:", type="primary", width="stretch",
                   disabled=p.geohash is None, on_click=open_sos,
                   help="Pick your town in Settings first, so people know where to come." if p.geohash is None
-                  else "Opens the call for help. Nothing is sent until you press Send.")
+                  else f"Opens the call for help ({style.shortcut_label('h', shift=True)}). Nothing is sent until "
+                  "you press Send.")
 
 
 def open_warning(alert_id: bytes) -> None:
@@ -533,9 +534,13 @@ tell_about_new_things()
 
 # The page must know which tab is open, so that opening Chat marks its messages read.
 urgent = len(p.calls_for_help()) + sum(1 for w in p.warnings() if w.decision.urgency is Urgency.LOUD)
-view = style.nav([(NOW, ":material/home:"), (REPORT, ":material/campaign:"), (CHAT, ":material/chat:")],
-                 {NOW: urgent if state.get("view") != NOW else 0,
-                  CHAT: p.node.chats.unread if state.get("view") != CHAT else 0}, "Alert Mesh")
+PAGES = [(NOW, ":material/home:"), (REPORT, ":material/campaign:"), (CHAT, ":material/chat:")]
+view = style.nav(PAGES, {NOW: urgent if state.get("view") != NOW else 0,
+                         CHAT: p.node.chats.unread if state.get("view") != CHAT else 0}, "Alert Mesh")
+# ⌘1-3, ⌘, for Settings and ⌘⇧H for "I need help" (Ctrl on Windows). "I need help" only
+# opens the sheet: as on the iPhone, nothing is sent until "Send call for help".
+style.shortcuts({**style.nav_shortcuts(PAGES), ",": {"key": "open_settings"},
+                 "shift+h": {"key": "need_help", "via": style.nav_key(NOW)}})
 sidebar_foot()
 status_bar()
 if state.get("settings_open"):

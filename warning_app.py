@@ -381,8 +381,9 @@ def hub_tab() -> None:
 # --- Page -----------------------------------------------------------------------
 
 style.inject()
-view = style.nav([(CONSOLE, ":material/edit_note:"), (MAP, ":material/map:"), (BOARD, ":material/tv:")], {},
-                 "Warnings")
+PAGES = [(CONSOLE, ":material/edit_note:"), (MAP, ":material/map:"), (BOARD, ":material/tv:")]
+view = style.nav(PAGES, {}, "Warnings")
+style.shortcuts(style.nav_shortcuts(PAGES))  # ⌘1-3 (Ctrl on Windows) for the tabs
 town_settings()
 clock_box()
 status_bar()

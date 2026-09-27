@@ -24,6 +24,32 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.6 Keyboard shortcuts — 2026-09-27
+- What:
+  - Both apps: ⌘1, ⌘2, ⌘3 switch tabs (Ctrl+1 to 3 on Windows).
+  - Phone app:
+    - ⌘, opens Settings;
+    - ⌘⇧H opens the call-for-help sheet, going to Now first if needed (Ctrl+, and Ctrl+Shift+H on Windows).
+    - Like the iPhone, the shortcut only opens the sheet: nothing is sent until "Send call for help" is pressed.
+  - `alertmesh/style.py`:
+    - `shortcuts()` puts a small script on the page that presses the page's own buttons, found by their keys;
+    - `shortcut_label()` writes a shortcut the system's way (⌘ and ⇧ on a Mac, Ctrl+ and Shift+ on Windows);
+    - the tabs', Settings' and "I need help"'s tooltips show their shortcut.
+  - Newer Streamlit runs the script in the page itself. Streamlit 1.51 has no way to do that, so it runs in a hidden frame that reaches up to the page.
+- Ported from: new. The iPhone has no keyboard shortcuts. The list is from `docs/desktop-design.md`, "Keyboard".
+- Differences from Swift: not applicable.
+  - Not built:
+    - Hub board full screen (⌃⌘F, F11): the window belongs to pywebview, not to the page.
+    - The Mac menu bar entries for these shortcuts.
+  - Built in already: Esc closes a sheet and Return sends a message (Streamlit's own).
+- Verified by:
+  - `python3 -m pytest tests/test_style.py` — 13 passed (2 new: labels on a Mac and on Windows, and the script carries each binding).
+  - `python3 -m pytest -q` — 470 passed, 2 skipped.
+  - Pressed in headless Chromium with Streamlit 1.64 and 1.51 (Linux, so Ctrl):
+    - phone app: Ctrl+2 goes to Report, Ctrl+3 to Chat, Ctrl+Shift+H from Chat goes to Now and opens the call-for-help sheet, Ctrl+, opens Settings with the nickname filled in;
+    - warning app: Ctrl+3 goes to Hub board, Ctrl+2 to Map.
+  - ⌘ on a Mac and the packaged apps' windows have not been pressed yet.
+
 ## 14.5 Warning app in the same style — 2026-09-27
 - What:
   - Warning console, Map and Hub board are tabs in the sidebar, like the phone app's.
