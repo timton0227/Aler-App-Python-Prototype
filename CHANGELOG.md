@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.8 Cancellations — 2026-09-27
+- What: `wire.AlertCancellation`, `wire.cancellation_signing_bytes()`, `wire.encode_cancellation()`, and `wire.encode()`, which handles either kind. `decode()` and `verify()` now handle cancellations too.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertCancellationPacket`, the `.cancellation` cases of `AlertWire.encode` / `decode`).
+- Differences from Swift: none.
+- Verified by: `python3 -m pytest tests/test_wire.py -k cancellation` — 7 passed. The frozen 101-byte vector decodes and verifies against the pinned key. A Python-signed copy matches its first 37 bytes, and with the Swift signature all 101 bytes match. Ports `cancellationRoundTrip`, `cancellationSignedByAnotherKeyFailsVerification`, `cancellationRetargetedToAnotherAlertFailsVerification`, `flippingASignedAlertIntoACancellationFailsVerification`, `flippingACancellationIntoAnAlertFailsDecode`, `cancellationRejectsMissingFields`, `decodesTheFrozenCancellationVectorFromTheSigningScript`. Full suite: 67 passed.
+
 ## 2.7 Attack tests — 2026-09-27
 - What: tests only, no code change. Each attack keeps a genuine signature and changes the content.
 - Ported from: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift` (`tamperedHeadlineFailsVerification`, `tamperedSeverityFailsVerification`, `addingAnAreaCellFailsVerification`, `movingBytesBetweenHeadlineAndActionFailsVerification`).

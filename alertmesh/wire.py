@@ -254,6 +254,42 @@ def encode_alert(alert: OfficialAlert) -> bytes:
     return out
 
 
+# --- Cancellation (kind 0x02) ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AlertCancellation:
+    """A signed withdrawal of a warning (Swift: `AlertCancellationPacket`).
+
+    Signed under its own context, so a warning's signature can never make a valid
+    cancellation, nor the reverse. `issued_at` must be later than the version it
+    withdraws; a later warning version with the same ID reinstates it.
+    """
+
+    alert_id: bytes
+    issued_at: int
+    signature: bytes
+
+
+def cancellation_signing_bytes(alert_id: bytes, issued_at: int) -> bytes:
+    return _context(CANCELLATION_SIGNING_CONTEXT) + alert_id + _u64(issued_at)
+
+
+def encode_cancellation(cancellation: AlertCancellation) -> bytes:
+    out = put_tlv(TLVType.KIND, bytes([WireKind.CANCELLATION]))
+    out += put_tlv(TLVType.ALERT_ID, cancellation.alert_id)
+    out += put_tlv(TLVType.ISSUED_AT, _u64(cancellation.issued_at))
+    out += put_tlv(TLVType.SIGNATURE, cancellation.signature)
+    return out
+
+
+def encode(item) -> bytes:
+    """Wire bytes for a warning or a cancellation."""
+    if isinstance(item, AlertCancellation):
+        return encode_cancellation(item)
+    return encode_alert(item)
+
+
 # --- Decode and verify --------------------------------------------------------
 
 _KNOWN_TYPES = {t.value for t in TLVType}
@@ -272,7 +308,7 @@ def _utf8(value: bytes) -> str | None:
 
 
 def decode(data: bytes):
-    """Read a warning payload. Returns an `OfficialAlert`, or None if malformed.
+    """Read a payload. Returns an `OfficialAlert`, an `AlertCancellation`, or None.
 
     Structure only: a successful decode says NOTHING about who made it. Call
     `verify_pinned()` before storing, showing or passing it on.
@@ -340,6 +376,12 @@ def decode(data: bytes):
             alert_id, hazard_code, severity, tuple(area_cells), headline, action_text,
             issued_at, expires_at, signature,
         )
+    if kind == WireKind.CANCELLATION:
+        # Any other fields are ignored: the cancellation signature does not cover
+        # them, so nothing may be read from them.
+        if alert_id is None or issued_at is None or signature is None:
+            return None
+        return AlertCancellation(alert_id, issued_at, signature)
     return None
 
 
@@ -359,6 +401,8 @@ def verify(item, public_key: bytes) -> bool:
     """
     if isinstance(item, OfficialAlert):
         return _ed25519_ok(item.signature, signing_bytes_of(item), public_key)
+    if isinstance(item, AlertCancellation):
+        return _ed25519_ok(item.signature, cancellation_signing_bytes(item.alert_id, item.issued_at), public_key)
     return False
 
 

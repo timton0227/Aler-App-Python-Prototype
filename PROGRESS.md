@@ -15,7 +15,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 |---|---|---|
 | 0 Setup | 3 | 3 |
 | 1 Geohash | 4 | 4 |
-| 2 Official alert format | 7 | 10 |
+| 2 Official alert format | 8 | 10 |
 | 3 Community reports | 0 | 4 |
 | 4 Proximity | 0 | 3 |
 | 5 Stores | 0 | 5 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **14** | **56** |
+| **All** | **15** | **56** |
 
-**Next step:** 2.8
+**Next step:** 2.9
 
 ---
 
@@ -86,7 +86,7 @@ tests: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift`
 - [x] 2.7 Attack tests
       Done when: moving bytes between headline and action fails; adding an area cell fails
       Verify: `python3 -m pytest tests/test_wire.py -k attack`
-- [ ] 2.8 Cancellation: signing bytes, encode, decode
+- [x] 2.8 Cancellation: signing bytes, encode, decode
       Done when: the first 37 bytes equal the frozen 101-byte vector, and its signature verifies
       Verify: `python3 -m pytest tests/test_wire.py -k cancellation`
 - [ ] 2.9 Size budget

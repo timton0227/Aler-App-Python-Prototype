@@ -432,3 +432,79 @@ def test_attack_changed_times_or_id_fail():
 def test_attack_genuine_alert_still_verifies():
     """Guards against a verify that fails for everything, which would make the tests above meaningless."""
     assert wire.verify(make_signed_alert(), PUBLISHER_PUBLIC)
+
+
+# --- Cancellations (step 2.8)
+
+
+def make_signed_cancellation(alert_id, issued_at=1_700_003_600_000, key=None):
+    signature = (key or PUBLISHER).sign(wire.cancellation_signing_bytes(alert_id, issued_at))
+    return wire.AlertCancellation(alert_id, issued_at, signature)
+
+
+def test_cancellation_round_trip():
+    """Swift: cancellationRoundTrip."""
+    cancellation = make_signed_cancellation(make_signed_alert().alert_id)
+    encoded = wire.encode(cancellation)
+    decoded = wire.decode(encoded)
+    assert decoded == cancellation
+    assert wire.verify(decoded, PUBLISHER_PUBLIC)
+    assert wire.severity_peek(encoded) is None  # carries no severity, gets no priority
+
+
+def test_cancellation_signed_by_another_key_fails():
+    """Swift: cancellationSignedByAnotherKeyFailsVerification."""
+    forged = make_signed_cancellation(make_signed_alert().alert_id, key=Ed25519PrivateKey.generate())
+    assert not wire.verify(wire.decode(wire.encode(forged)), PUBLISHER_PUBLIC)
+
+
+def test_cancellation_retargeted_to_another_alert_fails():
+    """Swift: cancellationRetargetedToAnotherAlertFailsVerification."""
+    genuine = make_signed_cancellation(make_signed_alert().alert_id)
+    retargeted = wire.AlertCancellation(make_signed_alert().alert_id, genuine.issued_at, genuine.signature)
+    assert not wire.verify(retargeted, PUBLISHER_PUBLIC)
+
+
+def test_cancellation_flipped_from_a_signed_alert_decodes_but_fails():
+    """Swift: flippingASignedAlertIntoACancellationFailsVerification."""
+    alert = make_signed_alert(severity=Severity.EMERGENCY_WARNING)
+    encoded = bytearray(wire.encode(alert))
+    offset = value_offset(0x01, encoded)
+    assert encoded[offset] == 0x01
+    encoded[offset] = 0x02
+    decoded = wire.decode(bytes(encoded))
+    assert isinstance(decoded, wire.AlertCancellation)
+    assert decoded.alert_id == alert.alert_id
+    assert not wire.verify(decoded, PUBLISHER_PUBLIC)
+
+
+def test_cancellation_flipped_into_an_alert_fails_decode():
+    """Swift: flippingACancellationIntoAnAlertFailsDecode."""
+    encoded = bytearray(wire.encode(make_signed_cancellation(make_signed_alert().alert_id)))
+    encoded[value_offset(0x01, encoded)] = 0x01
+    assert wire.decode(bytes(encoded)) is None
+
+
+def test_cancellation_rejects_missing_fields():
+    """Swift: cancellationRejectsMissingFields."""
+    encoded = wire.encode(make_signed_cancellation(make_signed_alert().alert_id))
+    assert wire.decode(encoded[: -3 - wire.SIGNATURE_LENGTH]) is None
+
+
+def test_cancellation_frozen_vector():
+    """Swift: decodesTheFrozenCancellationVectorFromTheSigningScript.
+    Spec: the first 37 bytes must match; the signature must verify."""
+    data = bytes.fromhex(FROZEN_CANCELLATION_HEX)
+    decoded = wire.decode(data)
+    assert wire.verify_pinned(decoded)
+    assert not wire.verify(decoded, PUBLISHER_PUBLIC)
+    assert decoded.alert_id == bytes(range(16))
+    assert decoded.issued_at == 1_700_003_600_000
+    assert len(data) == 101
+
+    dev_private = bytes.fromhex("9077bd3b4bf110ba5c9bc7375e7e771d11597918ffa4a9ddc7a2f089a291f8cc")
+    ours = make_signed_cancellation(bytes(range(16)), key=Ed25519PrivateKey.from_private_bytes(dev_private))
+    ours_encoded = wire.encode(ours)
+    assert ours_encoded[:37] == data[:37]
+    assert wire.verify_pinned(ours)
+    assert wire.encode(wire.AlertCancellation(bytes(range(16)), 1_700_003_600_000, data[-64:])) == data
