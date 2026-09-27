@@ -24,6 +24,20 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.8 Notebook: charts, with the mesh vs internet only — 2026-09-27
+- What: section 8 of `demo.ipynb`. A curve of the share warned over 30 minutes, with the mesh and with internet only, plus a summary table. Three sweep charts, averaging 3 layouts per value: number of phones, share walking about, and Bluetooth reach. It closes with "what this shows, and what it does not", including the simulation caveats.
+- Ported from: new. Uses `metrics.compare`, `metrics.sweep`, `metrics.means` and the `viz` charts.
+- Differences from the app: not applicable.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors; the whole notebook takes about 26 s. Base scenario (250 phones, 1 km², 10% online, 20% walking, 30 min): with the mesh 98% after 10 min, 98.8% at the end, 80% by minute 1; internet only 11.2% throughout. Sweeps, with mesh vs internet only:
+
+  | Changed | Values | With mesh | Internet only |
+  |---|---|---|---|
+  | Phones | 50 / 100 / 200 / 400 | 89% / 93% / 99% / 100% | 15% / 12% / 12% / 12% |
+  | Share walking about | 0 / 0.1 / 0.25 / 0.5 | 57% / 98% / 100% / 100% | 10% / 9% / 10% / 10% |
+  | Bluetooth reach | 20 / 40 / 60 / 100 m | 90% / 97% / 99% / 100% | 11% |
+
+  The first draft of the closing text said Bluetooth reach "matters a lot" and that a still, sparse camp gains much less. These charts, which include walkers, do not show either, so the text was rewritten to what they do show. It notes that without walkers both factors matter far more, as step 8.3 measured.
+
 ## 9.7 Notebook: community hazard reports — 2026-09-27
 - What: section 7 of `demo.ipynb`. Jo reports a flooded causeway (high). After 10 minutes: how many phones hold it, that it is in no official warning store, and that it caused no notifications. Then one phone's report list (hazard first, then check-ins) with who sent each, which key signed it, severity, the place in words, and the note. A note explains that a nickname proves nothing and the key does.
 - Ported from: new. Uses `Mesh.send_hazard`, the report store and `places.label`.

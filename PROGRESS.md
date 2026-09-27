@@ -22,12 +22,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 6 Places | 3 | 3 |
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
-| 9 Notebook | 7 | 8 |
+| 9 Notebook | 8 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **50** | **58** |
+| **All** | **51** | **58** |
 
-**Next step:** 9.8
+**Next step:** 10.1
 
 ---
 
@@ -212,7 +212,7 @@ Verify each step: `jupyter nbconvert --to notebook --execute demo.ipynb --output
 - [x] 9.5 Update, then cancel, the warning
 - [x] 9.6 SOS, then "I'm safe"; a stranger cannot fake "safe"
 - [x] 9.7 Community hazard report
-- [ ] 9.8 Charts: with vs without mesh
+- [x] 9.8 Charts: with vs without mesh
 
 ## Phase 10 — Streamlit (`app.py`)
 
