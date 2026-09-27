@@ -2,9 +2,11 @@
 
 The rules being checked come from the Swift app; each test says which one.
 """
-from alertmesh import geohash, mesh_sim, wire
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from alertmesh import geohash, mesh_sim, reports, wire
 from alertmesh.alert_store import IngestResult
-from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh, Phone
+from alertmesh.mesh_sim import COMMUNITY_REPORT_TYPE, OFFICIAL_ALERT_TYPE, Mesh, Phone
 from alertmesh.signer import OfficialAlertSigner, WarningDraft, new_alert_id
 from alertmesh.wire import HazardType, Severity
 
@@ -116,3 +118,57 @@ def test_ttl_first_heard_is_recorded_once():
     mesh.run(60)
     mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))  # sent again later
     assert phones[2].first_heard_ms[alert.alert_id] == T0
+
+
+# --- Only verified packets relay (step 7.3)
+
+
+def forged_warning(mesh):
+    """Structurally perfect, signed by an attacker's key instead of the publisher's."""
+    attacker = OfficialAlertSigner(Ed25519PrivateKey.generate().private_bytes_raw())
+    draft = WarningDraft(HazardType.BUSHFIRE, Severity.EMERGENCY_WARNING, "Fake fire - leave now",
+                         "Drive south.", 6, [geohash.encode(*KATHERINE, 5)])
+    return attacker.sign(draft, new_alert_id(), mesh.now_ms)
+
+
+def test_forged_warning_is_refused_by_the_senders_own_store():
+    mesh, phones = chain(5)
+    assert mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(forged_warning(mesh))) is IngestResult.REJECTED
+    assert all(p.alert_store.live_alerts() == [] for p in phones)
+
+
+def test_forged_warning_from_a_modified_phone_stops_at_the_first_hop():
+    # A modified phone skips its own store and floods anyway: its neighbour hears
+    # it, rejects it, and passes nothing on.
+    mesh, phones = chain(5)
+    reached = mesh.broadcast(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(forged_warning(mesh)))
+    assert reached == 1
+    assert all(p.alert_store.live_alerts() == [] and p.alert_store.sync_candidates() == [] for p in phones)
+    assert all(not p.first_heard_ms for p in phones)
+
+
+def test_forged_tampered_copy_of_a_real_warning_goes_nowhere():
+    mesh, phones = chain(5)
+    real = signed_warning(mesh, Severity.EMERGENCY_WARNING)
+    downgraded = wire.OfficialAlert(real.alert_id, real.hazard_code, Severity.ADVICE, real.area_cells,
+                                    real.headline, real.action_text, real.issued_at, real.expires_at, real.signature)
+    assert mesh.broadcast(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(downgraded)) == 1
+    assert all(p.alert_store.live_alerts() == [] for p in phones)
+
+
+def test_forged_report_claiming_someone_elses_key_goes_nowhere():
+    mesh, phones = chain(5)
+    victim_sos = phones[4].author.sos(phones[4].geohash(), "help", mesh.now_ms)
+    fake = reports.CommunityReport(reports.ReportKind.SAFE, victim_sos.report_id, victim_sos.geohash, 0, None, "",
+                                   victim_sos.author_signing_key, "tim", mesh.now_ms + 1, mesh.now_ms + 60_000,
+                                   bytes(64))
+    assert mesh.broadcast(phones[0], COMMUNITY_REPORT_TYPE, reports.encode(fake)) == 1
+    assert all(p.report_store.live_reports() == [] for p in phones)
+
+
+def test_forged_the_real_warning_still_spreads_alongside():
+    mesh, phones = chain(5)
+    mesh.broadcast(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(forged_warning(mesh)))
+    real = signed_warning(mesh)
+    mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(real))
+    assert all([a.alert_id for a in p.alert_store.live_alerts()] == [real.alert_id] for p in phones)

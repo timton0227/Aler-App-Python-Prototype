@@ -20,14 +20,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 4 Proximity | 3 | 3 |
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
-| 7 Mesh simulation | 2 | 7 |
+| 7 Mesh simulation | 3 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **34** | **57** |
+| **All** | **35** | **57** |
 
-**Next step:** 7.3
+**Next step:** 7.4
 
 ---
 
@@ -175,7 +175,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k phone`
 - [x] 7.2 One tick: hand packets to phones in range, 7-hop limit
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k ttl`
-- [ ] 7.3 Only verified packets relay
+- [x] 7.3 Only verified packets relay
       Done when: a forged warning never spreads
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k forged`
 - [ ] 7.4 Moving phones carry warnings

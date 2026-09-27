@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.3 Only verified packets relay — 2026-09-27
+- What: tests only, no code change. The rule "relay only what the store accepted" was built in step 7.2; this step proves it holds in the mesh.
+- Ported from: new. The rule comes from `BLEService.handleOfficialAlert` and `sendOfficialAlertPayload`.
+- Differences from the app: none for this rule.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k forged` — 5 passed. (1) A forged warning is refused by the sender's own store and never sent. (2) A modified phone that floods it anyway reaches 1 neighbour, which rejects it; no phone stores or offers it, and no phone counts as warned. (3) A real warning with its level downgraded goes nowhere. (4) A fake "I'm safe" claiming someone else's key goes nowhere. (5) A real warning still spreads to all 5 phones alongside a forgery.
+
 ## 7.2 Mesh, links and the 7-hop flood — 2026-09-27
 - What: `Mesh` (clock, phones, Bluetooth range, links, `broadcast`, `send`, `step`, `run`, and a readable `log`), `relay_ttl()`, `is_urgent()`, `Phone.receive()`, `Phone.first_heard_ms`. Constants `MESSAGE_TTL_DEFAULT` (7), `HIGH_DEGREE_THRESHOLD` (6), `DEFAULT_BLUETOOTH_RANGE_M` (60 m), `DEFAULT_TICK_S` (10 s).
 - Ported from: the broadcast branch of `AlertMesh/Services/RelayController.swift` (`relay_ttl`); `TransportConfig.messageTTLDefault` and `bleHighDegreeThreshold`; relay-only-if-accepted-or-duplicate from `BLEService.handleOfficialAlert`; "the store is the gate" from `sendOfficialAlertPayload`.
