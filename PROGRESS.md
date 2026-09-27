@@ -27,7 +27,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
-| **All** | **70** | **72** |
+| 14 Desktop look: the iPhone app's style, on Mac and Windows | 0 | 7 |
+| **All** | **70** | **79** |
 
 **Next step:** 12.4
 
@@ -330,6 +331,44 @@ to laptops, not to iPhones.
 - [x] 13.9 README: the two apps and the two-laptop check
       Done when: the README says how to run both apps, what needs Wi-Fi and what needs Bluetooth, and how to test with two laptops
       Verify: read it against what was actually run
+
+---
+
+## Phase 14 — Desktop look: the iPhone app's style, on Mac and Windows
+
+Added after Phase 13, at the user's request: both desktop apps take the iPhone app's
+style (system typeface, system blue, rounded grey cards, the red "I need help" bar,
+chat bubbles), with one layout that works on Mac and on Windows. The design, with the
+Swift source of every rule, is in [`docs/desktop-design.md`](docs/desktop-design.md);
+a clickable mockup is in [`docs/desktop-design-mockup.html`](docs/desktop-design-mockup.html).
+How each page looks is checked by eye against the mockup, in light and dark.
+
+- [ ] 14.1 Colours, system typeface and dark mode for both apps
+      Swift: `AlertMesh/Utils/Theme.swift` (`ThemePalette.alertMesh`), `AlertMesh/AlertMesh/Views/EmergencyLayout.swift`, `AlertMesh/AlertMesh/Views/ChatBubbleRow.swift` (`ChatBubbleStyle`)
+      Done when: both apps use the system typeface and the iPhone app's light and dark colours, and follow the system's light or dark setting; one shared stylesheet holds the colours; `theme.base = "light"` is gone from `.streamlit/config.toml` and `desktop.py`
+      Verify: `python3 -m pytest -q`; then run both apps in light and in dark and compare with the mockup
+- [ ] 14.2 Phone app sidebar, status bar and "I need help" bar
+      Swift: `AlertMesh/AlertMesh/Views/EmergencyRootView.swift` (tabs, badges, `EmergencyHelpBarModifier`)
+      Done when: Now, Report and Chat are in a sidebar with red count badges; nickname and town are at its foot and open Settings; a status bar shows Bluetooth and the local network on every tab; the red "I need help" bar is pinned to the bottom of Now; the window opens at 1200 × 760 and cannot be made smaller than 960 × 600; below 1100 wide the sidebar shows icons only
+      Verify: `python3 -m pytest tests/test_phone_app.py tests/test_desktop.py`; then check by eye at 1280 and 960 wide
+- [ ] 14.3 Now like the iPhone
+      Swift: `AlertMesh/AlertMesh/Views/NowView.swift` (status block, "What to do", other warnings, "How you're connected"), `NowReportsSections.swift` (calls for help)
+      Done when: a solid colour block appears only when a warning covers your town; otherwise a grey "No current warnings" or "No warnings where you are" card; then "What to do", calls for help, other warnings with a colour bar and symbol, and "How you're connected"; on a wide window calls for help and the connection card sit in a side column
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 14.4 Report, Chat and the call-for-help sheet like the iPhone
+      Swift: `AlertMesh/AlertMesh/Views/CommunityReportsView.swift`, `CommunityReportStyle.swift`, `SOSView.swift`, `ChatBubbleRow.swift`
+      Done when: hazard reports are grey and calls for help red; chat shows bubbles (yours blue on the right, others grey on the left, name above the first of a run, time under the last); "I need help" opens a sheet with the iPhone's wording, its main button last on a Mac and first on Windows
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 14.5 Warning app in the same style
+      Swift: `AlertMesh/AlertMesh/Views/IssueWarningView.swift`, `HubBoardView.swift`
+      Done when: Console, Map and Hub board are in a sidebar with the simulated clock at its foot; the console has the form on the left and the phone preview and live warnings on the right; the Hub board stays black in light mode
+      Verify: `python3 -m pytest tests/test_warning_app.py`; then check by eye
+- [ ] 14.6 Keyboard shortcuts
+      Done when: ⌘1–3 or Ctrl+1–3 switch tabs, ⌘, or Ctrl+, opens Settings, ⌘⇧H or Ctrl+Shift+H opens the call-for-help sheet without sending; hints show ⌘ on a Mac and Ctrl on Windows
+      Verify: `python3 -m pytest -q`; then press each shortcut in both packaged apps
+- [ ] 14.7 Check on Windows
+      Done when: both apps built on a Windows PC look like the mockup at 100%, 125% and 150% display scaling
+      Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open both apps
 
 ---
 

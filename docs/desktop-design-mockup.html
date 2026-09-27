@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The clickable mockup for docs/desktop-design.md. Open it in any browser; it needs no network. -->
+<title>Alert Mesh Desktop Layout</title>
+<style>
+/* Tokens taken from the iPhone app (../alert-mesh):
+   ThemePalette.alertMesh, EmergencyColor, EmergencyLayout, ChatBubbleStyle. */
+:root{
+  --bg:#FFFFFF; --card:#F2F2F7; --sidebar:#F5F5F7; --ink:#000000; --ink-2:rgba(60,60,67,.62); --sep:rgba(60,60,67,.29);
+  --blue:#007AFF; --blue-ink:#FFFFFF; --blue-soft:rgba(0,122,255,.12);
+  --own:#0066DD; --other:#E9E9EB; --link:#005FCC;
+  --red:#BF1A1A; --red-text:#B01414; --red-wash:rgba(191,26,26,.08);
+  --advice:#B88A00; --advice-text:#8A6200; --watch:#D16600; --watch-text:#9A3D00;
+  --clear:#1E7B34; --teal:#30B0C7;
+  --titlebar-mac:#ECECEC; --titlebar-win:#F3F3F3; --bar:rgba(255,255,255,.86);
+  --shadow:0 30px 70px -28px rgba(0,0,0,.35),0 2px 10px rgba(0,0,0,.08);
+  --board:#000000;
+  --f:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --f-d:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#000000; --card:#1C1C1E; --sidebar:#161618; --ink:#FFFFFF; --ink-2:rgba(235,235,245,.62); --sep:rgba(84,84,88,.65);
+    --blue:#0A84FF; --blue-soft:rgba(10,132,255,.2);
+    --own:#0A6CFF; --other:#26252A; --link:#4DA3FF;
+    --red-text:#FF6B6B; --red-wash:rgba(255,80,80,.12);
+    --advice:#FFD633; --advice-text:#FFD84D; --watch:#FF9426; --watch-text:#FF9E4D; --clear:#30D158;
+    --titlebar-mac:#2A2A2C; --titlebar-win:#202020; --bar:rgba(22,22,24,.86);
+    --shadow:0 30px 70px -28px rgba(0,0,0,.8),0 2px 10px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#000000; --card:#1C1C1E; --sidebar:#161618; --ink:#FFFFFF; --ink-2:rgba(235,235,245,.62); --sep:rgba(84,84,88,.65);
+  --blue:#0A84FF; --blue-soft:rgba(10,132,255,.2);
+  --own:#0A6CFF; --other:#26252A; --link:#4DA3FF;
+  --red-text:#FF6B6B; --red-wash:rgba(255,80,80,.12);
+  --advice:#FFD633; --advice-text:#FFD84D; --watch:#FF9426; --watch-text:#FF9E4D; --clear:#30D158;
+  --titlebar-mac:#2A2A2C; --titlebar-win:#202020; --bar:rgba(22,22,24,.86);
+  --shadow:0 30px 70px -28px rgba(0,0,0,.8),0 2px 10px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:16px;line-height:1.5;padding-inline:20px;padding-block:32px 72px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.15;font-family:var(--f-d)}
+h1{font-size:clamp(2rem,4.6vw,3.2rem);font-weight:800;letter-spacing:-.025em}
+h2{font-size:1.7rem;font-weight:700;letter-spacing:-.015em}
+h3{font-size:1.06rem;font-weight:600}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.lead{font-size:1.15rem;color:var(--ink-2)}
+header.top{display:flex;flex-direction:column;gap:14px}
+section{display:flex;flex-direction:column;gap:18px}
+.muted{color:var(--ink-2)}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+kbd{font-family:var(--f);font-size:.85em;border:1px solid var(--sep);border-radius:6px;padding:1px 6px;background:var(--card)}
+
+.controls{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}
+.seg{display:inline-flex;border-radius:9px;padding:2px;background:var(--card);gap:2px}
+.seg button{font:inherit;font-size:.9rem;font-weight:500;border:0;background:transparent;color:var(--ink);padding:5px 14px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.18);font-weight:600}
+.seg button:focus-visible,.m button:focus-visible{outline:3px solid var(--blue-soft);outline-offset:1px}
+.ctl{display:flex;align-items:center;gap:10px}
+.ctl>span{font-size:.8rem;font-weight:600;color:var(--ink-2)}
+.stage{position:relative}
+.stage-inner{transform-origin:top left}
+.caption{font-size:.9rem;color:var(--ink-2)}
+
+/* ===== mockup window ===== */
+.m{font-family:var(--f);font-size:15px;line-height:1.4;color:var(--ink);background:var(--bg);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--sep);display:flex;flex-direction:column;position:relative}
+.m.win{border-radius:8px}
+.m button{font:inherit;cursor:pointer;color:inherit}
+.tb{display:flex;align-items:center;flex:none;user-select:none;position:relative;height:32px}
+.m.mac .tb{background:var(--titlebar-mac);border-bottom:1px solid var(--sep);justify-content:center}
+.lights{position:absolute;left:12px;top:10px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#FF5F57}.lights i:nth-child(2){background:#FEBC2E}.lights i:nth-child(3){background:#28C840}
+.tb-title{font-size:13px;font-weight:600;color:var(--ink-2)}
+.m.win .tb{background:var(--titlebar-win);justify-content:flex-start;padding-left:12px;gap:10px}
+.m.win .tb-title{font-weight:400;font-size:12px;color:var(--ink)}
+.appicon{width:16px;height:16px;border-radius:4px;background:var(--red);display:grid;place-items:center;color:#fff;flex:none}
+.appicon svg{width:10px;height:10px}
+.caps{margin-left:auto;display:flex;height:100%}
+.caps span{width:46px;display:grid;place-items:center;color:var(--ink);font-size:12px}
+
+.shell{flex:1;display:grid;grid-template-columns:var(--rail) 1fr;min-height:0}
+.rail{background:var(--sidebar);border-right:1px solid var(--sep);display:flex;flex-direction:column;padding:12px 10px;gap:2px;min-height:0}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 8px 14px;font-weight:600;font-size:18px;font-family:var(--f-d)}
+.brand .appicon{width:26px;height:26px;border-radius:7px}
+.brand .appicon svg{width:15px;height:15px}
+.nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;border:0;background:transparent;text-align:left;width:100%;font-weight:500;font-size:14.5px;position:relative;color:var(--ink)}
+.nav svg{width:19px;height:19px;flex:none;color:var(--ink-2)}
+.nav[aria-current="page"]{background:var(--blue-soft)}
+.nav[aria-current="page"] svg,.nav[aria-current="page"] span:first-of-type{color:var(--blue)}
+.nav .badge{margin-left:auto}
+.badge{font-size:12px;font-weight:600;min-width:20px;height:20px;padding:0 6px;border-radius:10px;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;background:#FF3B30;color:#fff}
+.spacer{flex:1}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 2px;border-top:1px solid var(--sep);margin-top:8px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--card);border:1px solid var(--sep);color:var(--ink-2);display:grid;place-items:center;font-weight:600;font-size:12.5px;flex:none}
+.me b{display:block;font-size:13px;font-weight:600;line-height:1.2}
+.me span{font-size:12px;color:var(--ink-2)}
+.me .gear{margin-left:auto;color:var(--ink-2);width:17px;height:17px}
+.timebox{background:var(--bg);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--sep)}
+.timebox .t{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;font-family:var(--f-d)}
+.timebox .row{display:flex;gap:6px}
+.chip{border-radius:7px;background:var(--card);padding:3px 9px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;font-weight:500}
+
+.m.compact .rail{padding:10px 6px}
+.m.compact .brand{justify-content:center;padding:4px 0 12px}
+.m.compact .brand span,.m.compact .me>div,.m.compact .me .gear,.m.compact .timebox{display:none}
+.m.compact .nav{flex-direction:column;gap:3px;padding:8px 2px;font-size:11px;text-align:center;justify-content:center}
+.m.compact .nav svg{width:22px;height:22px}
+.m.compact .nav .badge{position:absolute;top:2px;right:8px;margin:0;min-width:17px;height:17px;font-size:11px}
+.m.compact .me{justify-content:center;padding:10px 0 0}
+
+.main{display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 24px 10px;flex:none;border-bottom:1px solid transparent}
+.pagehead h2{font-size:22px;font-weight:700}
+.pagehead .sub{color:var(--ink-2);font-size:13.5px}
+.pagehead .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.content{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;padding:4px 24px 20px;display:grid;gap:16px;align-content:start}
+.m.compact .pagehead{padding:14px 20px 8px}
+.m.compact .content{padding:4px 20px 16px}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sect{display:flex;flex-direction:column;gap:10px}
+.st{font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-2)}
+.statusbar{height:26px;flex:none;border-top:1px solid var(--sep);background:var(--sidebar);display:flex;align-items:center;gap:18px;padding:0 14px;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.statusbar .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--clear)}
+.statusbar .end{margin-left:auto}
+
+/* Emergency surfaces (EmergencyLayout: radius 16, padding 18, block gap 16) */
+.card{background:var(--card);border-radius:16px;padding:16px 18px;border:1px solid var(--sep)}
+.statusblock{border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:6px;border:0;text-align:left;width:100%}
+.statusblock svg{width:34px;height:34px}
+.statusblock .lvl{font-family:var(--f-d);font-size:30px;font-weight:900;line-height:1.05;letter-spacing:-.01em}
+.statusblock .stand{font-size:18px;font-weight:600}
+.statusblock .hl{font-size:16px;font-weight:600}
+.statusblock .meta{font-size:13.5px;display:flex;gap:12px;opacity:.92}
+.statusblock .open{font-size:13.5px;font-weight:700;margin-top:4px}
+.fill-e{background:var(--red);color:#fff}.fill-w{background:var(--watch);color:#000}.fill-a{background:var(--advice);color:#000}
+.todo{border:2px solid var(--red)}
+.todo .act{font-family:var(--f-d);font-size:20px;font-weight:600;line-height:1.3;margin-top:6px}
+.other{display:flex;gap:12px;align-items:stretch}
+.other .bar{width:6px;border-radius:3px;flex:none}
+.other .l{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700}
+.other .l svg{width:15px;height:15px}
+.other .h{font-size:16px;font-weight:600;margin:3px 0 4px}
+.other .x{font-size:13.5px;color:var(--ink-2);line-height:1.4}
+.t-w{color:var(--watch-text)}.t-a{color:var(--advice-text)}.t-e{color:var(--red-text)}
+.help{border:2px solid var(--red);background:linear-gradient(var(--red-wash),var(--red-wash)),var(--card)}
+.help .who{font-weight:700;color:var(--red-text);display:flex;align-items:center;gap:8px;font-size:15.5px}
+.help .note{font-size:15px;margin:4px 0}
+.help .meta{font-size:13px;color:var(--ink-2)}
+.conn .row{display:flex;gap:10px;align-items:center;font-size:15px;margin:6px 0}
+.conn .row svg{width:20px;height:20px}
+.conn p{font-size:13px;color:var(--ink-2)}
+.helpbar{flex:none;padding:10px 24px;background:var(--bar);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--sep)}
+.m.compact .helpbar{padding:10px 20px}
+.helpbtn{width:100%;height:56px;border:0;border-radius:16px;background:var(--red);color:#fff!important;font-family:var(--f-d);font-size:19px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px}
+.helpbtn .sos{font-size:12px;font-weight:800;border:2px solid #fff;border-radius:6px;padding:1px 4px;letter-spacing:.04em}
+.helpbtn kbd{background:rgba(255,255,255,.18);border-color:transparent;color:#fff;font-size:12px;margin-left:6px}
+
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:0;background:var(--card);border-radius:8px;padding:6px 14px;font-weight:500;font-size:14px;box-shadow:inset 0 0 0 1px var(--sep)}
+.btn.primary{background:var(--blue);color:#fff!important;box-shadow:none}
+.btn.destructive{color:var(--red-text)!important}
+.btn.big{height:40px;padding:0 18px;font-size:15px;font-weight:600;border-radius:10px}
+.btn.small{padding:3px 10px;font-size:13px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:13px;font-weight:600;color:var(--ink-2)}
+.input{border-radius:10px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--sep);padding:8px 11px;font-size:15px;min-height:38px;display:flex;align-items:center;gap:8px}
+.input.area{min-height:70px;align-items:flex-start}
+.input .count{margin-left:auto;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.input .ph{color:var(--ink-2)}
+.caret::after{content:"⌄";margin-left:auto;color:var(--ink-2);font-size:14px;line-height:0;position:relative;top:-3px}
+.segm{display:flex;border-radius:9px;background:var(--bg);padding:2px;gap:2px;box-shadow:inset 0 0 0 1px var(--sep)}
+.segm span{flex:1;text-align:center;padding:6px;font-size:13.5px;font-weight:500;border-radius:7px;display:flex;align-items:center;justify-content:center;gap:6px}
+.segm span.on{background:var(--blue);color:#fff}
+.segm svg{width:14px;height:14px}
+.form{display:flex;flex-direction:column;gap:12px}
+.rep{display:flex;gap:12px;align-items:flex-start}
+.rep .ic{width:22px;height:22px;flex:none;color:var(--ink-2)}
+.rep .t{font-weight:600;font-size:15px}
+.rep .s{font-size:13px;color:var(--ink-2)}
+.rep .n{font-size:14.5px;margin-top:3px}
+.rep.sosr{border:2px solid var(--red)}
+.rep.sosr .ic,.rep.sosr .t{color:var(--red-text)}
+.foot-note{font-size:13px;color:var(--ink-2)}
+
+/* chat: ChatBubbleStyle (radius 18, own right blue, other left grey) */
+.chat{display:grid;grid-template-columns:var(--list) 1fr;flex:1;min-height:0;border-top:1px solid var(--sep)}
+.clist{border-right:1px solid var(--sep);padding:8px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.clist h4{margin:12px 10px 4px;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-2)}
+.citem{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:10px}
+.citem.on{background:var(--blue);color:#fff}
+.citem.on .pv{color:rgba(255,255,255,.8)}
+.citem .nm{font-weight:600;font-size:14.5px;line-height:1.2}
+.citem .pv{font-size:13px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.citem .badge{margin-left:auto;background:var(--blue)}
+.citem .avatar.nb{background:var(--teal);border-color:transparent;color:#fff}
+.citem.on .avatar{border-color:rgba(255,255,255,.4)}
+.citem .btn{margin-left:auto}
+.conv{display:flex;flex-direction:column;min-height:0;min-width:0}
+.convhead{padding:10px 20px;border-bottom:1px solid var(--sep);display:flex;flex-direction:column;align-items:center;gap:1px}
+.convhead b{font-size:15px;font-weight:600}
+.convhead span{font-size:12.5px;color:var(--ink-2);text-align:center}
+.msgs{flex:1;overflow:hidden;padding:14px 20px;display:flex;flex-direction:column;gap:3px;justify-content:flex-end}
+.msg{display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding-right:56px}
+.msg.gap{margin-top:10px}
+.msg .from{font-size:12px;color:var(--ink-2);padding-left:12px}
+.msg .time{font-size:11.5px;color:var(--ink-2);padding:0 12px}
+.msg .bub{padding:7px 12px;border-radius:18px;background:var(--other);font-size:15px;max-width:100%}
+.msg.out{align-items:flex-end;padding-right:0;padding-left:56px}
+.msg.out .bub{background:var(--own);color:#fff}
+.sysline{align-self:center;font-size:12px;color:var(--ink-2);padding:6px 0}
+.composer{padding:10px 16px 12px;border-top:1px solid var(--sep);display:flex;flex-direction:column;gap:5px}
+.composer .box{display:flex;gap:10px;align-items:center}
+.composer .input{flex:1;border-radius:18px;min-height:36px}
+.sendbtn{width:30px;height:30px;border-radius:50%;background:var(--blue);border:0;display:grid;place-items:center;color:#fff!important;flex:none}
+.sendbtn svg{width:16px;height:16px}
+.composer .hint{font-size:12px;color:var(--ink-2);display:flex;gap:14px;padding:0 6px}
+
+/* warning app */
+.outcome{border-radius:12px;padding:10px 14px;font-size:14px;display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--sep)}
+.outcome svg{width:18px;height:18px;color:var(--clear);flex:none}
+.live .top{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700}
+.live .top svg{width:15px;height:15px}
+.live b{display:block;font-size:15.5px;font-weight:600;margin:4px 0 8px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric .k{font-size:12.5px;color:var(--ink-2)}
+.metric .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;font-family:var(--f-d)}
+.mapbox{border-radius:16px;overflow:hidden;border:1px solid var(--sep)}
+.board{background:var(--board);color:#fff;border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:14px;height:100%;border:1px solid var(--sep)}
+.board .bt{display:flex;justify-content:space-between;align-items:baseline}
+.board .bt b{font-size:22px;font-weight:600}
+.board .bt span{font-size:36px;font-weight:700;font-variant-numeric:tabular-nums;font-family:var(--f-d)}
+.board .hero{border-radius:16px;background:var(--red);padding:18px 22px}
+.board .hero .l{font-family:var(--f-d);font-size:30px;font-weight:900}
+.board .hero .h{font-size:28px;font-weight:600;line-height:1.15;margin-top:6px}
+.board .hero .a{font-size:21px;margin-top:10px;opacity:.95}
+.board .row2{display:flex;gap:12px;align-items:center;font-size:18px;padding:12px 16px;border-radius:12px;background:#1C1C1E}
+.board .row2 .bar{width:6px;align-self:stretch;border-radius:3px;background:#FF9426}
+.board .foot{margin-top:auto;font-size:14px;color:rgba(235,235,245,.6);display:flex;justify-content:space-between}
+
+/* call-for-help sheet */
+.scrim{position:absolute;inset:32px 0 0 0;background:rgba(0,0,0,.35);display:grid;place-items:center;z-index:5}
+.dlg{width:460px;background:var(--bg);border-radius:14px;box-shadow:0 30px 80px -20px rgba(0,0,0,.5);border:1px solid var(--sep);padding:22px;display:flex;flex-direction:column;gap:12px}
+.m.win .dlg{border-radius:8px}
+.dlg h3{font-size:22px;font-weight:700}
+.dlg p{font-size:14.5px;color:var(--ink-2)}
+.dlg .warnline{font-size:14px;font-weight:600;color:var(--red-text)}
+.dlg .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.m.win .dlg .actions{flex-direction:row-reverse;justify-content:flex-start}
+.dlg .send{background:var(--red);color:#fff!important;box-shadow:none}
+.dlg .kbdhint{font-size:12px;color:var(--ink-2)}
+
+/* ===== spec sections ===== */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.panel{background:var(--card);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.panel ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px}
+.panel li{max-width:62ch}
+.tablewrap{overflow-x:auto;border-radius:16px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:.95rem}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--sep);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:.78rem;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-2);font-weight:700}
+td:first-child{font-weight:600}
+td code{color:var(--ink-2)}
+.tag{font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap}
+.tag.native{background:var(--blue-soft);color:var(--blue)}
+.tag.css{background:rgba(209,102,0,.14);color:var(--watch-text)}
+.tag.hard{background:var(--red-wash);color:var(--red-text)}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.sw{border-radius:14px;overflow:hidden;background:var(--card)}
+.sw i{display:block;height:52px}
+.sw div{padding:8px 12px;font-size:.85rem;line-height:1.3}
+.sw code{color:var(--ink-2);font-size:.76rem}
+.scale{display:flex;flex-direction:column;gap:8px}
+.scale div{display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--sep);padding-bottom:8px}
+.scale div:last-child{border-bottom:0}
+.scale code{width:190px;flex:none;color:var(--ink-2);font-size:.78rem}
+ol.steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+ol.steps li{display:grid;grid-template-columns:64px 1fr;gap:14px;background:var(--card);border-radius:14px;padding:14px 18px}
+ol.steps b.n{color:var(--blue);font-size:.95rem;font-variant-numeric:tabular-nums}
+ol.steps li p{color:var(--ink-2);font-size:.95rem}
+@media (max-width:600px){ol.steps li{grid-template-columns:1fr;gap:4px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Design spec · Phase 14 proposal · version 2</div>
+    <h1>The iPhone app’s look, on a Mac or Windows desktop</h1>
+    <p class="lead">Both desktop apps now borrow the iPhone app’s own style: the system typeface, system blue, 16-point rounded cards, a solid colour block only when a warning covers you, the red “I need help” bar, and Messages-style chat bubbles. The iPhone’s bottom tab bar becomes a sidebar, which is how Mac and Windows apps show the same three tabs.</p>
+  </header>
+
+  <section aria-labelledby="mock-h">
+    <h2 id="mock-h">Try it</h2>
+    <div class="controls" role="group" aria-label="Mockup options">
+      <div class="ctl"><span>App</span><div class="seg" data-key="app">
+        <button id="c-app-phone" data-v="phone" aria-pressed="true">Alert Mesh</button>
+        <button id="c-app-warn" data-v="warn" aria-pressed="false">Alert Mesh Warnings</button></div></div>
+      <div class="ctl"><span>System</span><div class="seg" data-key="plat">
+        <button id="c-plat-mac" data-v="mac" aria-pressed="true">macOS</button>
+        <button id="c-plat-win" data-v="win" aria-pressed="false">Windows 11</button></div></div>
+      <div class="ctl"><span>Window</span><div class="seg" data-key="size">
+        <button id="c-size-wide" data-v="wide" aria-pressed="true">1280 × 800</button>
+        <button id="c-size-compact" data-v="compact" aria-pressed="false">960 × 640</button></div></div>
+    </div>
+    <div class="stage" id="stage"><div class="stage-inner" id="stageInner"></div></div>
+    <p class="caption">Click the sidebar to switch tabs, and “I need help” for the call-for-help sheet. Switch your system to dark mode to see the dark palette. The window is drawn at its real size and scaled to fit.</p>
+  </section>
+
+  <section aria-labelledby="from-h">
+    <h2 id="from-h">What comes from the iPhone app</h2>
+    <p class="muted">Each rule below is already written down in the Swift code, usually with the reason next to it. The desktop apps copy the rule, not just the look.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>iPhone rule</th><th>Where in Swift</th><th>On the desktop</th></tr></thead>
+      <tbody>
+        <tr><td>System typeface at every size, never monospace on emergency screens</td><td><code>EmergencyType</code></td><td>SF Pro on Mac, Segoe UI Variable on Windows. No bundled font.</td></tr>
+        <tr><td>Accent is system blue</td><td><code>ThemePalette.alertMesh</code></td><td><code>#007AFF</code> light, <code>#0A84FF</code> dark, on both systems. Not the Windows accent colour, so the app looks the same everywhere.</td></tr>
+        <tr><td>Red means “leave now” and nothing else, except the call-for-help bar</td><td><code>alertRed</code>, <code>EmergencyHelpBarModifier</code></td><td>Red only for Emergency Warnings, calls for help and the “I need help” bar.</td></tr>
+        <tr><td>Only “a warning covers you” gets a solid colour block</td><td><code>NowView.affectedBlock</code></td><td>Top of Now. Every other warning is a grey card with a 6-point colour bar.</td></tr>
+        <tr><td>Severity fill and severity text are different colours</td><td><code>severityAdviceText</code> etc.</td><td>Level names on grey cards use the darker text colours, which pass 4.5:1 contrast.</td></tr>
+        <tr><td>Cards: 16-point corners, 18-point padding, 16 points between blocks</td><td><code>EmergencyLayout</code></td><td>Same numbers.</td></tr>
+        <tr><td>Level shown by symbol as well as colour</td><td><code>AlertSeverity.symbolName</code></td><td>Circle-i for Advice, triangle for Watch and Act, octagon for Emergency Warning.</td></tr>
+        <tr><td>Neighbours’ hazard reports never borrow warning colours</td><td><code>CommunityReportStyle</code></td><td>Hazard reports are grey. Only calls for help are red.</td></tr>
+        <tr><td>“I need help” bar, 60 points tall, rounded, on a blurred bar</td><td><code>EmergencyHelpBarModifier</code></td><td>56 points, pinned to the bottom of Now, with a shortcut.</td></tr>
+        <tr><td>Chat bubbles: yours blue on the right, others grey on the left, 18-point corners</td><td><code>ChatBubbleStyle</code></td><td>Same colours (<code>#0066DD</code>, <code>#E9E9EB</code>). Name above the first bubble, time under the last.</td></tr>
+        <tr><td>Plain words about the connection (“2 phones nearby can pass warnings to you”)</td><td><code>NowView.connectionSection</code></td><td>Same card on Now, saying laptops instead of phones. The status bar repeats it on every tab.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="plat-h">
+    <h2 id="plat-h">Mac and Windows differences</h2>
+    <p class="muted">The page is identical on both. Anything the system owns follows the system. The page learns which system it runs on from <code>sys.platform</code>.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Thing</th><th>macOS</th><th>Windows 11</th><th>How we handle it</th></tr></thead>
+      <tbody>
+        <tr><td>Window buttons</td><td>Red, yellow, green at the top left</td><td>Minimise, maximise, close at the top right</td><td>Keep the system’s own frame. We never draw these ourselves.</td></tr>
+        <tr><td>Typeface</td><td>SF Pro</td><td>Segoe UI Variable</td><td>System face, like the iPhone app. Lines may wrap at slightly different places; layouts must allow for it.</td></tr>
+        <tr><td>Shortcut key</td><td><kbd>⌘</kbd></td><td><kbd>Ctrl</kbd></td><td>Labels and hints swap automatically.</td></tr>
+        <tr><td>Dialog buttons</td><td>Cancel, then the main button on the right</td><td>Main button first, then Cancel</td><td>Order swapped per system. The main button is always the coloured one.</td></tr>
+        <tr><td>Menu bar</td><td>At the top of the screen</td><td>None</td><td>Every action has a button inside the window.</td></tr>
+        <tr><td>Scrollbars</td><td>Hidden until you scroll</td><td>Always take space</td><td>Space reserved on both, so nothing shifts.</td></tr>
+        <tr><td>Display scaling</td><td>2×</td><td>100% to 175%</td><td>Sizes in points. Test at 125% and 150% on Windows.</td></tr>
+        <tr><td>Light and dark</td><td>Follows System Settings</td><td>Follows Personalisation</td><td>Both palettes from the iPhone app. Today the desktop apps force light.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="tok-h">
+    <h2 id="tok-h">Colour and type</h2>
+    <p class="muted">Values copied from the Swift palette. Each has a dark-mode partner, shown after the slash.</p>
+    <div class="swatches">
+      <div class="sw"><i style="background:var(--blue)"></i><div>System blue, accent<br><code>#007AFF / #0A84FF</code></div></div>
+      <div class="sw"><i style="background:var(--own)"></i><div>Your chat bubble<br><code>#0066DD / #0A6CFF</code></div></div>
+      <div class="sw"><i style="background:var(--other)"></i><div>Their chat bubble<br><code>#E9E9EB / #26252A</code></div></div>
+      <div class="sw"><i style="background:var(--card)"></i><div>Card<br><code>#F2F2F7 / #1C1C1E</code></div></div>
+      <div class="sw"><i style="background:#BF1A1A"></i><div>Emergency Warning, help<br><code>#BF1A1A</code></div></div>
+      <div class="sw"><i style="background:var(--watch)"></i><div>Watch and Act<br><code>#D16600 / #FF9426</code></div></div>
+      <div class="sw"><i style="background:var(--advice)"></i><div>Advice<br><code>#B88A00 / #FFD633</code></div></div>
+      <div class="sw"><i style="background:var(--clear)"></i><div>All clear<br><code>#1E7B34 / #30D158</code></div></div>
+    </div>
+    <div class="panel scale">
+      <div><code>level · large title, heavy</code><span style="font-family:var(--f-d);font-size:30px;font-weight:900">Emergency Warning</span></div>
+      <div><code>action · title 2, semibold</code><span style="font-family:var(--f-d);font-size:20px;font-weight:600">Go to Katherine High School</span></div>
+      <div><code>standing · title 3, semibold</code><span style="font-size:18px;font-weight:600">You are in this area</span></div>
+      <div><code>card title · headline</code><span style="font-size:16px;font-weight:600">Grass fire near Mataranka moving north</span></div>
+      <div><code>body</code><span style="font-size:15px">Warnings travel laptop to laptop over Bluetooth.</span></div>
+      <div><code>section · subheadline, bold, caps</code><span class="st">Other warnings</span></div>
+      <div><code>meta · subheadline</code><span style="font-size:13.5px;color:var(--ink-2)">Flood · until 6:00 pm</span></div>
+    </div>
+    <p class="muted" style="font-size:.95rem">The iPhone sizes are text styles that grow with Dynamic Type. On the desktop they are fixed at about 88% of the iPhone default, because a laptop is read from further away but with a steadier hand.</p>
+  </section>
+
+  <section aria-labelledby="keys-h">
+    <h2 id="keys-h">Keyboard</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Action</th><th>macOS</th><th>Windows</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Go to tab 1, 2, 3</td><td><kbd>⌘1</kbd> <kbd>⌘2</kbd> <kbd>⌘3</kbd></td><td><kbd>Ctrl+1</kbd> <kbd>Ctrl+2</kbd> <kbd>Ctrl+3</kbd></td><td>Both apps</td></tr>
+        <tr><td>Settings</td><td><kbd>⌘,</kbd></td><td><kbd>Ctrl+,</kbd></td><td>Nickname and town</td></tr>
+        <tr><td>I need help</td><td><kbd>⌘⇧H</kbd></td><td><kbd>Ctrl+Shift+H</kbd></td><td>Opens the sheet only. As on the iPhone, nothing is sent until you press “Send call for help”.</td></tr>
+        <tr><td>Send message</td><td><kbd>Return</kbd></td><td><kbd>Enter</kbd></td><td>Shift adds a new line</td></tr>
+        <tr><td>Close a sheet</td><td><kbd>Esc</kbd></td><td><kbd>Esc</kbd></td><td></td></tr>
+        <tr><td>Hub board full screen</td><td><kbd>⌃⌘F</kbd></td><td><kbd>F11</kbd></td><td>Warning app</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="build-h">
+    <h2 id="build-h">Building it in Streamlit</h2>
+    <p class="muted">Streamlit 1.51, as installed. The system typeface makes this simpler than version 1: no font files to bundle.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Piece</th><th>How</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>Colours, typeface, dark mode</td><td>Theme settings: <code>font</code> set to the system stack, light and dark colour sets, drop <code>theme.base=light</code>.</td><td><span class="tag native">settings</span></td></tr>
+        <tr><td>Rounded cards, status block, colour bars</td><td>One stylesheet shared by both apps; cards drawn with <code>st.container(border=True)</code> and small HTML blocks, as <code>warning_card</code> does today.</td><td><span class="tag css">stylesheet</span></td></tr>
+        <tr><td>Sidebar with three tabs</td><td>Buttons in <code>st.sidebar</code>, styled; icon-only below 1100 wide.</td><td><span class="tag css">stylesheet</span></td></tr>
+        <tr><td>“I need help” bar pinned at the bottom</td><td>A button in a container fixed to the bottom of the page.</td><td><span class="tag css">stylesheet</span></td></tr>
+        <tr><td>Call-for-help sheet</td><td><code>@st.dialog</code>, buttons ordered by <code>sys.platform</code>.</td><td><span class="tag native">built in</span></td></tr>
+        <tr><td>Chat bubbles</td><td>Small HTML blocks instead of <code>st.chat_message</code>, whose avatars and layout do not match Messages.</td><td><span class="tag css">stylesheet</span></td></tr>
+        <tr><td>Keyboard shortcuts</td><td>A few lines of script in the page.</td><td><span class="tag css">small script</span></td></tr>
+        <tr><td>Live byte counter while typing</td><td><code>st.chat_input</code> does not report typing. Keep today’s message after sending.</td><td><span class="tag hard">skip</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="steps-h">
+    <h2 id="steps-h">Proposed steps</h2>
+    <p class="muted">One commit and one changelog entry each, as before. Nothing is built yet.</p>
+    <ol class="steps">
+      <li><b class="n">14.1</b><div><h3>iPhone palette, system typeface, dark mode</h3><p>Theme settings and one shared stylesheet with the Swift values, for both apps.</p></div></li>
+      <li><b class="n">14.2</b><div><h3>Phone app sidebar and “I need help” bar</h3><p>Sidebar with Now, Report, Chat and badges; you and your town at its foot; status bar; the pinned red bar; window 1200 × 760, minimum 960 × 600.</p></div></li>
+      <li><b class="n">14.3</b><div><h3>Now like the iPhone</h3><p>Solid status block only when a warning covers you, “What to do” card, calls for help, other warnings with colour bars, “How you’re connected”.</p></div></li>
+      <li><b class="n">14.4</b><div><h3>Report and Chat like the iPhone</h3><p>Grey hazard reports and red calls for help; Messages-style bubbles; the call-for-help sheet with the system’s button order.</p></div></li>
+      <li><b class="n">14.5</b><div><h3>Warning app in the same style</h3><p>Sidebar with Console, Map and Hub board; console in two columns with the phone preview; simulated clock at the foot.</p></div></li>
+      <li><b class="n">14.6</b><div><h3>Keyboard shortcuts</h3><p>Tabs, Settings and “I need help”, with ⌘ or Ctrl shown to match the system.</p></div></li>
+      <li><b class="n">14.7</b><div><h3>Check on Windows</h3><p>Build both apps on a Windows PC and look at 100%, 125% and 150% scaling. Left open until a Windows computer is available.</p></div></li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(function(){
+  var S={app:"phone",plat:"mac",size:"wide",tab:{phone:"now",warn:"console"},dialog:false};
+  try{var saved=JSON.parse(localStorage.getItem("am-layout")||"null");if(saved&&saved.app){S.app=saved.app;S.plat=saved.plat;S.size=saved.size;}}catch(e){}
+  function save(){try{localStorage.setItem("am-layout",JSON.stringify({app:S.app,plat:S.plat,size:S.size}));}catch(e){}}
+
+  /* Filled glyphs in the spirit of the SF Symbols the iPhone app uses. */
+  var I={
+    now:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 2.6 11a1 1 0 0 0 1.3 1.5l.6-.5V20a1 1 0 0 0 1 1h4.2v-5.5h4.6V21H18.5a1 1 0 0 0 1-1v-8l.6.5a1 1 0 0 0 1.3-1.5z"/></svg>',
+    report:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-7l-5 4v-4H5a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zm6 3.5v6h2v-6zm0 7.5v2h2v-2z" fill-rule="evenodd"/></svg>',
+    chat:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c5.5 0 10 3.6 10 8.2s-4.5 8.2-10 8.2c-1 0-2-.1-2.9-.4L4 21l1.2-3.9C3.2 15.6 2 13.5 2 11.2 2 6.6 6.5 3 12 3z"/></svg>',
+    console:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg>',
+    map:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 3.5 3 5.5v15l5.5-2 7 2 5.5-2v-15l-5.5 2z" opacity=".35"/><path d="M8.5 3.5v15l7 2v-15z"/></svg>',
+    hub:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="3.5" width="20" height="13" rx="2"/><rect x="8" y="19" width="8" height="2" rx="1"/><rect x="11" y="16" width="2" height="4"/></svg>',
+    octagon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 2h8l6 6v8l-6 6H8l-6-6V8zm3 5v6.5h2V7zm0 8.5v2h2v-2z" fill-rule="evenodd"/></svg>',
+    triangle:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5 1.5 21h21zm-1 7v6h2v-6zm0 7.5v2h2v-2z" fill-rule="evenodd"/></svg>',
+    info:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 8v7h2v-7zm0-4v2h2V6z" fill-rule="evenodd"/></svg>',
+    bubble:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 3.8h14a2.2 2.2 0 0 1 2.2 2.2v9a2.2 2.2 0 0 1-2.2 2.2h-7l-5 3.8v-3.8H5A2.2 2.2 0 0 1 2.8 15V6A2.2 2.2 0 0 1 5 3.8z"/><path d="M12 7v5M12 14.3v.2" stroke-linecap="round"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="m7.8 12.3 2.8 2.8 5.6-5.8"/></svg>',
+    sos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="3"/><text x="12" y="15.3" text-anchor="middle" font-size="7.5" font-weight="800" fill="currentColor" stroke="none" font-family="-apple-system,Segoe UI,sans-serif">SOS</text></svg>',
+    antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg>',
+    send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+    gear:'<svg class="gear" viewBox="0 0 24 24" fill="currentColor"><path d="M10.3 2h3.4l.5 2.6 1.7.8 2.3-1.4 2.4 2.4-1.4 2.3.8 1.7 2.6.5v3.4l-2.6.5-.8 1.7 1.4 2.3-2.4 2.4-2.3-1.4-1.7.8-.5 2.6h-3.4l-.5-2.6-1.7-.8-2.3 1.4-2.4-2.4 1.4-2.3-.8-1.7L2 13.7v-3.4l2.6-.5.8-1.7L4 5.8l2.4-2.4 2.3 1.4 1.7-.8zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill-rule="evenodd"/></svg>',
+    bars:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="15" width="4" height="6" rx="1"/><rect x="10" y="10" width="4" height="11" rx="1" opacity=".35"/><rect x="17" y="5" width="4" height="16" rx="1" opacity=".35"/></svg>',
+    tri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5 2.5 20.5h19z"/><path d="M12 10v5M12 17.5v.3" stroke-linecap="round"/></svg>',
+    two:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="3" width="3" height="12" rx="1.5"/><rect x="14" y="3" width="3" height="12" rx="1.5"/><circle cx="8.5" cy="19" r="1.8"/><circle cx="15.5" cy="19" r="1.8"/></svg>'
+  };
+  var TABS={phone:[["now","Now","2"],["report","Report"],["chat","Chat","3"]],
+            warn:[["console","Console"],["map","Map"],["hub","Hub board"]]};
+  function mod(){return S.plat==="mac"?"⌘":"Ctrl+";}
+  function ret(){return S.plat==="mac"?"Return":"Enter";}
+  var wide=function(){return S.size==="wide";};
+
+  function titlebar(title){
+    if(S.plat==="mac") return '<div class="tb"><div class="lights"><i></i><i></i><i></i></div><div class="tb-title">'+title+'</div></div>';
+    return '<div class="tb"><span class="appicon">'+I.antenna+'</span><span class="tb-title">'+title+'</span><div class="caps"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></div></div>';
+  }
+  function rail(){
+    var h='<nav class="rail" aria-label="Tabs"><div class="brand"><span class="appicon">'+I.antenna+'</span><span>'+(S.app==="phone"?"Alert Mesh":"Warnings")+'</span></div>';
+    TABS[S.app].forEach(function(t,i){
+      var cur=S.tab[S.app]===t[0];
+      h+='<button class="nav" data-tab="'+t[0]+'" '+(cur?'aria-current="page"':'')+' title="'+t[1]+' ('+mod()+(i+1)+')">'+I[t[0]]+'<span>'+t[1]+'</span>'+(t[2]?'<span class="badge">'+t[2]+'</span>':'')+'</button>';
+    });
+    h+='<div class="spacer"></div>';
+    if(S.app==="phone"){
+      h+='<div class="me"><span class="avatar">NM</span><div><b>Nothing-Mac-2</b><span>Katherine</span></div>'+I.gear+'</div>';
+    }else{
+      h+='<div class="timebox"><span style="font-size:12px;color:var(--ink-2)">Simulated time · minute 12</span><span class="t">10:42 am</span><div class="row"><span class="chip">+1 min</span><span class="chip">+5</span><span class="chip">+15</span></div></div>';
+      h+='<div class="me"><span class="avatar">KT</span><div><b>Katherine</b><span>300 simulated phones</span></div>'+I.gear+'</div>';
+    }
+    return h+'</nav>';
+  }
+  function statusbar(){
+    if(S.app==="phone") return '<div class="statusbar"><span><span class="dot"></span>Bluetooth on · 2 laptops nearby</span><span><span class="dot"></span>Local network on</span><span class="end">Updated 10:42:05 am</span></div>';
+    return '<div class="statusbar"><span><span class="dot"></span>Local network on · warnings go to phone apps on this network</span><span class="end">Development signing key</span></div>';
+  }
+  function head(title,sub,right){return '<div class="pagehead"><h2>'+title+'</h2>'+(sub?'<span class="sub">'+sub+'</span>':'')+(right?'<div class="right">'+right+'</div>':'')+'</div>';}
+
+  function otherCard(l,icon,level,hl,x1,x2){
+    var bar={w:"var(--watch)",a:"var(--advice)",e:"var(--red)"}[l];
+    return '<div class="card other"><span class="bar" style="background:'+bar+'"></span><div><div class="l t-'+l+'">'+I[icon]+level+'</div><div class="h">'+hl+'</div><div class="x">'+x1+'<br>'+x2+'</div></div></div>';
+  }
+  function nowView(){
+    var status='<button class="statusblock fill-e">'+I.octagon+'<span class="lvl">Emergency Warning</span><span class="stand">You are in this area</span><span class="hl">Katherine River rising fast. Move to higher ground now</span><span class="meta"><span>Flood</span><span>Until 6:00 pm</span></span><span class="open">Open full warning ›</span></button>';
+    var todo='<div class="card todo"><div class="st">What to do</div><div class="act">Go to Katherine High School on Giles Street. Take medicines and pets. Do not drive through floodwater.</div></div>';
+    var other='<div class="sect"><div class="st">Other warnings</div>'+otherCard("w","triangle","Watch and Act","Grass fire near Mataranka moving north","About 90 km south-east of Katherine","Until 9:00 pm")+'</div>';
+    var help='<div class="sect"><div class="st">Calls for help</div><div class="card help"><div class="who">'+I.sos.replace('<svg','<svg width="22" height="22"')+'Aroha needs help</div><div class="note">Two of us on the roof at Lindsay Street, one hurt.</div><div class="meta">Near Katherine · 10:31 am</div><div class="btnrow" style="margin-top:8px"><button class="btn small">Message Aroha</button></div></div></div>';
+    var conn='<div class="card conn"><div class="st">How you’re connected</div><div class="row">'+I.antenna+'2 laptops nearby can pass warnings to you</div><p>Warnings travel laptop to laptop over Bluetooth. They keep arriving with no internet.</p></div>';
+    var body=wide()
+      ?'<div class="content" style="grid-template-columns:1fr 360px"><div class="col">'+status+todo+other+'</div><div class="col">'+help+conn+'</div></div>'
+      :'<div class="content"><div class="col">'+status+todo+help+other+'</div></div>';
+    return head("Now")+body+'<div class="helpbar"><button class="helpbtn" data-act="sos"><span class="sos">SOS</span>I need help<kbd>'+mod()+(S.plat==="mac"?"⇧H":"Shift+H")+'</kbd></button></div>';
+  }
+  function rep(cls,icon,t,s,n){return '<div class="card rep '+cls+'"><span class="ic">'+I[icon]+'</span><div><div class="t">'+t+'</div><div class="s">'+s+'</div>'+(n?'<div class="n">'+n+'</div>':'')+'</div></div>';}
+  function reportView(){
+    var form='<div class="sect"><div class="st">Report a hazard</div><div class="card form">'+
+      '<div class="field"><label>Type</label><div class="input caret">Flood</div></div>'+
+      '<div class="field"><label>How bad</label><div class="segm"><span>'+I.bars+'Minor</span><span class="on">'+I.tri+'Serious</span><span>'+I.two+'Dangerous</span></div></div>'+
+      '<div class="field"><label>What’s happening here?</label><div class="input area">Water over the Victoria Highway at the low-level bridge<span class="count">54 / 140</span></div></div>'+
+      '<div class="btnrow"><button class="btn primary big">Send report</button><span class="foot-note">Sent from near Katherine</span></div></div></div>';
+    var list='<div class="sect"><div class="st">From people nearby</div>'+
+      rep("sosr","sos","Aroha needs help","Near Katherine · 10:31 am","Two of us on the roof at Lindsay Street, one hurt.")+
+      rep("","bubble","Flood · Dangerous","Jun · near Katherine · 10:38 am","Giles Street is under water past the school.")+
+      rep("","check","You are safe","You · near Katherine · 9:55 am","")+
+      '<p class="foot-note">Not official warnings. Nobody has checked them.</p></div>';
+    return head("Report")+'<div class="content" style="grid-template-columns:'+(wide()?'440px 1fr':'1fr 1fr')+'">'+form+list+'</div>';
+  }
+  function chatView(){
+    var list='<div class="clist"><h4>Chats</h4>'+
+      '<div class="citem on"><span class="avatar nb">'+I.antenna.replace('<svg','<svg width="16" height="16"')+'</span><div><div class="nm">Nearby</div><div class="pv">Ben: Evacuation centre has room</div></div></div>'+
+      '<div class="citem"><span class="avatar">A</span><div><div class="nm">Aroha</div><div class="pv">We can see the boat now</div></div><span class="badge">2</span></div>'+
+      '<div class="citem"><span class="avatar">B</span><div><div class="nm">Ben</div><div class="pv">You: See you at the school</div></div></div>'+
+      '<h4>People nearby</h4>'+
+      '<div class="citem"><span class="avatar">J</span><div><div class="nm">Jun</div><div class="pv">Through another laptop</div></div><button class="btn small">Message</button></div>'+
+      '<div class="citem"><span class="avatar">NM</span><div><div class="nm">Nothing-Mac-3</div><div class="pv">In range</div></div><button class="btn small">Message</button></div></div>';
+    var conv='<div class="conv"><div class="convhead"><b>Nearby</b><span>Everyone in Bluetooth range reads this, including through other laptops.</span></div>'+
+      '<div class="msgs"><span class="sysline">Today 10:36 am</span>'+
+      '<div class="msg"><span class="from">Jun</span><span class="bub">Is the low-level bridge still open?</span></div>'+
+      '<div class="msg out gap"><span class="bub">Closed. Police at both ends.</span><span class="time">10:37 am</span></div>'+
+      '<div class="msg gap"><span class="from">Jun</span><span class="bub">Giles Street is under water past the school.</span><span class="time">10:38 am</span></div>'+
+      '<div class="msg gap"><span class="from">Ben</span><span class="bub">Evacuation centre has room.</span></div>'+
+      '<div class="msg"><span class="bub">Bring blankets if you can.</span><span class="time">10:41 am</span></div></div>'+
+      '<div class="composer"><div class="box"><div class="input"><span>Heading to the centre now</span></div><button class="sendbtn" aria-label="Send">'+I.send+'</button></div>'+
+      '<div class="hint"><span>'+ret()+' sends · Shift+'+ret()+' for a new line · at most 280 bytes</span></div></div></div>';
+    return head("Chat")+'<div class="chat" style="--list:'+(wide()?'300px':'240px')+'">'+list+conv+'</div>';
+  }
+  function consoleView(){
+    var form='<div class="sect"><div class="st">New warning</div><div class="card form">'+
+      '<div class="field"><label>Warning level</label><div class="segm"><span>'+I.info+'Advice</span><span>'+I.triangle+'Watch and Act</span><span class="on">'+I.octagon+'Emergency Warning</span></div></div>'+
+      '<div class="field"><label>Hazard</label><div class="input caret">Flood</div></div>'+
+      '<div class="field"><label>Headline</label><div class="input">Katherine River rising fast. Move to higher ground now<span class="count">55 / 100</span></div></div>'+
+      '<div class="field"><label>What to do</label><div class="input area">Go to Katherine High School on Giles Street. Take medicines and pets.<span class="count">69 / 200</span></div></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:10px"><div class="field"><label>Lasts</label><div class="input">Lasts 6 h<span class="count">– +</span></div></div>'+
+      '<div class="field"><label>Area</label><div class="input"><span class="chip">qvqj9 ✕</span><span class="ph" style="font-size:13px">Click the map to add</span></div></div></div>'+
+      '<div class="btnrow"><button class="btn primary big">Send warning…</button><button class="btn big">Cover the simulated town</button></div></div></div>';
+    var right='<div class="col"><div class="sect"><div class="st">Preview of the warning as phones show it</div>'+
+      '<div class="statusblock fill-e" style="padding:16px">'+I.octagon.replace('<svg','<svg style="width:26px;height:26px"')+'<span class="lvl" style="font-size:24px">Emergency Warning</span><span class="stand" style="font-size:16px">You are in this area</span><span class="hl" style="font-size:15px">Katherine River rising fast. Move to higher ground now</span></div></div>'+
+      '<div class="sect"><div class="st">Live warnings</div><div class="card live"><div class="top t-w">'+I.triangle+'Watch and Act · Bushfire</div><b>Grass fire near Mataranka moving north</b><div class="btnrow"><button class="btn small">Update…</button><button class="btn small">Send again</button><button class="btn small destructive">Cancel warning</button></div></div></div></div>';
+    return head("Console","Issue Warning")+
+      '<div class="content" style="grid-template-columns:1fr 1fr"><div class="outcome" style="grid-column:1/-1">'+I.check+'<span>Sent: Grass fire near Mataranka moving north — 3 devices connected over Bluetooth, handed to internet relays, sent to phone apps on the local network</span></div>'+form+right+'</div>';
+  }
+  function mapView(){
+    var dots="",seed=7;function r(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+    for(var i=0;i<140;i++){var x=60+r()*680,y=30+r()*290;var d=Math.hypot(x-400,y-175);var c=d<150?(r()<.7?"#BF1A1A":"#007AFF"):(r()<.35?"#BF1A1A":"#8E8E93");dots+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="4" fill="'+c+'" fill-opacity=".85"/>';}
+    var svg='<svg viewBox="0 0 800 350" width="100%" style="display:block"><rect width="800" height="350" fill="#E8EDE6"/><path d="M0 250 C160 210 260 290 420 240 S700 170 800 200" stroke="#A7CBE0" stroke-width="14" fill="none"/><path d="M120 0 L260 350 M520 0 L600 350 M0 110 L800 150" stroke="#FFFFFF" stroke-width="6"/><rect x="250" y="25" width="300" height="300" fill="#BF1A1A" fill-opacity=".1" stroke="#BF1A1A" stroke-width="2"/>'+dots+'<circle cx="400" cy="175" r="8" fill="#000"/><text x="412" y="171" font-size="13" font-family="-apple-system,Segoe UI,sans-serif" fill="#000">Evacuation centre</text></svg>';
+    return head("Map","",'<span class="input caret" style="min-width:340px;font-size:13.5px">Emergency Warning · Flood: Katherine River…</span>')+
+      '<div class="content"><div class="metrics"><div class="card metric"><div class="k">Warned, of 300</div><div class="v">214</div></div><div class="card metric"><div class="k">In area, of 162</div><div class="v">151</div></div><div class="card metric"><div class="k">Told loudly</div><div class="v">151</div></div><div class="card metric"><div class="k">Via Bluetooth</div><div class="v">183</div></div></div><div class="mapbox">'+svg+'</div><div class="btnrow"><span class="input" style="width:240px;font-size:13.5px">Minutes to play: 10</span><button class="btn primary big">Let 10 minutes pass and record them</button></div></div>';
+  }
+  function hubView(){
+    return head("Hub board","",'<button class="btn small">Full screen '+(S.plat==="mac"?"⌃⌘F":"F11")+'</button>')+
+      '<div class="content" style="grid-template-rows:1fr;height:100%"><div class="board"><div class="bt"><b>Evacuation centre board</b><span>10:42 am</span></div>'+
+      '<div class="hero"><div class="l">Emergency Warning · Flood</div><div class="h">Katherine River rising fast. Move to higher ground now</div><div class="a">Go to Katherine High School on Giles Street. Take medicines and pets.</div></div>'+
+      '<div class="row2"><span class="bar"></span>Watch and Act · Grass fire near Mataranka moving north</div>'+
+      '<div class="foot"><span>27 devices nearby</span><span>#qvqj9</span></div></div></div>';
+  }
+  function dialog(){
+    if(!S.dialog) return "";
+    return '<div class="scrim" data-act="close"><div class="dlg" role="dialog" aria-label="Call for help" data-stop="1"><h3>Call for help</h3>'+
+      '<p>This tells every laptop near you that you need help, and they pass it on until it reaches someone with a signal.</p>'+
+      '<div class="warnline">This is not 000. If you have any phone signal at all, call emergency services first.</div>'+
+      '<div class="field"><div class="input area"><span class="ph">who is with you, what is wrong (optional)</span></div></div>'+
+      '<p style="font-size:13px">Your call for help says you are near Katherine, the town you picked.</p>'+
+      '<div class="actions"><button class="btn big" data-act="close">Cancel</button><button class="btn big send" data-act="close">Send call for help</button></div>'+
+      '<div class="kbdhint">'+ret()+' sends · Esc cancels · '+(S.plat==="mac"?"macOS: main button on the right":"Windows: main button first")+'</div></div></div>';
+  }
+  function render(){
+    var W=wide()?1280:960,H=wide()?800:640;
+    var tab=S.tab[S.app],v={now:nowView,report:reportView,chat:chatView,console:consoleView,map:mapView,hub:hubView}[tab]();
+    var title=S.app==="phone"?"Alert Mesh":"Alert Mesh Warnings";
+    inner.innerHTML='<div class="m '+S.plat+' '+S.size+'" style="width:'+W+'px;height:'+H+'px;--rail:'+(wide()?"220px":"76px")+'">'+titlebar(title)+
+      '<div class="shell">'+rail()+'<main class="main">'+v+'</main></div>'+statusbar()+dialog()+'</div>';
+    document.querySelectorAll(".seg").forEach(function(g){var k=g.dataset.key;g.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.v===S[k]));});});
+    fit();
+  }
+  var stage=document.getElementById("stage"),inner=document.getElementById("stageInner");
+  function fit(){
+    var m=inner.firstChild;if(!m)return;
+    var s=Math.min(1,stage.clientWidth/m.offsetWidth);
+    inner.style.transform="scale("+s+")";stage.style.height=(m.offsetHeight*s)+"px";
+  }
+  document.querySelectorAll(".seg").forEach(function(g){g.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;S[g.dataset.key]=b.dataset.v;S.dialog=false;save();render();});});
+  inner.addEventListener("click",function(e){
+    var t=e.target.closest("[data-tab],[data-act],[data-stop]");if(!t)return;
+    if(t.dataset.tab){S.tab[S.app]=t.dataset.tab;S.dialog=false;render();return;}
+    if(t.dataset.act==="sos"){S.dialog=true;render();return;}
+    if(t.dataset.act==="close"){S.dialog=false;render();}
+  });
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"&&S.dialog){S.dialog=false;render();}});
+  if(window.ResizeObserver) new ResizeObserver(fit).observe(stage); else window.addEventListener("resize",fit);
+  render();
+})();
+</script>
