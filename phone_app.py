@@ -7,9 +7,10 @@ permission"):
 
 or use Run and Debug -> "Phone app" in VS Code.
 
-Like the iPhone app, three tabs:
-- Now: calls for help from people nearby, then official warnings, and a "Call for help"
-  button (EmergencyRootView, NowView, SOSView);
+Like the iPhone app, three tabs, here in a sidebar, in the iPhone app's look
+(alertmesh/style.py):
+- Now: the warning that covers you, other warnings, calls for help from people nearby,
+  and the red "I need help" bar (EmergencyRootView, NowView, SOSView);
 - Report: tell people nearby about a hazard, and see what they report
   (CommunityReportsView);
 - Chat: Nearby, where everyone in range reads along, and private conversations

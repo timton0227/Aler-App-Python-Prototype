@@ -69,14 +69,14 @@ Windows and Linux too, but that has not been tested (on Linux, Bluetooth needs B
 
 `streamlit run warning_app.py` opens a page in the browser with one simulated town: about 300
 phones around Katherine, a few with internet, and an evacuation centre in the middle.
-Time only moves when you press **+1**, **+5** or **+15** minutes in the sidebar, where
-you can also build a different town.
+Time only moves when you press **+1**, **+5** or **+15** minutes at the foot of the
+sidebar. **Simulated town**, under the tabs, builds a different town.
 
 | Tab | What it does |
 |---|---|
-| Warning console | Write a warning, pick its area, check the preview, and send it. In the simulated town it goes out over Bluetooth from the evacuation centre and to the internet; it also goes to real phone apps on this network. |
+| Warning console | Write a warning, pick its area, check the preview (the warning as a phone in the area shows it), and send it. In the simulated town it goes out over Bluetooth from the evacuation centre and to the internet; it also goes to real phone apps on this network. |
 | Map | Watch a warning spread: blue phones read it on the internet, red phones got it over Bluetooth. |
-| Hub board | The evacuation centre's wall display, in large type. |
+| Hub board | The evacuation centre's wall display, in large type. It stays black whatever the system's light or dark setting, for a projector in a hall. |
 
 The map needs internet for its street background. Without internet the phones
 still show, on a blank background.
@@ -89,16 +89,27 @@ could not cancel them.
 ### The phone app
 
 `streamlit run phone_app.py` (from VS Code's terminal, see below) opens the phone app.
-Pick your town in the sidebar first: a laptop has no GPS, so the town stands in for
+Pick your town in **Settings** first (click your name at the foot of the sidebar): a laptop has no GPS, so the town stands in for
 where you are. It decides which warnings are for you, and a call for help says you are
 there. Your nickname, town and keys are kept in `~/Library/Application Support/Alert Mesh/`
 (Mac) or `%APPDATA%\Alert Mesh` (Windows); messages are not kept.
 
 | Tab | What it does |
 |---|---|
-| Now | A **Call for help** button (then **I'm safe now**). People asking for help, then official warnings, loud when they cover your town. |
-| Report | Tell people nearby about a hazard, and see what they report. Reports are not official warnings. |
-| Chat | **Nearby**, which everyone in range reads, and private conversations. **People in range** lists the laptops heard recently; **Message** opens a private conversation. |
+| Now | A solid colour block when a warning covers your town, with what to do; otherwise "No current warnings" or "No warnings where you are". Then the other warnings, calls for help from people nearby, and how you're connected. The red **I need help** bar at the bottom opens the call for help (then **I'm safe now**). |
+| Report | Tell people nearby about a hazard, and see what they report. Calls for help are red, everything else grey. Reports are not official warnings. |
+| Chat | **Nearby**, which everyone in range reads, and private conversations, as bubbles. **People nearby** lists the laptops heard recently; **Message** opens a private conversation. |
+
+Both apps take the iPhone app's look: the system typeface, system blue, rounded grey
+cards, and the same light and dark colours. They follow the computer's light or dark
+setting. A status bar along the bottom says whether Bluetooth and the local network
+are on.
+
+| Shortcut | Mac | Windows |
+|---|---|---|
+| Tab 1, 2, 3 | ⌘1, ⌘2, ⌘3 | Ctrl+1, Ctrl+2, Ctrl+3 |
+| Settings (phone app) | ⌘, | Ctrl+, |
+| I need help (phone app; opens the sheet, sends nothing) | ⌘⇧H | Ctrl+Shift+H |
 
 What travels how:
 
@@ -116,7 +127,7 @@ Bluetooth, so trying the chat needs two laptops (see "Two-laptop check").
 macOS stops any program that uses Bluetooth unless the app running it says why. VS
 Code says why; **Terminal and iTerm do not**. So run the phone app from VS Code's
 terminal or its Run and Debug panel, or use the packaged app. If it is run from
-Terminal, the phone app still opens, but its sidebar says "Bluetooth: off" and why.
+Terminal, the phone app still opens, but its status bar says "Bluetooth off" and why.
 
 The first time, macOS asks to allow Bluetooth, and to find devices on the local
 network. Allow both. Until the local network is allowed, macOS
@@ -132,11 +143,12 @@ Not yet done: it needs two computers. On each laptop, open the phone app (the pa
 **Alert Mesh**, or `python3 desktop.py` from VS Code) and pick a town. Keep them within a
 few metres. On one laptop, also open the warning app.
 
-1. Within about 30 s, each phone app lists the other under **Chat → People in range**,
-   and the sidebar says "Bluetooth: on, 1 laptop in range".
+1. Within about 30 s, each phone app lists the other under **Chat → People nearby**,
+   and the status bar says "Bluetooth on · 1 laptop nearby".
 2. Write in **Nearby** on each laptop: the message appears on the other.
 3. Press **Message** and write privately, both ways.
-4. Send a call for help from one laptop: it appears first on the other laptop's **Now**.
+4. Send a call for help from one laptop (**I need help**): it appears under **Calls for help**
+   on the other laptop's **Now**.
 5. Send a warning from the warning app: both phone apps show it.
 6. Turn Wi-Fi off on laptop 2 and send another warning: laptop 2 still gets it, over
    Bluetooth from laptop 1.
@@ -147,7 +159,8 @@ terminal): each should list the other under "Alert Mesh laptops".
 ## Desktop apps (no browser)
 
 Both apps can also be double-click apps: one window each, no browser, and no Python
-needed on the computer that opens them. `desktop.py` shows a page in its own window;
+needed on the computer that opens them. The phone app's window opens at 1200 × 760;
+neither can be made smaller than 960 × 600. `desktop.py` shows a page in its own window;
 `PyInstaller` bundles everything.
 
 ### Build it

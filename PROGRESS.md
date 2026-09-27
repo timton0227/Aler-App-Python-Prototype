@@ -366,7 +366,7 @@ How each page looks is checked by eye against the mockup, in light and dark.
 - [x] 14.6 Keyboard shortcuts
       Done when: ⌘1–3 or Ctrl+1–3 switch tabs, ⌘, or Ctrl+, opens Settings, ⌘⇧H or Ctrl+Shift+H opens the call-for-help sheet without sending; hints show ⌘ on a Mac and Ctrl on Windows
       Verify: `python3 -m pytest -q`; then press each shortcut in both packaged apps
-- [ ] 14.7 Check on Windows
+- [!] 14.7 Check on Windows — blocked: needs a Windows PC (as 12.4)
       Done when: both apps built on a Windows PC look like the mockup at 100%, 125% and 150% display scaling
       Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open both apps
 

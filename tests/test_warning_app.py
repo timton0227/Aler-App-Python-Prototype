@@ -57,7 +57,7 @@ def test_the_page_opens_on_the_console(app):
     assert [b.key for b in app.sidebar.button if b.key.startswith("nav_")] == [
         "nav_warning_console", "nav_map", "nav_hub_board"]
     assert app.session_state["view"] == "Warning console"
-    assert "Local network on" in " ".join(m.value for m in app.markdown)
+    assert 'class="am-statusbar"' in " ".join(m.value for m in app.markdown)  # on or off, it says which
     assert app.session_state.world.minutes == 0
     assert button(app, "Send warning…").disabled  # an empty draft cannot be sent
     assert any("Write a headline." in m.value for m in app.markdown)

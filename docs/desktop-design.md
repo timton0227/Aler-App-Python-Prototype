@@ -1,6 +1,9 @@
 # Desktop design — the iPhone app's look, on Mac and Windows
 
-The plan for Phase 14 in [`PROGRESS.md`](../PROGRESS.md). Nothing here is built yet.
+The plan for Phase 14 in [`PROGRESS.md`](../PROGRESS.md). Steps 14.1 to 14.6 are built
+(`alertmesh/style.py`, `phone_app.py`, `warning_app.py`); where the build differs from
+this plan, [`CHANGELOG.md`](../CHANGELOG.md) says so. Step 14.7, the check on Windows, is
+still open.
 
 A clickable mockup of both apps, with a macOS / Windows switch, is in
 [`desktop-design-mockup.html`](desktop-design-mockup.html). Open it in any browser.

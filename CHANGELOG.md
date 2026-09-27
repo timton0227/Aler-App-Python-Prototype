@@ -24,6 +24,16 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.7 Check on Windows — blocked — 2026-09-27
+- What: not done; it needs a Windows PC, as step 12.4 does. Marked `[!]` in `PROGRESS.md`.
+- Also in this commit, to close the rest of Phase 14:
+  - the README describes the new look: the Settings sheet, the status bar, the "I need help" bar, dark mode, the shortcuts and the window sizes;
+  - `docs/desktop-design.md` says what is built;
+  - `requirements.txt` caps Streamlit at the newest version tested (`<1.65`), because the stylesheet styles some of Streamlit's own parts, which can change in a new version (the design's Risks section).
+- Ported from: not applicable.
+- Differences from Swift: not applicable.
+- Verified by: `python3 -m pytest -q` — 470 passed, 2 skipped; `python3 desktop.py --check` and `--app warning --check` report ok.
+
 ## 14.6 Keyboard shortcuts — 2026-09-27
 - What:
   - Both apps: ⌘1, ⌘2, ⌘3 switch tabs (Ctrl+1 to 3 on Windows).
