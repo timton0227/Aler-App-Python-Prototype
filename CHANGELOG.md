@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.7 Notebook: community hazard reports — 2026-09-27
+- What: section 7 of `demo.ipynb`. Jo reports a flooded causeway (high). After 10 minutes: how many phones hold it, that it is in no official warning store, and that it caused no notifications. Then one phone's report list (hazard first, then check-ins) with who sent each, which key signed it, severity, the place in words, and the note. A note explains that a nickname proves nothing and the key does.
+- Ported from: new. Uses `Mesh.send_hazard`, the report store and `places.label`.
+- Differences from the app: the "signed by key" column (first 4 bytes of the key) is a notebook teaching aid; whether the app's screens show the key was not checked, so the text claims only what the store guarantees (one record per key).
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors. Jo's report reached 243 phones in 10 minutes, is in no official store, and caused 0 notifications. The list shows the stranger's fake "I'm safe" from section 6 under the nickname "Sam" but a different key from Sam's real one. A first draft said "the real app shows this difference"; that was not checked, so it was reworded before commit.
+
 ## 9.6 Notebook: SOS, then "I'm safe"; a stranger cannot fake it — 2026-09-27
 - What: section 6 of `demo.ipynb`. Sam (a phone with no internet) sends an SOS near Katherine, cut to 7 characters (about 150 m). A table shows how far it had spread at 0, 2, 5 and 10 minutes, and how loudly phones were told. A stranger tries two fake "I'm safe" messages: one claims Sam's key, one uses their own key with Sam's SOS ID; neither calls off the SOS. Then Sam's own "I'm safe" replaces it.
 - Ported from: new. Uses `ReportAuthor`, the report store and `Mesh.send_sos` / `send_safe`.
