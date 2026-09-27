@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 3.3 Report encode, decode and receipt rules — 2026-09-27
+- What: `reports.encode()`, `reports.decode()`, `reports.is_valid_geohash()`, `reports.kind_peek()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportWire.encode`, `decode(from:)`, `kind(in:)`, `isValidGeohash`).
+- Differences from Swift: none in behaviour. `decode()` reuses `wire.read_tlvs()` with no repeatable fields, which gives the Swift rule "no field repeats". These tests use dummy keys and signatures, because decoding checks structure only; signing and verifying are step 3.4.
+- Verified by: `python3 -m pytest tests/test_reports.py -k "encode or validation"` — 12 passed. The frozen SOS vector's 117-byte prefix (everything before the signature) matches (`frozenSOSEncodesToTheFrozenBytes`, structure part). Ports `encodedPrefixIsFrozen`, the four round-trip tests, the four precision tests, the three lifetime tests, the six bounds tests, `rejectsUnknownSeverity`, `rejectsUnknownKind`, both duplicate tests, `toleratesUnknownTLVs`, `rejectsTruncatedPayload`, `rejectsMissingSignature`, both kind-peek tests, and `aReportIsNotAnOfficialAlert`. Full suite: 99 passed.
+
 ## 3.2 Report data class and signing bytes — 2026-09-27
 - What: `reports.CommunityReport` (frozen data class, with a `hazard` property), `reports.report_signing_bytes()`, `reports.signing_bytes_of()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportPacket`, `CommunityReportPacket.signingBytes`).

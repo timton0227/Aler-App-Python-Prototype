@@ -16,7 +16,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 0 Setup | 3 | 3 |
 | 1 Geohash | 4 | 4 |
 | 2 Official alert format | 10 | 10 |
-| 3 Community reports | 2 | 4 |
+| 3 Community reports | 3 | 4 |
 | 4 Proximity | 0 | 3 |
 | 5 Stores | 0 | 5 |
 | 6 Places | 0 | 2 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **19** | **56** |
+| **All** | **20** | **56** |
 
-**Next step:** 3.3
+**Next step:** 3.4
 
 ---
 
@@ -108,7 +108,7 @@ tests: `AlertMeshTests/AlertMesh/Protocols/CommunityReportPacketsTests.swift`
 - [x] 3.2 Report signing bytes
       Done when: the kind is signed, so an SOS cannot be replayed as "safe"
       Verify: `python3 -m pytest tests/test_reports.py -k signing`
-- [ ] 3.3 Encode, decode and validate
+- [x] 3.3 Encode, decode and validate
       Done when: SOS/safe geohash is 7 characters or fewer; lifetime ≤ 24 h hazard, ≤ 6 h SOS/safe
       Verify: `python3 -m pytest tests/test_reports.py -k "encode or validation"`
 - [ ] 3.4 Sign and verify with the author's own key

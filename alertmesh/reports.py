@@ -13,7 +13,9 @@ This is free and unencumbered software released into the public domain.
 from dataclasses import dataclass
 from enum import IntEnum
 
-from alertmesh.wire import HazardType, _context, _len16, _u64
+from alertmesh.wire import (
+    GEOHASH_ALPHABET, HazardType, _context, _len16, _u64, _u64_from, _utf8, put_tlv, read_tlvs,
+)
 
 # --- Constants (CommunityReportWireConstants) ---------------------------------
 
@@ -134,3 +136,130 @@ def signing_bytes_of(report: CommunityReport) -> bytes:
         report.note, report.author_signing_key, report.author_nickname,
         report.created_at, report.expires_at,
     )
+
+
+# --- Encode, decode, validate -------------------------------------------------
+
+_KNOWN_TYPES = {t.value for t in ReportTLVType}
+
+
+def encode(report: CommunityReport) -> bytes:
+    """Wire bytes, fields in the Swift order. No hazard field when the code is 0;
+    no severity field when there is none."""
+    out = put_tlv(ReportTLVType.KIND, bytes([int(report.kind)]))
+    out += put_tlv(ReportTLVType.REPORT_ID, report.report_id)
+    out += put_tlv(ReportTLVType.GEOHASH, report.geohash.encode())
+    if report.hazard_code != 0:
+        out += put_tlv(ReportTLVType.HAZARD_TYPE, bytes([report.hazard_code]))
+    if report.severity is not None:
+        out += put_tlv(ReportTLVType.SEVERITY, bytes([int(report.severity)]))
+    out += put_tlv(ReportTLVType.NOTE, report.note.encode())
+    out += put_tlv(ReportTLVType.AUTHOR_SIGNING_KEY, report.author_signing_key)
+    out += put_tlv(ReportTLVType.AUTHOR_NICKNAME, report.author_nickname.encode())
+    out += put_tlv(ReportTLVType.CREATED_AT, _u64(report.created_at))
+    out += put_tlv(ReportTLVType.EXPIRES_AT, _u64(report.expires_at))
+    out += put_tlv(ReportTLVType.SIGNATURE, report.signature)
+    return out
+
+
+def is_valid_geohash(geohash: str) -> bool:
+    """2 to 8 characters of the lowercase geohash alphabet. A report must say where."""
+    return (
+        GEOHASH_MIN_LENGTH <= len(geohash) <= GEOHASH_MAX_LENGTH
+        and all(c in GEOHASH_ALPHABET for c in geohash)
+    )
+
+
+def decode(data: bytes) -> CommunityReport | None:
+    """Read a report payload, or None if malformed.
+
+    Structure only: call `verify()` before storing, showing or passing it on.
+    """
+    # No field may repeat, so the fast `kind_peek` (first copy) and this decoder
+    # can never disagree.
+    fields = read_tlvs(data, _KNOWN_TYPES)
+    if fields is None:
+        return None
+    kind = report_id = geohash = note = key = nickname = created_at = expires_at = signature = None
+    hazard_code = 0
+    severity = None
+    severity_seen = False
+    for t, v in fields:
+        if t == ReportTLVType.KIND:
+            if len(v) != 1:
+                return None
+            kind = ReportKind(v[0]) if v[0] in ReportKind._value2member_map_ else None
+        elif t == ReportTLVType.REPORT_ID:
+            if len(v) != REPORT_ID_LENGTH:
+                return None
+            report_id = v
+        elif t == ReportTLVType.GEOHASH:
+            cell = _utf8(v)
+            if len(v) > GEOHASH_MAX_LENGTH or cell is None or not is_valid_geohash(cell):
+                return None
+            geohash = cell
+        elif t == ReportTLVType.HAZARD_TYPE:
+            if len(v) != 1:
+                return None
+            hazard_code = v[0]  # any byte accepted, like official warnings
+        elif t == ReportTLVType.SEVERITY:
+            if len(v) != 1:
+                return None
+            severity_seen = True
+            severity = ReportSeverity(v[0]) if v[0] in ReportSeverity._value2member_map_ else None
+        elif t == ReportTLVType.NOTE:
+            if len(v) > NOTE_MAX_BYTES:
+                return None
+            note = _utf8(v)
+        elif t == ReportTLVType.AUTHOR_SIGNING_KEY:
+            if len(v) != SIGNING_KEY_LENGTH:
+                return None
+            key = v
+        elif t == ReportTLVType.AUTHOR_NICKNAME:
+            if len(v) > NICKNAME_MAX_BYTES:
+                return None
+            nickname = _utf8(v)
+        elif t == ReportTLVType.CREATED_AT:
+            created_at = _u64_from(v)
+        elif t == ReportTLVType.EXPIRES_AT:
+            expires_at = _u64_from(v)
+        elif t == ReportTLVType.SIGNATURE:
+            if len(v) != SIGNATURE_LENGTH:
+                return None
+            signature = v
+        # Unknown types: skipped, for forward compatibility.
+
+    required = (kind, report_id, geohash, note, key, nickname, created_at, expires_at, signature)
+    if any(x is None for x in required) or expires_at <= created_at:
+        return None
+    # A severity byte that names no known level is rejected, never guessed.
+    # A severity that never arrived is fine for SOS and "safe".
+    if severity_seen and severity is None:
+        return None
+    lifetime = expires_at - created_at
+    if kind == ReportKind.HAZARD:
+        if severity is None or lifetime > HAZARD_MAX_LIFETIME_MS:
+            return None
+    elif len(geohash) > SOS_GEOHASH_MAX_LENGTH or lifetime > SOS_MAX_LIFETIME_MS:
+        # SOS and "safe": the precision cap is a privacy rule of the format itself.
+        return None
+    return CommunityReport(
+        kind, report_id, geohash, hazard_code, severity, note, key, nickname,
+        created_at, expires_at, signature,
+    )
+
+
+def kind_peek(data: bytes) -> ReportKind | None:
+    """Fast look at the first kind field, so relays can favour an SOS without a full
+    decode. None for garbage or an unknown kind; None must mean "not urgent"."""
+    off = 0
+    while off + 3 <= len(data):
+        t = data[off]
+        length = (data[off + 1] << 8) | data[off + 2]
+        off += 3
+        if off + length > len(data):
+            return None
+        if t == ReportTLVType.KIND and length == 1:
+            return ReportKind(data[off]) if data[off] in ReportKind._value2member_map_ else None
+        off += length
+    return None
