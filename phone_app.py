@@ -193,42 +193,145 @@ def help_bar() -> None:
                   else "Opens the call for help. Nothing is sent until you press Send.")
 
 
-def warning_card(item: phone.WarningView) -> None:
-    """One warning as the phone lists it: level colour, headline, how close, what to do."""
+def open_warning(alert_id: bytes) -> None:
+    state.open_warning = alert_id
+
+
+def close_warning() -> None:
+    state.open_warning = None
+
+
+@st.dialog("Warning", width="medium", on_dismiss=close_warning)
+def warning_detail(item: phone.WarningView) -> None:
+    """The full warning (the iPhone's alert detail): level, headline, what to do, where,
+    until when, and why the app was loud or quiet about it."""
     alert = item.alert
     level = style.LEVEL[alert.severity]
-    loud = "Loud: " if item.decision.urgency is Urgency.LOUD else ""
+    loud = "Told loudly. " if item.decision.urgency is Urgency.LOUD else "Told quietly. "
     st.markdown(hub.one_line(f"""
-<div class="am-card am-border-{level}" style="padding:0;overflow:hidden">
-  <div class="am-fill-{level}" style="padding:8px 18px;font-weight:700">{labels.title(alert)}</div>
-  <div style="padding:10px 18px 14px">
-    <div class="am-headline">{html.escape(alert.headline)}</div>
-    <div class="am-muted">{labels.proximity(item.decision)} · {labels.until(alert.expires_at, p.clock())}</div>
-    <div style="margin-top:6px"><b>What to do</b><br>{html.escape(alert.action_text)}</div>
-    <div class="am-muted" style="margin-top:6px">{loud}{labels.REASON_TEXT[item.decision.reason.kind]}</div>
-  </div>
+<div class="am-level am-t-{level}" style="font-size:15px">{style.symbol(alert.severity)}{labels.title(alert)}</div>
+<div class="am-headline" style="font-size:20px;margin:6px 0 10px">{style.esc(alert.headline)}</div>
+<div class="am-section">What to do</div>
+<div class="am-action" style="margin-bottom:12px">{style.esc(alert.action_text) or "Follow advice from emergency services."}</div>
+<div class="am-muted">{labels.proximity(item.decision)} · {labels.until(alert.expires_at, p.clock())}</div>
+<div class="am-muted">{loud}{labels.REASON_TEXT[item.decision.reason.kind]}.</div>
+<div class="am-muted">Issued {labels.clock(alert.issued_at)} · area {", ".join(alert.area_cells)}</div>"""),
+                unsafe_allow_html=True)
+    st.button("Close", type="primary", on_click=close_warning)
+
+
+def status_block(now: phone.NowStatus) -> None:
+    """The top of Now. A solid block in the level's colour only when a warning covers
+    you (NowView.affectedBlock); otherwise a grey card."""
+    if now.kind is phone.NowKind.CLEAR:
+        st.markdown(hub.one_line("""
+<div class="am-card"><div class="am-status-title am-clear">No current warnings</div>
+<div class="am-muted">Keep Bluetooth on. A warning reaches this laptop over the local network, or from any """
+                                 """laptop in range that has it.</div></div>"""), unsafe_allow_html=True)
+        return
+    if now.kind is phone.NowKind.ELSEWHERE:
+        count = len(now.others)
+        listed = "1 warning for another area is" if count == 1 else f"{count} warnings for other areas are"
+        st.markdown(hub.one_line(f"""
+<div class="am-card"><div class="am-status-title">No warnings where you are</div>
+<div class="am-muted">{listed} listed below.</div></div>"""), unsafe_allow_html=True)
+        return
+    alert = now.affected.alert
+    level = style.LEVEL[alert.severity]
+    st.markdown(hub.one_line(f"""
+<div class="am-block am-fill-{level}">{style.symbol_on_fill(alert.severity)}
+<span class="am-lvl">{labels.SEVERITY_NAMES[alert.severity]}</span>
+<span class="am-stand">{labels.proximity(now.affected.decision)}</span>
+<span class="am-headline">{style.esc(alert.headline)}</span>
+<span class="am-meta"><span>{labels.hazard_name(alert.hazard)}</span><span>{labels.until(alert.expires_at, p.clock())}</span></span>
+</div>"""), unsafe_allow_html=True)
+    st.button("Open full warning ›", key="open_affected", type="tertiary", on_click=open_warning,
+              args=(alert.alert_id,))
+    if alert.action_text:
+        st.markdown(hub.one_line(f"""
+<div class="am-card am-border-{level}"><div class="am-section">What to do</div>
+<div class="am-action">{style.esc(alert.action_text)}</div></div>"""), unsafe_allow_html=True)
+
+
+def other_warning(item: phone.WarningView) -> None:
+    """A warning that does not cover you: a grey card with a colour bar."""
+    alert = item.alert
+    level = style.LEVEL[alert.severity]
+    where = places.label(alert.area_cells[0]) if alert.area_cells else ""
+    st.markdown(hub.one_line(f"""
+<div class="am-card am-other"><span class="am-colourbar am-bar-{level}"></span><div>
+<div class="am-level am-t-{level}">{style.symbol(alert.severity, "var(--am-card)")}{labels.title(alert)}</div>
+<div class="am-headline">{style.esc(alert.headline)}</div>
+<div class="am-muted">{labels.proximity(item.decision)}{" · " + style.esc(where) if where else ""}<br>
+{labels.until(alert.expires_at, p.clock())}</div></div></div>"""), unsafe_allow_html=True)
+    st.button("Open full warning ›", key=f"open_{alert.alert_id.hex()}", type="tertiary", on_click=open_warning,
+              args=(alert.alert_id,))
+
+
+def message_person(key: str) -> None:
+    state.chat_with = key
+    state.view = CHAT
+
+
+def calls_for_help_section(helps) -> None:
+    """Calls for help from people nearby, red-bordered, with "Message" when that person
+    is in range."""
+    st.markdown('<div class="am-section">Calls for help</div>', unsafe_allow_html=True)
+    in_range = {peer.key for peer in p.node.nearby_peers()}
+    for report in helps:
+        name = report.author_nickname or "Someone"
+        note = f'<div class="am-note">{style.esc(report.note)}</div>' if report.note else ""
+        st.markdown(hub.one_line(f"""
+<div class="am-card am-help"><div class="am-who">{style.HELP_ICON}{style.esc(name)} needs help</div>{note}
+<div class="am-muted">{style.esc(places.label(report.geohash) or report.geohash)} · {labels.clock(report.created_at)}</div>
+</div>"""), unsafe_allow_html=True)
+        key = report.author_signing_key.hex()
+        if key in in_range:
+            st.button(f"Message {name}", key=f"help_msg_{key}_{report.report_id.hex()}", on_click=message_person,
+                      args=(key,))
+
+
+def connection_section() -> None:
+    """How you're connected, in plain counts (NowView.connectionSection)."""
+    on, _ = bluetooth_words()
+    count = p.node.link.neighbours() if on else 0
+    if not on:
+        bluetooth = "Bluetooth is off, so no laptop nearby can pass warnings to you"
+    elif count == 0:
+        bluetooth = "No laptops nearby yet"
+    else:
+        bluetooth = f"{count} {'laptop' if count == 1 else 'laptops'} nearby can pass warnings to you"
+    network_on, _ = network_words()
+    network = ("Official warnings arrive over the local network" if network_on
+               else "Local network off: warnings arrive only from laptops nearby")
+    st.markdown(hub.one_line(f"""
+<div class="am-card"><div class="am-section">How you're connected</div>
+<div class="am-row">{style.APP_ICON}{bluetooth}</div>
+<div class="am-row">{style.APP_ICON}{network}</div>
+<div class="am-muted">Warnings travel laptop to laptop over Bluetooth. They keep arriving with no internet.</div>
 </div>"""), unsafe_allow_html=True)
 
 
 def now_view() -> None:
-    call_for_help()
-    helps = p.calls_for_help()
-    if helps:
-        st.subheader("People asking for help")
-        for report in helps:
-            with st.container(border=True):
-                st.markdown(f":material/sos: **{html.escape(report.author_nickname or 'Someone')} needs help** — "
-                            f"{place_words(report.geohash)}, {labels.clock(report.created_at)}")
-                if report.note:
-                    st.caption(report.note)
-    st.subheader("Warnings")
     items = p.warnings()
-    if not items:
-        st.markdown("**No current warnings**")
-        st.caption("Keep Bluetooth on. A warning reaches this laptop over the local network, or from any "
-                   "laptop in range that has it.")
-    for item in items:
-        warning_card(item)
+    now = phone.now_status(items)
+    helps = p.calls_for_help()
+    with st.container(key="am_now"):
+        main, side = st.columns([3, 2], gap="large")
+        with main:
+            call_for_help()
+            status_block(now)
+            if now.others:
+                st.markdown('<div class="am-section">Other warnings</div>', unsafe_allow_html=True)
+                for item in now.others:
+                    other_warning(item)
+        with side:
+            if helps:
+                calls_for_help_section(helps)
+            connection_section()
+    opened = next((w for w in items if w.alert.alert_id == state.get("open_warning")), None)
+    if opened is not None:
+        warning_detail(opened)
     help_bar()
 
 

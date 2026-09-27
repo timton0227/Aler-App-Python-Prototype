@@ -101,7 +101,7 @@ CSS = f"""
 .am-card{{background:var(--am-card);border-radius:16px;padding:16px 18px;border:1px solid var(--am-sep);
   color:var(--am-ink);margin-bottom:16px;}}
 .am-section{{font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--am-ink-2);
-  margin:4px 0 8px;}}
+  margin:8px 0 8px;}}
 .am-muted{{color:var(--am-ink-2);font-size:13.5px;}}
 .am-headline{{font-size:16px;font-weight:600;}}
 .am-level{{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;}}
@@ -193,12 +193,27 @@ CSS = f"""
 }}
 
 /* The solid block, only when a warning covers you (NowView.affectedBlock). */
-.am-block{{border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}}
+.am-block{{border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}}
 .am-block svg{{width:34px;height:34px;}}
 .am-block .am-lvl{{font-size:30px;font-weight:900;line-height:1.05;letter-spacing:-.01em;}}
 .am-block .am-stand{{font-size:18px;font-weight:600;}}
 .am-block .am-headline{{font-size:16px;font-weight:600;}}
 .am-block .am-meta{{font-size:13.5px;display:flex;gap:12px;flex-wrap:wrap;opacity:.92;}}
+.am-status-title{{font-size:18px;font-weight:600;}}
+/* "What to do", in large type. */
+.am-action{{font-size:20px;font-weight:600;line-height:1.3;margin-top:4px;}}
+/* A call for help: red-bordered, never a warning's colours otherwise (CommunityReportStyle). */
+.am-help{{border:2px solid var(--am-red);background:linear-gradient(var(--am-red-wash),var(--am-red-wash)),var(--am-card);}}
+.am-who{{font-weight:700;color:var(--am-red-text);display:flex;align-items:center;gap:8px;font-size:15.5px;}}
+.am-who svg{{width:20px;height:20px;flex:none;}}
+.am-note{{font-size:15px;margin:4px 0;}}
+.am-row{{display:flex;gap:10px;align-items:center;font-size:15px;margin:6px 0;}}
+.am-row svg{{width:20px;height:20px;flex:none;}}
+/* Side columns move under the main column in a narrow window. */
+@media (max-width:1100px){{
+  .st-key-am_now [data-testid="stHorizontalBlock"]{{flex-wrap:wrap;}}
+  .st-key-am_now [data-testid="stColumn"]{{flex:1 1 100%!important;min-width:100%!important;}}
+}}
 """
 
 # The level shown by a symbol as well as by colour (AlertSeverity.symbolName): circle-i
@@ -210,6 +225,19 @@ _SYMBOL_PATHS = {
     Severity.EMERGENCY_WARNING: ('<path d="M8 2h8l6 6v8l-6 6H8l-6-6V8z"/>'
                                  '<path fill="var(--am-bg)" d="M11 6.5h2v7h-2zM11 15.5h2v2h-2z"/>'),
 }
+
+
+# A lifebuoy, for calls for help: they are never shown with a warning's symbols.
+HELP_ICON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
+             '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>'
+             '<path d="M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></svg>')
+
+# The fill colour behind each level's block, for the symbol's cut-out.
+_FILL_VARIABLE = {"e": "var(--am-red)", "w": "var(--am-watch)", "a": "var(--am-advice)"}
+
+
+def symbol_on_fill(severity: Severity) -> str:
+    return symbol(severity, _FILL_VARIABLE[LEVEL[severity]])
 
 
 def symbol(severity: Severity, cut_out: str = "var(--am-bg)") -> str:

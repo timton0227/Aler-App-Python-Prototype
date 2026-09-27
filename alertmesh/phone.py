@@ -20,7 +20,8 @@ import os
 import platform
 import sys
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 from alertmesh import places, proximity
@@ -97,6 +98,36 @@ class NoLink:
 class WarningView:
     alert: OfficialAlert
     decision: proximity.Decision
+
+
+class NowKind(Enum):
+    CLEAR = "clear"            # no live warnings at all: "No current warnings"
+    ELSEWHERE = "elsewhere"    # warnings, none covering you: "No warnings where you are"
+    AFFECTED = "affected"      # a warning covers you: the solid colour block
+
+
+# "Covers you" is "You are in this area": the place is inside the warning's area. Next to
+# it ("Near you") is listed with the other warnings, not shown as the block.
+COVERS_YOU = {proximity.ReasonKind.INSIDE_AREA, proximity.ReasonKind.WATCHED_PLACE_INSIDE_AREA}
+
+
+@dataclass(frozen=True)
+class NowStatus:
+    kind: NowKind
+    affected: WarningView | None = None
+    others: list[WarningView] = field(default_factory=list)
+
+
+def now_status(warnings: list[WarningView]) -> NowStatus:
+    """What the top of Now shows (NowView's status). `warnings` must be in the store's
+    order, most severe first, so the block shows the worst warning that covers you;
+    every other warning is listed under it."""
+    if not warnings:
+        return NowStatus(NowKind.CLEAR)
+    affected = next((w for w in warnings if w.decision.reason.kind in COVERS_YOU), None)
+    if affected is None:
+        return NowStatus(NowKind.ELSEWHERE, None, list(warnings))
+    return NowStatus(NowKind.AFFECTED, affected, [w for w in warnings if w is not affected])
 
 
 class Phone:

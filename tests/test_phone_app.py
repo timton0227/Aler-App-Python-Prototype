@@ -173,7 +173,7 @@ def test_page_opens_on_now_with_three_tabs_in_the_sidebar(app):
     assert [b.key for b in app.sidebar.button if b.key.startswith("nav_")] == ["nav_now", "nav_report", "nav_chat"]
     assert app.session_state["view"] == "Now"
     assert '<div class="am-pagetitle">Now</div>' in page(app)
-    assert "**No current warnings**" in [m.value for m in app.markdown]
+    assert "No current warnings" in page(app)
     show(app, "Report")
     assert '<div class="am-pagetitle">Report</div>' in page(app)
 
@@ -215,9 +215,72 @@ def test_settings_open_from_the_foot_of_the_sidebar(me, app):
 def test_warning_shows_on_now(me, app):
     me.node.take_official(wire.encode(warning_for(me.geohash[:4], Severity.EMERGENCY_WARNING)))
     app.run()
-    page = " ".join(m.value for m in app.markdown)
-    assert "Flooding at Katherine" in page and "You are in this area" in page
-    assert "Emergency Warning" in page
+    shown = page(app)
+    assert "Flooding at Katherine" in shown and "You are in this area" in shown
+    assert "Emergency Warning" in shown
+
+
+# --- Now (NowView's status) ---
+
+
+def view_of(p: Phone, cell: str, severity=Severity.WATCH_AND_ACT):
+    p.node.take_official(wire.encode(warning_for(cell, severity)))
+
+
+def test_now_is_clear_with_no_warnings(me):
+    assert phone.now_status(me.warnings()).kind is phone.NowKind.CLEAR
+
+
+def test_now_is_elsewhere_when_no_warning_covers_you(me):
+    view_of(me, "r1r0")  # Melbourne
+    now = phone.now_status(me.warnings())
+    assert now.kind is phone.NowKind.ELSEWHERE and now.affected is None and len(now.others) == 1
+
+
+def test_the_block_shows_the_worst_warning_that_covers_you(me):
+    view_of(me, "r1r0", Severity.EMERGENCY_WARNING)          # worse, but elsewhere
+    view_of(me, me.geohash[:4], Severity.ADVICE)
+    view_of(me, me.geohash[:4], Severity.WATCH_AND_ACT)
+    now = phone.now_status(me.warnings())
+    assert now.kind is phone.NowKind.AFFECTED
+    assert now.affected.alert.severity is Severity.WATCH_AND_ACT
+    # Every other warning is listed under it, most severe first.
+    assert [w.alert.severity for w in now.others] == [Severity.EMERGENCY_WARNING, Severity.ADVICE]
+
+
+def test_next_to_the_area_is_not_covering_you(me):
+    view_of(me, wire_neighbours(me.geohash[:5])[0])  # adjacency counts from 5 characters (~5 km)
+    now = phone.now_status(me.warnings())
+    assert now.kind is phone.NowKind.ELSEWHERE
+    assert now.others[0].decision.reason.kind.name == "ADJACENT_TO_AREA"
+
+
+def wire_neighbours(cell: str) -> list[str]:
+    from alertmesh import geohash
+
+    return geohash.neighbors(cell)
+
+
+def test_page_says_no_warnings_where_you_are(me, app):
+    view_of(me, "r1r0")
+    app.run()
+    assert "No warnings where you are" in page(app) and "am-block" not in page(app)
+    assert "Other warnings" in page(app)
+
+
+def test_page_shows_the_block_what_to_do_and_the_full_warning(me, app):
+    view_of(me, me.geohash[:4], Severity.EMERGENCY_WARNING)
+    app.run()
+    shown = page(app)
+    assert 'class="am-block am-fill-e"' in shown and "What to do" in shown and "Move to higher ground." in shown
+    button(app, "Open full warning ›").click().run()
+    assert "You are inside the warning area" in page(app)
+    button(app, "Close").click().run()
+    assert "You are inside the warning area" not in page(app)
+
+
+def test_page_says_how_you_are_connected(me, app):
+    assert "How you're connected" in page(app) and "1 laptop nearby can pass warnings to you" in page(app)
 
 
 def test_calling_for_help_from_the_page(me, app):
@@ -234,8 +297,17 @@ def test_calling_for_help_from_the_page(me, app):
 def test_someone_elses_call_for_help_shows_first(me, app):
     arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
     app.run()
-    assert any(h.value == "People asking for help" for h in app.subheader)
-    assert any("Bob needs help" in m.value for m in app.markdown)
+    assert "Calls for help" in page(app) and "Bob needs help" in page(app) and "leg broken" in page(app)
+    assert not [b for b in app.button if b.label == "Message Bob"]  # Bob's laptop is not in range
+
+
+def test_a_call_for_help_from_someone_in_range_can_be_answered(me, app):
+    bob = Identity("Bob")  # one key signs Bob's chat and his reports, as on his phone
+    arrive(me, FrameKind.ANNOUNCE, chat.encode_announce(bob.announce(NOW)))
+    arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob", bob.signing_seed).sos(me.geohash, "", NOW)))
+    app.run()
+    button(app, "Message Bob").click().run()
+    assert app.session_state["view"] == "Chat" and app.session_state["chat_with"] == bob.signing_key.hex()
 
 
 def test_reporting_a_hazard(me, app):

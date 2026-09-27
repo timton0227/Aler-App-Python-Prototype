@@ -24,6 +24,37 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.3 Now like the iPhone — 2026-09-27
+- What:
+  - `alertmesh/phone.py`: `now_status()` decides what the top of Now shows:
+    - `CLEAR`, no live warnings;
+    - `ELSEWHERE`, warnings but none covering you;
+    - `AFFECTED`, the most severe warning whose area you are in, with every other warning listed after it.
+    "Covers you" means "You are in this area"; next to the area stays in the list.
+  - `phone_app.py`, Now from top to bottom:
+    1. A solid block in the level's colour, only when a warning covers you: symbol, level, "You are in this area", headline, hazard, end time, and "Open full warning". Otherwise a grey card: "No current warnings" in the all-clear green, or "No warnings where you are" with how many are listed below.
+    2. "What to do", in large type in a card with a border in the level's colour.
+    3. Other warnings: grey cards with a 6-point colour bar and the level in its text colour, each able to open in full.
+    4. In a side column: calls for help (red-bordered, "Message" when that person is in range), and "How you're connected" in plain counts.
+  - Below 1100 wide the side column moves under the main one.
+  - "Open full warning" opens a sheet with the whole warning, why the app was loud or quiet, when it was issued and its area.
+  - Your own call for help, when out, stays at the top of Now.
+- Ported from: `NowView.swift` (the status and `affectedBlock`, "What to do", other warnings, `connectionSection`), `NowReportsSections.swift` (calls for help), `AlertSeverity.symbolName`, as written down in `docs/desktop-design.md`.
+- Differences from Swift:
+  - "Open full warning" is a link-style button under the block, not the block itself: a Streamlit button cannot hold a drawn block.
+  - The connection card counts laptops and says whether the local network is on; the iPhone counts phones and the internet.
+  - Other warnings say "Another area" or "Near you" but no distance: `places.label` has no name for a whole 40 km warning cell.
+- Verified by:
+  - `python3 -m pytest tests/test_phone_app.py` — 30 passed (8 new). They cover:
+    - clear, elsewhere and affected;
+    - the worst covering warning wins over a worse one elsewhere, and the others stay most severe first;
+    - next to the area is not covering you;
+    - the page's grey card, the block, "What to do" and the full-warning sheet;
+    - the connection card;
+    - "Message" on a call for help from someone in range.
+  - `python3 -m pytest -q` — 460 passed, 2 skipped. The page tests also pass with Streamlit 1.51.0.
+  - Checked by eye in headless Chromium, in all three states, light and dark, at 1280 and 960 wide, against the mockup.
+
 ## 14.2 Phone app sidebar, status bar and "I need help" bar — 2026-09-27
 - What:
   - The three tabs are buttons in the sidebar instead of a row of radio buttons, with the app's icon and name above them. Calls for help and loud warnings count on Now, unread messages on Chat, as red badges like the iPhone tab bar's; the open tab shows none.
