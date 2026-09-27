@@ -13,7 +13,7 @@ import time
 from enum import Enum
 
 from alertmesh import wire
-from alertmesh.wire import OfficialAlert
+from alertmesh.wire import AlertCancellation, OfficialAlert
 
 
 class IngestResult(Enum):
@@ -28,6 +28,10 @@ def _system_clock_ms() -> int:
 
 # How far ahead of this phone's clock a sender's clock may be (1 hour).
 CLOCK_SKEW_MS = 60 * 60 * 1000
+# A cancellation whose warning this phone never saw ("orphan") is kept at most as
+# long as any warning could live, and at most this many are kept.
+ORPHAN_CANCELLATION_LIFETIME_MS = wire.MAX_LIFETIME_MS
+MAX_ORPHAN_CANCELLATIONS = 100
 
 
 class AlertStore:
@@ -42,6 +46,8 @@ class AlertStore:
         self.publisher_key = publisher_key
         self.clock = clock
         self._alerts: dict[bytes, tuple[OfficialAlert, bytes]] = {}  # alert_id -> (alert, payload)
+        # alert_id -> (cancellation, payload, retain_until, is_orphan), oldest first
+        self._cancellations: dict[bytes, tuple[AlertCancellation, bytes, int, bool]] = {}
 
     # --- Ingest ---
 
@@ -51,6 +57,8 @@ class AlertStore:
             return IngestResult.REJECTED
         if isinstance(item, OfficialAlert):
             return self._ingest_alert(item, wire.encode(item))
+        if isinstance(item, AlertCancellation):
+            return self._ingest_cancellation(item, wire.encode(item))
         return IngestResult.REJECTED
 
     def ingest_payload(self, payload: bytes) -> IngestResult:
@@ -67,6 +75,14 @@ class AlertStore:
         # newest version" of its event forever and sort to the top of every list.
         if alert.issued_at > now + CLOCK_SKEW_MS or alert.expires_at > now + wire.MAX_LIFETIME_MS + CLOCK_SKEW_MS:
             return IngestResult.REJECTED
+        cancelled = self._cancellations.get(alert.alert_id)
+        if cancelled is not None:
+            # Cancelled at or after this version was issued: stays cancelled.
+            # Issued after the cancellation: the warning was reinstated, and the
+            # new version replaces the withdrawal.
+            if alert.issued_at <= cancelled[0].issued_at:
+                return IngestResult.REJECTED
+            del self._cancellations[alert.alert_id]
         held = self._alerts.get(alert.alert_id)
         if held is not None:
             stored = held[0]
@@ -79,6 +95,46 @@ class AlertStore:
         self._alerts[alert.alert_id] = (alert, payload)
         return IngestResult.ACCEPTED
 
+    def _ingest_cancellation(self, cancellation: AlertCancellation, payload: bytes) -> IngestResult:
+        now = self.clock()
+        self._prune(now)
+        if cancellation.issued_at > now + CLOCK_SKEW_MS:
+            return IngestResult.REJECTED
+        existing = self._cancellations.get(cancellation.alert_id)
+        if existing is not None and existing[0].issued_at >= cancellation.issued_at:
+            return IngestResult.DUPLICATE
+        # Capped by both the claimed issue time and the receive time, so a far-future
+        # stamp cannot keep a cancellation longer than any real warning could live.
+        max_retain = min(
+            cancellation.issued_at + ORPHAN_CANCELLATION_LIFETIME_MS,
+            now + ORPHAN_CANCELLATION_LIFETIME_MS + CLOCK_SKEW_MS,
+        )
+        held = self._alerts.get(cancellation.alert_id)
+        if held is not None:
+            target = held[0]
+            # Older than the version held: a reissue already overtook it.
+            # Withdrawing the newer warning on its strength would silence a live one.
+            if cancellation.issued_at < target.issued_at:
+                return IngestResult.REJECTED
+            # Kept until the warning's own expiry, so the withdrawal keeps
+            # outrunning stale copies still travelling on the mesh.
+            retain_until, is_orphan = target.expires_at, False
+            del self._alerts[cancellation.alert_id]
+        else:
+            # Warning not seen yet (the cancellation raced ahead). Keep it, so the
+            # warning is suppressed if it arrives later.
+            retain_until, is_orphan = max_retain, True
+        if retain_until <= now:
+            return IngestResult.REJECTED
+
+        self._cancellations.pop(cancellation.alert_id, None)
+        self._cancellations[cancellation.alert_id] = (cancellation, payload, retain_until, is_orphan)
+        if is_orphan:
+            orphans = [k for k, v in self._cancellations.items() if v[3]]
+            for k in orphans[: max(0, len(orphans) - MAX_ORPHAN_CANCELLATIONS)]:
+                del self._cancellations[k]
+        return IngestResult.ACCEPTED
+
     # --- Reads ---
 
     def live_alerts(self) -> list[OfficialAlert]:
@@ -89,11 +145,13 @@ class AlertStore:
         return sorted(alerts, key=lambda a: (-int(a.severity), -a.issued_at))
 
     def sync_candidates(self) -> list[bytes]:
-        """Wire payloads this phone offers to other phones."""
+        """Wire payloads this phone offers to other phones: live warnings, then
+        live cancellations (so a withdrawal keeps spreading)."""
         self._prune(self.clock())
-        return [payload for _, payload in self._alerts.values()]
+        return [p for _, p in self._alerts.values()] + [c[1] for c in self._cancellations.values()]
 
     # --- Internals ---
 
     def _prune(self, now: int) -> None:
         self._alerts = {k: v for k, v in self._alerts.items() if v[0].expires_at > now}
+        self._cancellations = {k: v for k, v in self._cancellations.items() if v[2] > now}

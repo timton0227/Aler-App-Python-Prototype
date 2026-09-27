@@ -7,7 +7,7 @@ import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from alertmesh import wire
-from alertmesh.alert_store import CLOCK_SKEW_MS, AlertStore, IngestResult
+from alertmesh.alert_store import CLOCK_SKEW_MS, MAX_ORPHAN_CANCELLATIONS, AlertStore, IngestResult
 from alertmesh.wire import HazardType, OfficialAlert, Severity
 
 PUBLISHER = Ed25519PrivateKey.generate()
@@ -153,3 +153,109 @@ def test_time_expired_alerts_are_swept():
 
 def test_time_clock_skew_is_one_hour():
     assert CLOCK_SKEW_MS == HOUR_MS
+
+
+# --- Cancellations (step 5.3)
+
+
+def test_cancel_signed_by_another_key_is_rejected():
+    """Swift: cancellationSignedByAnotherKeyIsRejected."""
+    store = make_store()
+    alert = make_alert()
+    store.ingest(alert)
+    forged = make_cancellation(alert.alert_id, BASE_MS + 1000, key=Ed25519PrivateKey.generate())
+    assert store.ingest(forged) is IngestResult.REJECTED
+    assert len(store.live_alerts()) == 1
+
+
+def test_cancel_removes_alert_and_propagates_until_original_expiry():
+    """Swift: cancellationRemovesAlertAndPropagatesUntilOriginalExpiry."""
+    clock = Clock()
+    store = make_store(clock)
+    alert = make_alert(lifetime_ms=24 * HOUR_MS)
+    store.ingest(alert)
+    assert store.ingest(make_cancellation(alert.alert_id, BASE_MS + 1000)) is IngestResult.ACCEPTED
+    assert store.live_alerts() == []
+    assert len(store.sync_candidates()) == 1  # the withdrawal still spreads
+    assert store.ingest(alert) is IngestResult.REJECTED  # a replayed copy is refused
+    clock.now_ms = BASE_MS + 25 * HOUR_MS
+    assert store.sync_candidates() == []
+
+
+def test_cancel_arriving_before_alert_suppresses_it():
+    """Swift: cancellationArrivingBeforeAlertSuppressesIt."""
+    store = make_store()
+    alert = make_alert()
+    assert store.ingest(make_cancellation(alert.alert_id, BASE_MS + 1000)) is IngestResult.ACCEPTED
+    assert store.ingest(alert) is IngestResult.REJECTED
+    assert store.live_alerts() == []
+
+
+def test_cancel_reissue_after_cancellation_is_accepted_and_supersedes_it():
+    """Swift: reissueAfterCancellationIsAcceptedAndSupersedesIt."""
+    store = make_store()
+    alert_id = os.urandom(16)
+    store.ingest(make_alert(alert_id, issued_at=BASE_MS))
+    store.ingest(make_cancellation(alert_id, BASE_MS + 1000))
+    assert store.live_alerts() == []
+    reissued = make_alert(alert_id, Severity.EMERGENCY_WARNING, BASE_MS + 2000)
+    assert store.ingest(reissued) is IngestResult.ACCEPTED
+    assert len(store.live_alerts()) == 1
+    assert store.sync_candidates() == [wire.encode(reissued)]
+
+
+def test_cancel_stale_cancellation_does_not_remove_newer_version():
+    """Swift: staleCancellationDoesNotRemoveNewerVersion."""
+    store = make_store()
+    alert_id = os.urandom(16)
+    store.ingest(make_alert(alert_id, issued_at=BASE_MS + 2000))
+    assert store.ingest(make_cancellation(alert_id, BASE_MS + 1000)) is IngestResult.REJECTED
+    assert len(store.live_alerts()) == 1
+
+
+def test_cancel_duplicate_cancellation_is_duplicate():
+    """Swift: duplicateCancellationIsDuplicate."""
+    store = make_store()
+    cancellation = make_cancellation(os.urandom(16), BASE_MS)
+    assert store.ingest(cancellation) is IngestResult.ACCEPTED
+    assert store.ingest(cancellation) is IngestResult.DUPLICATE
+    assert len(store.sync_candidates()) == 1
+
+
+def test_cancel_orphan_retention_is_bounded_by_receive_time():
+    """Swift: orphanCancellationRetentionIsBoundedByReceiveTime."""
+    clock = Clock()
+    store = make_store(clock)
+    assert store.ingest(make_cancellation(os.urandom(16), BASE_MS + CLOCK_SKEW_MS)) is IngestResult.ACCEPTED
+    assert len(store.sync_candidates()) == 1
+    clock.now_ms = BASE_MS + 8 * 24 * HOUR_MS
+    assert store.sync_candidates() == []
+
+
+def test_cancel_orphan_cap_evicts_oldest():
+    """Swift: orphanCancellationCapEvictsOldest."""
+    store = make_store()
+    unseen = []
+    for index in range(MAX_ORPHAN_CANCELLATIONS + 1):
+        alert = make_alert(issued_at=BASE_MS + index)
+        unseen.append(alert)
+        assert store.ingest(make_cancellation(alert.alert_id, BASE_MS + 1000)) is IngestResult.ACCEPTED
+    assert len(store.sync_candidates()) == MAX_ORPHAN_CANCELLATIONS
+    assert store.ingest(unseen[0]) is IngestResult.ACCEPTED  # its orphan was evicted
+    assert store.ingest(unseen[1]) is IngestResult.REJECTED  # the rest still suppress
+
+
+def test_cancel_matched_cancellations_are_exempt_from_orphan_cap():
+    """Swift: matchedCancellationsAreExemptFromOrphanCap."""
+    store = make_store()
+    cycles = MAX_ORPHAN_CANCELLATIONS + 2
+    for index in range(cycles):
+        alert = make_alert(issued_at=BASE_MS + index * 1000)
+        assert store.ingest(alert) is IngestResult.ACCEPTED
+        assert store.ingest(make_cancellation(alert.alert_id, BASE_MS + index * 1000 + 1)) is IngestResult.ACCEPTED
+    assert store.live_alerts() == []
+    assert len(store.sync_candidates()) == cycles
+
+
+def test_cancel_issued_beyond_clock_skew_is_rejected():
+    assert make_store().ingest(make_cancellation(os.urandom(16), BASE_MS + CLOCK_SKEW_MS + 1)) is IngestResult.REJECTED

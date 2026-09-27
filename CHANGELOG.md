@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 5.3 Warning store: cancellations — 2026-09-27
+- What: `AlertStore` now takes cancellations. A cancellation removes the warning and is kept until the warning's own expiry, so it keeps spreading. A copy of the cancelled version is refused. A later version reinstates the warning. A cancellation older than the version held is rejected. A cancellation for a warning not seen yet ("orphan") is kept for at most 7 days and suppresses that warning if it arrives; at most 100 orphans are kept, oldest dropped first. `sync_candidates()` now includes live cancellations. Adds `ORPHAN_CANCELLATION_LIFETIME_MS` and `MAX_ORPHAN_CANCELLATIONS`.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`ingestCancellationLocked`, the cancellation check at the top of `ingestAlertLocked`, cancellation pruning).
+- Differences from Swift: the `retainUntilOverride` path, used only when restoring from disk, is not ported, because the Python store is memory-only.
+- Verified by: `python3 -m pytest tests/test_alert_store.py -k cancel` — 10 passed. Ports `cancellationSignedByAnotherKeyIsRejected`, `cancellationRemovesAlertAndPropagatesUntilOriginalExpiry`, `cancellationArrivingBeforeAlertSuppressesIt`, `reissueAfterCancellationIsAcceptedAndSupersedesIt`, `staleCancellationDoesNotRemoveNewerVersion`, `duplicateCancellationIsDuplicate`, `orphanCancellationRetentionIsBoundedByReceiveTime`, `orphanCancellationCapEvictsOldest`, `matchedCancellationsAreExemptFromOrphanCap`. One extra test: a cancellation issued more than 1 hour ahead is rejected. Full suite: 167 passed.
+
 ## 5.2 Warning store: time rules — 2026-09-27
 - What: `CLOCK_SKEW_MS` (1 hour). `AlertStore` now rejects a warning that has already expired, one issued more than 1 hour ahead of this phone's clock, and one expiring more than 7 days + 1 hour from now. Expired warnings are swept on every ingest and read.
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`Limits.clockSkewMs`, the time guards in `ingestAlertLocked`, `pruneExpiredLocked`).
