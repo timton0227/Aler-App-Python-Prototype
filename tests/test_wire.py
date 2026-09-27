@@ -386,3 +386,49 @@ def test_decode_severity_peek():
         assert wire.severity_peek(wire.encode_alert(make_signed_alert(severity=severity))) is severity
     assert wire.severity_peek(bytes([0x00, 0x01, 0x02])) is None
     assert wire.severity_peek(b"") is None
+
+
+# --- Attacks (step 2.7). Each keeps the genuine signature and changes the content.
+
+
+def _with(alert, **changes):
+    fields = {f: getattr(alert, f) for f in alert.__dataclass_fields__}
+    fields.update(changes)
+    return wire.OfficialAlert(**fields)
+
+
+def test_attack_tampered_headline_fails():
+    """Swift: tamperedHeadlineFailsVerification."""
+    alert = make_signed_alert()
+    assert not wire.verify(_with(alert, headline="All clear, no action required"), PUBLISHER_PUBLIC)
+
+
+def test_attack_downgraded_severity_fails():
+    """Swift: tamperedSeverityFailsVerification. The highest-harm tamper."""
+    alert = make_signed_alert(severity=Severity.EMERGENCY_WARNING)
+    assert not wire.verify(_with(alert, severity=Severity.ADVICE), PUBLISHER_PUBLIC)
+
+
+def test_attack_adding_an_area_cell_fails():
+    """Swift: addingAnAreaCellFailsVerification. The cell count stops this."""
+    alert = make_signed_alert(area_cells=("r7hg",))
+    assert not wire.verify(_with(alert, area_cells=("r7hg", "r3gx")), PUBLISHER_PUBLIC)
+
+
+def test_attack_moving_bytes_between_headline_and_action_fails():
+    """Swift: movingBytesBetweenHeadlineAndActionFailsVerification. Length prefixes stop this."""
+    alert = make_signed_alert(headline="Flood warning AB", action_text="CD leave now")
+    shifted = _with(alert, headline="Flood warning A", action_text="BCD leave now")
+    assert not wire.verify(shifted, PUBLISHER_PUBLIC)
+
+
+def test_attack_changed_times_or_id_fail():
+    alert = make_signed_alert()
+    assert not wire.verify(_with(alert, expires_at=alert.expires_at + 1), PUBLISHER_PUBLIC)
+    assert not wire.verify(_with(alert, issued_at=alert.issued_at + 1), PUBLISHER_PUBLIC)
+    assert not wire.verify(_with(alert, alert_id=bytes(16)), PUBLISHER_PUBLIC)
+
+
+def test_attack_genuine_alert_still_verifies():
+    """Guards against a verify that fails for everything, which would make the tests above meaningless."""
+    assert wire.verify(make_signed_alert(), PUBLISHER_PUBLIC)

@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.7 Attack tests — 2026-09-27
+- What: tests only, no code change. Each attack keeps a genuine signature and changes the content.
+- Ported from: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift` (`tamperedHeadlineFailsVerification`, `tamperedSeverityFailsVerification`, `addingAnAreaCellFailsVerification`, `movingBytesBetweenHeadlineAndActionFailsVerification`).
+- Differences from Swift: two extra tests. (1) Changed times or event ID fail. (2) An untouched warning still verifies, so the attack tests cannot pass by accident.
+- Verified by: `python3 -m pytest tests/test_wire.py -k attack` — 6 passed.
+
 ## 2.6 Decode a warning and verify its signature — 2026-09-27
 - What: `wire.decode()`, `wire.verify()`, `wire.verify_pinned()`, `wire.severity_peek()`. `decode()` returns an `OfficialAlert` or None. Cancellations come in step 2.8.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.decode`, `verify(using:)`, `verifyAgainstPinnedPublisher`, `AlertWire.severity(in:)`) and `BoardWireEncoding.verify` / `uint64(from:)` in `AlertMesh/Protocols/BoardPackets.swift`.
