@@ -182,6 +182,9 @@ class Mesh:
         # (time_ms, phone_id, what, detail): a readable record for the notebook.
         self.log: list[tuple[int, str, str, str]] = []
         self.sync_interval_s = SYNC_INTERVAL_S
+        # Warnings published on the internet (Nostr kind 1403 in the app), in order.
+        self.internet_feed: list[bytes] = []
+        self._pulled: dict[str, int] = defaultdict(int)  # phone id -> how much of the feed it has read
         self._last_sync_ms = start_ms
         self._links: set[frozenset[str]] = set()
 
@@ -260,6 +263,28 @@ class Mesh:
             self.broadcast(sender, msg_type, payload)
         return result
 
+    # --- Internet ---
+
+    def publish(self, payload: bytes) -> None:
+        """The warning console posts a signed warning or cancellation to the internet.
+        Phones online receive it at once (the app keeps a live subscription)."""
+        self.internet_feed.append(payload)
+        self._pull_internet()
+
+    def _pull_internet(self) -> None:
+        """Every phone with internet reads what it has not read yet. What its store
+        accepts it hands to its Bluetooth neighbours (OfficialAlertBridge -> mesh),
+        which is how one connected phone warns a whole camp."""
+        for phone in self.phones.values():
+            if not phone.has_internet:
+                continue
+            start = self._pulled[phone.id]
+            for payload in self.internet_feed[start:]:
+                if phone.receive(OFFICIAL_ALERT_TYPE, payload) is IngestResult.ACCEPTED:
+                    self.log.append((self.now_ms, phone.id, "internet", ""))
+                    self.broadcast(phone, OFFICIAL_ALERT_TYPE, payload)
+            self._pulled[phone.id] = len(self.internet_feed)
+
     # --- Carrying: gossip sync ---
 
     def links(self) -> set[frozenset[str]]:
@@ -295,13 +320,15 @@ class Mesh:
     # --- Time ---
 
     def step(self) -> None:
-        """Advance one tick: time moves on, phones on a route drive, and neighbours
-        sync (pairs that just met at once, everyone every 60 s)."""
+        """Advance one tick: time moves on, phones on a route drive, phones online
+        read the internet, and neighbours sync (pairs that just met at once,
+        everyone every 60 s)."""
         self.now_ms += int(self.tick_s * 1000)
         for phone in self.phones.values():
             if phone.route:
                 phone.move(self.tick_s)
                 self._grid = None
+        self._pull_internet()
         self._sync()
 
     def run(self, seconds: float) -> None:

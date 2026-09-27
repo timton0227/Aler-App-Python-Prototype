@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.5 Phones with internet — 2026-09-27
+- What: `Mesh.publish()` and `Mesh.internet_feed`. Every phone with `has_internet` reads new items at once and on each tick. What its store accepts, it floods to its Bluetooth neighbours, so one connected phone warns its camp. A phone that comes online later catches up on everything it missed.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (every phone subscribes to all kind-1403 warnings, verifies them, and hands them to its mesh) and `OfficialAlertIssuer` (the console sends over both routes).
+- Differences from the app: (1) The internet is one shared list, not Nostr relays: no relay choice, delay, 200-event backfill limit or outages. (2) Only official warnings travel over the internet. In the app, SOS calls also go online but reach only the region; the simulation carries reports by Bluetooth only. (3) The closed-app background check (`BackgroundWarningCheck`, only when Tor is off) is not modelled; a phone with `has_internet` behaves like an open app.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k internet` — 5 passed. An online phone gets a published warning at once, and its whole camp holds it in the same tick. A phone coming online later catches up. A forged post is dropped by every phone. A cancellation reaches the camp the same way. Full suite: 237 passed.
+
 ## 7.4 Carrying: sync between neighbours and moving phones — 2026-09-27
 - What: `Mesh.links()`, `Mesh.sync_pair()` and sync inside `Mesh.step()`. Two phones swap every warning and report they hold (both ways) when they first come into range, and every 60 s after that (`SYNC_INTERVAL_S`). Sync copies are not flooded onward; they spread one hop per sync, like the app's TTL-0 sync replies. Phones on a route drive each tick.
 - Ported from: `AlertMesh/Sync/GossipSyncManager.swift` (`officialAlertSyncIntervalSeconds` and `communityReportSyncIntervalSeconds` of 60 s, `scheduleInitialSyncToPeer` about 5 s after meeting, and `ttl = 0` on replies).

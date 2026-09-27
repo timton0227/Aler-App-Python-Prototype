@@ -20,14 +20,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 4 Proximity | 3 | 3 |
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
-| 7 Mesh simulation | 4 | 7 |
+| 7 Mesh simulation | 5 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **36** | **57** |
+| **All** | **37** | **57** |
 
-**Next step:** 7.5
+**Next step:** 7.6
 
 ---
 
@@ -181,7 +181,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
 - [x] 7.4 Moving phones carry warnings
       Done when: a warning reaches a group out of range only after a phone drives there
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k carry`
-- [ ] 7.5 Phones with internet receive directly
+- [x] 7.5 Phones with internet receive directly
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k internet`
 - [ ] 7.6 Each phone's loud/quiet decision
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k urgency`

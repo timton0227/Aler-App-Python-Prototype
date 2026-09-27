@@ -252,3 +252,53 @@ def test_carry_periodic_sync_runs_every_60_seconds():
     mesh.step()
     mesh.step()
     assert holds(phones[1], alert)  # by 60 s
+
+
+# --- Internet (step 7.5)
+
+
+def test_internet_phones_online_receive_a_published_warning_at_once():
+    mesh, a, b = two_camps()
+    b[1].has_internet = True
+    alert = signed_warning(mesh)
+    mesh.publish(wire.encode(alert))
+    assert holds(b[1], alert)
+    assert not any(holds(p, alert) for p in a)
+
+
+def test_internet_one_connected_phone_warns_its_whole_camp_over_bluetooth():
+    mesh, a, b = two_camps()
+    b[1].has_internet = True
+    alert = signed_warning(mesh)
+    mesh.publish(wire.encode(alert))
+    assert all(holds(p, alert) for p in b)
+    assert all(p.first_heard_ms[alert.alert_id] == T0 for p in b)
+
+
+def test_internet_a_phone_that_comes_online_later_catches_up():
+    mesh, a, b = two_camps()
+    alert = signed_warning(mesh)
+    mesh.publish(wire.encode(alert))
+    assert not any(holds(p, alert) for p in a + b)
+    a[2].has_internet = True
+    mesh.step()
+    assert all(holds(p, alert) for p in a)
+
+
+def test_internet_forged_warnings_on_the_internet_are_dropped():
+    mesh, a, b = two_camps()
+    for p in a:
+        p.has_internet = True
+    mesh.publish(wire.encode(forged_warning(mesh)))
+    assert all(p.alert_store.live_alerts() == [] for p in a + b)
+
+
+def test_internet_cancellation_reaches_phones_through_the_same_route():
+    mesh, a, b = two_camps()
+    b[0].has_internet = True
+    signer = OfficialAlertSigner()
+    alert = signed_warning(mesh)
+    mesh.publish(wire.encode(alert))
+    mesh.run(60)
+    mesh.publish(wire.encode(signer.cancel(alert.alert_id, mesh.now_ms)))
+    assert all(p.alert_store.live_alerts() == [] for p in b)
