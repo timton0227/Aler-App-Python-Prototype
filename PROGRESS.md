@@ -273,7 +273,7 @@ Silicon); the Windows build script cannot be tested on a Mac.
 - [x] 12.3 Mac app (`packaging/build_mac.sh`)
       Done when: the script builds `dist/Alert Mesh.app` and a zip; a copy opened outside the repo shows all four tabs working; quitting leaves no process
       Verify: `packaging/build_mac.sh`, then open a copy of the app from another folder
-- [ ] 12.4 Windows build script (`packaging/build_windows.ps1`)
+- [!] 12.4 Windows build script (`packaging/build_windows.ps1`) — blocked: written, but needs a Windows PC to run and check
       Done when: the script builds `dist\Alert Mesh\Alert Mesh.exe` and a zip on a Windows PC, and the app opens and works there
       Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open the .exe
 - [ ] 12.5 README: building the app, and opening it on another computer

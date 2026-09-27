@@ -119,3 +119,14 @@ def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 1
     assert out.stdout.startswith("missing: alertmesh.")
+
+
+def test_the_self_check_works_without_text_output():
+    """A Windows window app has no text output (sys.stdout is None): the check must
+    still finish and leave its result in a file for the build script."""
+    desktop.CHECK_RESULT.unlink(missing_ok=True)
+    code = ("import sys; sys.stdout = None; sys.path.insert(0, %r); import desktop; sys.exit(desktop.check())"
+            % str(desktop.HERE))
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    assert desktop.CHECK_RESULT.read_text(encoding="utf-8").startswith("ok:")

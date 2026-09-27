@@ -36,6 +36,8 @@ FROZEN = getattr(sys, "frozen", False)
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 APP = HERE / "app.py"
 LOG = Path(tempfile.gettempdir()) / "alert-mesh-server.log"
+# --check also writes its result here: a Windows window app has no text output to print to.
+CHECK_RESULT = Path(tempfile.gettempdir()) / "alert-mesh-check.txt"
 
 # Passed on the command line, not read from .streamlit/config.toml: the packaged app
 # starts in "/", where that file is not found.
@@ -149,12 +151,17 @@ def check() -> int:
         except ModuleNotFoundError as error:
             parent, _, attribute = name.rpartition(".")
             if not (parent and error.name == name and hasattr(importlib.import_module(parent), attribute)):
-                print(f"missing: {name} ({error})")
-                return 1
+                return _report(f"missing: {name} ({error})", 1)
     from alertmesh import places
 
-    print(f"ok: {len(set(names))} imports of app.py load; {len(places.towns())} towns from {places.DATA_FILE}")
-    return 0
+    return _report(f"ok: {len(set(names))} imports of app.py load; {len(places.towns())} towns from {places.DATA_FILE}", 0)
+
+
+def _report(message: str, code: int) -> int:
+    CHECK_RESULT.write_text(message + "\n", encoding="utf-8")
+    if sys.stdout is not None:
+        print(message)
+    return code
 
 
 PAGE = """<html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;

@@ -24,6 +24,31 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 12.4 Windows build script (written, not yet run) — 2026-09-27
+- What: `packaging/build_windows.ps1`, the Windows counterpart of `build_mac.sh`, using the same recipe (`packaging/alert_mesh.spec`). It:
+  - makes or reuses `packaging\.venv-windows` with `py -3` (or `$env:PYTHON`);
+  - installs the build tools;
+  - runs PyInstaller;
+  - checks the finished `dist\Alert Mesh\Alert Mesh.exe` with `--check`;
+  - zips the folder to `dist\Alert-Mesh-windows.zip`.
+
+  The icon is the Swift app's 256 px image, which PyInstaller turns into `.ico` with Pillow. `desktop.py --check` now also writes its result to `alert-mesh-check.txt` in the temp folder, because a Windows window app has no text output (`sys.stdout` is `None`), so `print` alone would crash.
+- Ported from: new (packaging).
+- Differences from Swift: not applicable.
+- Verified by: **not run.** There is no Windows PC and no PowerShell on this Mac, so the step is marked `[!] blocked` in PROGRESS.md.
+  - **What was checked here:** the script is plain ASCII (safe for Windows PowerShell 5.1), and it uses the same recipe and launcher that built and ran on the Mac. The Mac app was rebuilt after the `--check` change and still passes its check. New test `test_the_self_check_works_without_text_output` runs the check with `sys.stdout = None` and reads the result from the file. `tests/test_desktop.py`: 9 passed; full suite 357 passed.
+  - **Not checked, and to watch for on Windows:**
+    - the script's own syntax;
+    - pywebview's Windows part (`pythonnet`), which may not yet support the newest Python (the script's header says to fall back to Python 3.13);
+    - the WebView2 runtime (normally part of Windows 10 and 11);
+    - SmartScreen's warning on first open;
+    - the parent-process check in `desktop.py`, which uses the Windows API on Windows.
+  - **To finish this step on Windows**, from `python-prototype\`:
+    1. Run `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`. It must end with "ok: 30 imports of app.py load; 996 towns …".
+    2. Open `dist\Alert Mesh\Alert Mesh.exe`, send a warning, and check the four tabs.
+    3. Close the window. Task Manager must show no "Alert Mesh" left.
+    4. Tick the box.
+
 ## 12.3 Mac app — 2026-09-27
 - What: `packaging/build_mac.sh` builds `dist/Alert Mesh.app` and `dist/Alert-Mesh-mac.zip`, in about 45 s once the build tools are installed. The app runs with no Python on the computer. The script:
   - makes or reuses the build environment `packaging/.venv-mac`, choosing the Python with `PYTHON=` (3.10 or newer; tested with python.org 3.14.3);
