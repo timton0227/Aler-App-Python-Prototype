@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.4 Notebook: loud or quiet, and why — 2026-09-27
+- What: section 4 of `demo.ipynb`. A table of six people and their notification with a plain-English reason. Anna at home: loud. Ben 60 km away: quiet. Fin just outside the area: quiet. Cara with location off but a remembered area: loud. Dev with location off watching Katherine: loud. Eve with location off and nothing known: quiet, never silent. Then the count for the whole town from section 3.
+- Ported from: new. Uses `proximity` through each simulated phone.
+- Differences from the app: the reason sentences are written for the notebook; the app's own wording is in `AlertNotificationContent.swift`.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran twice in separate Python runs with identical output, after the 7.4 fix. Six-person table as described. Whole town: 297 loud, 3 not warned yet. A first version labelled those 3 "silent"; they are phones not reached by minute 30, so they are now labelled "not warned yet". With the fix, section 3 reads 54%, 66%, 76%, 86%, 91%, 98%, 98%, 99%. The 9.3 entry's minute-2 figure of 77% came from a run before the fix.
+
 ## 7.4 (fix) Same results in every Python run — 2026-09-27
 - What: `Mesh._sync()` now syncs phone pairs in sorted order. Before, it walked a Python set, whose order changes between runs (Python shuffles string hashes per run). Within one tick, that order decides whether a warning crosses one pair or two, so the same scenario gave slightly different curves each run (for example 64%, 65% or 66% at minute 1). Found while writing the notebook, which promises the same numbers on every run.
 - Ported from: not applicable (simulation fix).

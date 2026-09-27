@@ -22,12 +22,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 6 Places | 3 | 3 |
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
-| 9 Notebook | 3 | 8 |
+| 9 Notebook | 4 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **46** | **58** |
+| **All** | **47** | **58** |
 
-**Next step:** 9.4
+**Next step:** 9.5
 
 ---
 
@@ -208,7 +208,7 @@ Verify each step: `jupyter nbconvert --to notebook --execute demo.ipynb --output
 - [x] 9.1 Issue a signed bushfire warning
 - [x] 9.2 A forged or edited warning is rejected
 - [x] 9.3 Watch the warning spread on a map
-- [ ] 9.4 Who gets a loud alert, who gets a quiet one, and why
+- [x] 9.4 Who gets a loud alert, who gets a quiet one, and why
 - [ ] 9.5 Update, then cancel, the warning
 - [ ] 9.6 SOS, then "I'm safe"; a stranger cannot fake "safe"
 - [ ] 9.7 Community hazard report
