@@ -52,16 +52,46 @@ def spread_frames(mesh: Mesh, alert_id: bytes, minutes: int, every_min: int = 1)
     return pd.DataFrame(frames)
 
 
-def spread_map(frames: pd.DataFrame, title: str = "", zoom: float = 13.5):
-    """Animated map: press play to watch the warning spread, minute by minute."""
-    fig = px.scatter_map(
-        frames, lat="lat", lon="lon", color="status", animation_frame="minute",
-        hover_name="phone", hover_data={"moving": True, "lat": False, "lon": False, "minute": False},
-        color_discrete_map=STATUS_COLOURS, category_orders={"status": list(STATUS_COLOURS)},
-        zoom=zoom, height=560, title=title,
+def _status_traces(at: pd.DataFrame) -> list:
+    """One trace per status, always all of them and in the same order, even when a
+    status has no phones: Plotly animates by trace position, so a missing trace would
+    recolour or hide the phones in the frames after it."""
+    traces = []
+    for status, colour in STATUS_COLOURS.items():
+        rows = at[at["status"] == status]
+        names = [f"{phone} (moving)" if moving else phone for phone, moving in zip(rows["phone"], rows["moving"])]
+        traces.append(go.Scattermap(
+            lat=list(rows["lat"]), lon=list(rows["lon"]), mode="markers", name=status,
+            marker={"size": 8, "color": colour}, text=names, hovertemplate="%{text}<extra>" + status + "</extra>",
+        ))
+    return traces
+
+
+def spread_map(frames: pd.DataFrame, title: str = "", zoom: float = 13.5, extra_traces=()):
+    """Animated map: press play to watch the warning spread, minute by minute.
+    `extra_traces` (such as the warning area) stay the same in every frame."""
+    minutes = sorted(frames["minute"].unique())
+    by_minute = {minute: frames[frames["minute"] == minute] for minute in minutes}
+    status_indexes = list(range(len(STATUS_COLOURS)))
+    fig = go.Figure(
+        data=_status_traces(by_minute[minutes[0]]) + list(extra_traces),
+        frames=[go.Frame(data=_status_traces(by_minute[m]), name=str(m), traces=status_indexes) for m in minutes],
     )
-    fig.update_traces(marker={"size": 8})
-    fig.update_layout(map_style="open-street-map", legend_title_text="", margin={"l": 0, "r": 0, "t": 40, "b": 0})
+    centre_lat, centre_lon = frames["lat"].mean(), frames["lon"].mean()
+    step = {"frame": {"duration": 500, "redraw": True}, "transition": {"duration": 0}, "mode": "immediate"}
+    fig.update_layout(
+        title=title, height=640, margin={"l": 0, "r": 0, "t": 40, "b": 90}, legend_title_text="",
+        map={"style": "open-street-map", "center": {"lat": centre_lat, "lon": centre_lon}, "zoom": zoom},
+        updatemenus=[{"type": "buttons", "direction": "left", "x": 0.0, "y": 0.0, "xanchor": "left", "yanchor": "top",
+                      "pad": {"t": 40, "r": 10}, "showactive": False, "buttons": [
+                          {"label": "▶", "method": "animate", "args": [None, {**step, "fromcurrent": True}]},
+                          {"label": "◼", "method": "animate", "args": [[None], {**step, "frame": {"duration": 0}}]},
+                      ]}],
+        sliders=[{"x": 0.1, "y": 0.0, "len": 0.9, "xanchor": "left", "yanchor": "top", "pad": {"t": 40},
+                  "currentvalue": {"prefix": "minute="}, "steps": [
+                      {"label": str(m), "method": "animate", "args": [[str(m)], {**step, "frame": {"duration": 0}}]}
+                      for m in minutes]}],
+    )
     return fig
 
 

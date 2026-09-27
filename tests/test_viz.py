@@ -53,3 +53,26 @@ def test_fit_zoom_zooms_out_for_a_bigger_area():
     _, street = viz.fit_zoom([(-14.46, 132.26), (-14.45, 132.27)])
     _, region = viz.fit_zoom([(-14.0, 132.0), (-15.5, 133.5)])
     assert street > region
+
+
+def test_every_frame_of_the_spread_map_has_the_same_traces():
+    """Plotly animates by trace position. If a status is missing from one minute (nobody
+    warned yet, or everybody warned), a frame with fewer traces would recolour or hide
+    the phones. Every frame must list every status, in the same order."""
+    import pandas as pd
+
+    rows = []
+    for minute, statuses in enumerate((["not warned yet"] * 3,
+                                       ["warned by Bluetooth", "not warned yet", "not warned yet"],
+                                       ["warned by internet", "warned by Bluetooth", "warned by Bluetooth"])):
+        rows += [{"phone": f"p{i}", "lat": -14.46 + i / 1000, "lon": 132.26, "status": s, "moving": False,
+                  "minute": minute} for i, s in enumerate(statuses)]
+    fig = viz.spread_map(pd.DataFrame(rows))
+
+    names = list(viz.STATUS_COLOURS)
+    assert [t.name for t in fig.data[:3]] == names
+    for frame in fig.frames:
+        assert [t.name for t in frame.data] == names
+    # Minute 2: nobody is left grey.
+    assert len(fig.frames[2].data[2].lat) == 0
+    assert len(fig.frames[2].data[1].lat) == 2

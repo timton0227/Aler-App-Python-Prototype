@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.3 (fix) The spread map keeps its colours while it plays — 2026-09-27
+- What: `viz.spread_map` now builds the animated map itself, with one trace per status ("warned by internet", "warned by Bluetooth", "not warned yet") in every frame, even an empty one. Before, it used Plotly Express, which leaves a status out of any minute where no phone has it. Plotly animates traces by position, so from that minute on the phones would take the wrong colour, or not show at all. The notebook's town happened to have all three statuses in every minute, so its map was right. The page's map starts before anyone is warned, so it would have been wrong. It also takes `extra_traces` (such as the warning area), which stay the same in every frame, and puts the play button and slider below the map instead of over the map's credit line.
+- Ported from: not applicable (drawing fix).
+- Differences from the app: none added.
+- Verified by: new test `tests/test_viz.py::test_every_frame_of_the_spread_map_has_the_same_traces` **fails** with the old code (base figure had 1 trace instead of 3) and passes with the fix. The notebook's town map, saved as HTML and played in the browser pane, shows the three colours and the legend correctly from minute 0 to 30. Share warned is unchanged: 54, 66, 76, 86, 91, 98, 98 and 99% at minutes 0, 1, 2, 5, 10, 15, 20 and 30. `jupyter nbconvert --execute demo.ipynb` ran with no errors (about 26 s). Full suite: 305 passed.
+
 ## 10.1 Streamlit: warning console tab — 2026-09-27
 - What: `app.py`, the live demo page, with its first tab. The operator writes a warning (hazard, level, headline and what to do with byte counters, how long it lasts, area), sees a preview in the level's colour and a map of the area, and sends it after a confirmation. Live warnings are listed with Update…, Send again and Cancel warning. The sidebar holds the simulated town: a clock, "+1 / +5 / +15 minutes" buttons (time only moves when asked), and a form to build a new town. New modules:
   - `alertmesh/console.py`: the console (issue, update, resend, cancel, and the outcome line) and the area picker.
