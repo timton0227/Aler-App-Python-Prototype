@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 3.4 Report signing, verification and supersession — 2026-09-27
+- What: `reports.verify()`, `reports.supersedes()`, and `reports.ReportAuthor`: one person's key, with `hazard()`, `sos()` and `safe()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`verifySignature`, `supersedes`) and the signing part of `AlertMesh/AlertMesh/Services/CommunityReportManager.swift` (`send`, `sendHazard`, `sendSOS`, `markSafe`).
+- Differences from Swift: (1) `ReportAuthor` ports only the signing rules of the manager: trim the note, cut SOS/safe to precision 7, trim the nickname to 32 bytes, reuse the report ID of the last check-in, step `created_at` past the version it replaces, and fall back to the SOS's place for "safe" with no location. Send states, resending and the transport are left out; the mesh simulation (Phase 7) sends. (2) Swift's fallback uses the *active* SOS (live and not answered). Python uses the last check-in if it is an SOS, and does not check expiry. (3) The `ReportAuthor` tests come from the Swift manager code, not from `CommunityReportManagerTests.swift` line by line. (4) The Swift key is the device's Noise signing key; Python makes a fresh Ed25519 key per person.
+- Verified by: `python3 -m pytest tests/test_reports.py` — 32 passed. Ports `forgedSignatureFailsVerification`, the six tamper tests (including `flippingAnSOSIntoSafeFailsVerification`), `toleratesUnknownHazardTypeAndStillVerifies`, the four supersession tests (including `strangerCannotSupersedeAnSOS`), `maximalReportFitsOneBLEFrame` (344 bytes), and `frozenSOSEncodesToTheFrozenBytes` (signed with the seed-0x01…0x20 key, decodes and verifies). Full suite: 110 passed.
+
 ## 3.3 Report encode, decode and receipt rules — 2026-09-27
 - What: `reports.encode()`, `reports.decode()`, `reports.is_valid_geohash()`, `reports.kind_peek()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportWire.encode`, `decode(from:)`, `kind(in:)`, `isValidGeohash`).

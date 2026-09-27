@@ -3,6 +3,8 @@
 Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Protocols/CommunityReportPacketsTests.swift.
 Test docstrings name the Swift test they port, where one exists.
 """
+import os
+
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from alertmesh import reports, wire
@@ -256,3 +258,160 @@ def test_validation_kind_peek():
 def test_validation_a_report_is_not_an_official_alert():
     """Swift: aReportIsNotAnOfficialAlert."""
     assert wire.decode(reports.encode(unsigned())) is None
+
+
+# --- Signing, verifying, supersession (step 3.4). Mirrors makeSignedReport in the Swift tests.
+
+AUTHOR = Ed25519PrivateKey.generate()
+AUTHOR_PUBLIC = AUTHOR.public_key().public_bytes_raw()
+T0 = 1_700_000_000_000
+
+
+def signed(kind=ReportKind.HAZARD, report_id=None, geohash="r7hg2bc", hazard_code=1,
+           severity=ReportSeverity.MODERATE, note="Causeway under water, cars turning back",
+           nickname="tim", created_at=T0, lifetime_ms=2 * HOUR, key=None, claim_key=None):
+    signer = key or AUTHOR
+    claimed = claim_key or signer.public_key().public_bytes_raw()
+    rid = report_id or os.urandom(16)
+    expires_at = created_at + lifetime_ms
+    sig = signer.sign(reports.report_signing_bytes(kind, rid, geohash, hazard_code, severity, note, claimed,
+                                                   nickname, created_at, expires_at))
+    return reports.CommunityReport(kind, rid, geohash, hazard_code, severity, note, claimed, nickname,
+                                   created_at, expires_at, sig)
+
+
+def signed_sos(report_id=None, geohash="r7hg2bc", created_at=T0, lifetime_ms=HOUR, key=None):
+    return signed(ReportKind.SOS, report_id, geohash, 0, None, "Trapped on roof, two adults one child",
+                  created_at=created_at, lifetime_ms=lifetime_ms, key=key)
+
+
+def signed_safe(report_id=None, created_at=T0, key=None):
+    return signed(ReportKind.SAFE, report_id, hazard_code=0, severity=None, created_at=created_at,
+                  lifetime_ms=60_000, key=key)
+
+
+def tampered(r, **changes):
+    fields = {f: getattr(r, f) for f in r.__dataclass_fields__}
+    fields.update(changes)
+    return reports.CommunityReport(**fields)
+
+
+def test_round_trips_verify():
+    """Swift: hazardReportRoundTrip, sosRoundTripCarriesNoHazardOrSeverity, safeCheckInRoundTrip,
+    emptyNoteAndNicknameAreAllowed (signature parts)."""
+    for r in (signed(hazard_code=2, severity=ReportSeverity.HIGH), signed_sos(), signed_safe(),
+              signed(note="", nickname="")):
+        decoded = reports.decode(reports.encode(r))
+        assert decoded == r
+        assert reports.verify(decoded)
+    assert reports.decode(reports.encode(signed())).author_signing_key == AUTHOR_PUBLIC
+
+
+def test_forgery_claiming_the_victims_key_fails():
+    """Swift: forgedSignatureFailsVerification."""
+    forged = signed(key=Ed25519PrivateKey.generate(), claim_key=AUTHOR_PUBLIC)
+    assert not reports.verify(reports.decode(reports.encode(forged)))
+
+
+def test_tampering_fails():
+    """Swift: flippingAnSOSIntoSafeFailsVerification, movingAnSOSFailsVerification,
+    tamperedNoteFailsVerification, tamperedSeverityFailsVerification,
+    retargetedReportIDFailsVerification, claimingAnotherAuthorFailsVerification."""
+    sos = signed_sos(geohash="r7hg2bc")
+    assert reports.verify(sos)
+    assert not reports.verify(tampered(sos, kind=ReportKind.SAFE))
+    assert not reports.verify(tampered(sos, geohash="r7hg2bd"))
+    assert not reports.verify(tampered(signed(), note="Road is clear"))
+    assert not reports.verify(tampered(signed(severity=ReportSeverity.HIGH), severity=ReportSeverity.LOW))
+    assert not reports.verify(tampered(signed_safe(), report_id=sos.report_id))
+    other = Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    assert not reports.verify(tampered(signed(), author_signing_key=other))
+
+
+def test_unknown_hazard_still_verifies():
+    """Swift: toleratesUnknownHazardTypeAndStillVerifies."""
+    r = signed(geohash="r7hg", hazard_code=0x7F, severity=ReportSeverity.LOW, note="", nickname="", lifetime_ms=60_000)
+    decoded = reports.decode(reports.encode(r))
+    assert reports.verify(decoded) and decoded.hazard is None and decoded.hazard_code == 0x7F
+
+
+def test_supersession():
+    """Swift: laterSafeFromSameAuthorSupersedesSOS, strangerCannotSupersedeAnSOS,
+    equalTimestampsDoNotSupersede, differentReportIDsNeverSupersede."""
+    sos = signed_sos(created_at=T0)
+    safe = signed_safe(report_id=sos.report_id, created_at=T0 + 60_000)
+    assert reports.supersedes(safe, sos) and not reports.supersedes(sos, safe)
+
+    fake = signed_safe(report_id=sos.report_id, created_at=T0 + 60_000, key=Ed25519PrivateKey.generate())
+    assert reports.verify(fake)  # the stranger's own signature is valid; that is the point
+    assert not reports.supersedes(fake, sos)
+
+    copy = signed_safe(report_id=sos.report_id, created_at=sos.created_at)
+    assert not reports.supersedes(copy, sos) and not reports.supersedes(sos, copy)
+
+    assert not reports.supersedes(signed_sos(created_at=T0 + 60_000), signed_sos(created_at=T0))
+
+
+def test_maximal_report_fits_one_ble_frame():
+    """Swift: maximalReportFitsOneBLEFrame."""
+    r = signed(geohash="r7hg2bcd", note="n" * reports.NOTE_MAX_BYTES, nickname="k" * reports.NICKNAME_MAX_BYTES)
+    encoded = reports.encode(r)
+    assert len(encoded) == 344
+    assert len(encoded) <= wire.MAX_ENCODED_BYTES
+    assert reports.decode(encoded) is not None
+
+
+def test_frozen_sos_signed_and_verified():
+    """Swift: frozenSOSEncodesToTheFrozenBytes (full)."""
+    key = Ed25519PrivateKey.from_private_bytes(FROZEN_SEED)
+    sos = signed(ReportKind.SOS, bytes(range(16)), "r7hg2bc", 0, None, "Trapped on roof", "tim", T0, HOUR, key=key)
+    encoded = reports.encode(sos)
+    prefix = bytes.fromhex(FROZEN_SOS_PREFIX_HEX)
+    assert encoded[: len(prefix)] == prefix
+    assert len(encoded) == len(prefix) + reports.SIGNATURE_LENGTH
+    decoded = reports.decode(encoded)
+    assert decoded == sos and reports.verify(decoded)
+
+
+# --- ReportAuthor (port of CommunityReportManager's signing)
+
+
+def test_author_sos_then_safe_answers_the_sos():
+    tim = reports.ReportAuthor("tim")
+    sos = tim.sos("r7hg2bcd9", "Trapped on roof", T0)
+    assert sos.geohash == "r7hg2bc"  # cut to precision 7
+    assert reports.verify(sos) and reports.decode(reports.encode(sos)) == sos
+    safe = tim.safe(None, "", T0)  # same millisecond, no location
+    assert safe.kind is ReportKind.SAFE
+    assert safe.report_id == sos.report_id
+    assert safe.created_at == T0 + 1  # stepped past the SOS
+    assert safe.geohash == sos.geohash  # fell back to the SOS's place
+    assert reports.supersedes(safe, sos)
+
+
+def test_author_one_person_keeps_one_check_in():
+    tim = reports.ReportAuthor("tim")
+    first = tim.safe("r7hg2bc", "", T0)
+    again = tim.sos("r7hg2bc", "help", T0 + 5)
+    assert again.report_id == first.report_id and reports.supersedes(again, first)
+
+
+def test_author_hazard_reports_are_separate_records():
+    tim = reports.ReportAuthor("tim")
+    a = tim.hazard(wire.HazardType.FLOOD, ReportSeverity.HIGH, "r7hg2bcd", "Road under water", T0)
+    b = tim.hazard(wire.HazardType.FLOOD, ReportSeverity.LOW, "r7hg2bcd", "Tree down", T0)
+    assert a.report_id != b.report_id
+    assert a.geohash == "r7hg2bcd"  # hazards keep full precision
+    assert a.expires_at - a.created_at == reports.HAZARD_MAX_LIFETIME_MS
+    assert reports.verify(a) and reports.verify(b)
+
+
+def test_author_limits():
+    assert reports.ReportAuthor().safe(None, "", T0) is None  # nowhere to say it from
+    checked_in = reports.ReportAuthor()
+    checked_in.safe("r7hg", "", T0)
+    assert checked_in.safe(None, "", T0 + 1) is None  # only an SOS gives a fallback place
+    assert reports.ReportAuthor().sos("r", "", T0) is None  # too coarse
+    assert reports.ReportAuthor().sos("r7hg", "n" * 141, T0) is None
+    long_name = reports.ReportAuthor("é" * 20)  # 40 bytes, trimmed to 32
+    assert long_name.sos("r7hg", "", T0).author_nickname == "é" * 16

@@ -10,11 +10,14 @@ true. A report must never be shown as an official warning.
 
 This is free and unencumbered software released into the public domain.
 """
+import os
 from dataclasses import dataclass
 from enum import IntEnum
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from alertmesh.wire import (
-    GEOHASH_ALPHABET, HazardType, _context, _len16, _u64, _u64_from, _utf8, put_tlv, read_tlvs,
+    GEOHASH_ALPHABET, HazardType, _context, _ed25519_ok, _len16, _u64, _u64_from, _utf8, put_tlv, read_tlvs,
 )
 
 # --- Constants (CommunityReportWireConstants) ---------------------------------
@@ -263,3 +266,95 @@ def kind_peek(data: bytes) -> ReportKind | None:
             return ReportKind(data[off]) if data[off] in ReportKind._value2member_map_ else None
         off += length
     return None
+
+
+# --- Verify and supersede -----------------------------------------------------
+
+
+def verify(report: CommunityReport) -> bool:
+    """Does the signature match the key the report names as its author?
+
+    The only check a report gets. It proves who said it, not that it is true.
+    """
+    return _ed25519_ok(report.signature, signing_bytes_of(report), report.author_signing_key)
+
+
+def supersedes(new: CommunityReport, old: CommunityReport) -> bool:
+    """True when `new` replaces `old`: same report ID, same author, strictly later.
+
+    The author check is what makes "I'm safe" unforgeable: a stranger reusing your
+    report ID is a different record, not a newer version of yours. Equal times do
+    not supersede, so two copies of one report never fight.
+    """
+    return (
+        new.report_id == old.report_id
+        and new.author_signing_key == old.author_signing_key
+        and new.created_at > old.created_at
+    )
+
+
+# --- Author: sign your own reports --------------------------------------------
+
+
+class ReportAuthor:
+    """One person's phone: holds their key and signs their reports.
+
+    Ported from the signing part of CommunityReportManager.swift (`send`,
+    `sendHazard`, `sendSOS`, `markSafe`). One person keeps ONE check-in record:
+    a new SOS or "I'm safe" is a new version of their last one.
+    """
+
+    def __init__(self, nickname: str = "", private_key: bytes | None = None):
+        self._key = Ed25519PrivateKey.from_private_bytes(private_key) if private_key else Ed25519PrivateKey.generate()
+        self.nickname = nickname
+        self.last_check_in: CommunityReport | None = None
+
+    @property
+    def public_key(self) -> bytes:
+        return self._key.public_key().public_bytes_raw()
+
+    def hazard(self, hazard: HazardType, severity: ReportSeverity, geohash: str, note: str, now_ms: int):
+        return self._sign(ReportKind.HAZARD, None, geohash, int(hazard), severity, note, now_ms, HAZARD_MAX_LIFETIME_MS)
+
+    def sos(self, geohash: str, note: str, now_ms: int):
+        report = self._sign(ReportKind.SOS, self.last_check_in, geohash, 0, None, note, now_ms, SOS_MAX_LIFETIME_MS)
+        if report:
+            self.last_check_in = report
+        return report
+
+    def safe(self, geohash: str | None, note: str, now_ms: int):
+        """With no location, answering an SOS falls back to where the SOS was sent from:
+        being unable to call off your own call for help is far worse."""
+        sos = self.last_check_in if self.last_check_in and self.last_check_in.kind == ReportKind.SOS else None
+        place = geohash or (sos.geohash if sos else None)
+        if place is None:
+            return None
+        report = self._sign(ReportKind.SAFE, self.last_check_in, place, 0, None, note, now_ms, SOS_MAX_LIFETIME_MS)
+        if report:
+            self.last_check_in = report
+        return report
+
+    def _sign(self, kind, replaces, geohash, hazard_code, severity, note, now_ms, lifetime_ms):
+        note = note.strip()
+        if len(note.encode()) > NOTE_MAX_BYTES:
+            return None
+        # SOS and "safe" are cut to precision 7 here so our own packets stay valid;
+        # the decoder enforces the same cap as the real guarantee.
+        cell = geohash[: GEOHASH_MAX_LENGTH if kind == ReportKind.HAZARD else SOS_GEOHASH_MAX_LENGTH]
+        if len(cell) < GEOHASH_MIN_LENGTH:
+            return None
+        nickname = self.nickname
+        while len(nickname.encode()) > NICKNAME_MAX_BYTES:
+            nickname = nickname[:-1]
+        report_id = replaces.report_id if replaces else os.urandom(REPORT_ID_LENGTH)
+        # Supersession needs a STRICTLY later time. Step past the replaced version
+        # rather than trust the millisecond clock to have moved.
+        created_at = max(now_ms, replaces.created_at + 1) if replaces else now_ms
+        expires_at = created_at + lifetime_ms
+        key = self.public_key
+        signature = self._key.sign(report_signing_bytes(
+            kind, report_id, cell, hazard_code, severity, note, key, nickname, created_at, expires_at
+        ))
+        return CommunityReport(
+            kind, report_id, cell, hazard_code, severity, note, key, nickname, created_at, expires_at, signature
+        )
