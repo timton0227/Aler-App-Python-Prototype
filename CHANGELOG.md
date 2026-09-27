@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.3 Notebook: watch the warning spread on a map — 2026-09-27
+- What: section 3 of `demo.ipynb`: 300 phones over about 1.2 km × 1.2 km around Katherine, 10% online, a quarter walking about. An animated map shows each minute for 30 minutes, followed by a table of the share warned. New shared module `alertmesh/viz.py` (`phone_status`, `spread_frames`, `spread_map`, `share_by_minute`, `curves_chart`, `sweep_chart`) and `tests/test_viz.py`.
+- Ported from: new.
+- Differences from the plan: `viz.py` was not in `PROGRESS.md`. It is added in this step so the notebook and the Streamlit page (Phase 10) draw the same pictures from one place. Maps use OpenStreetMap tiles; offline, the background stays blank but the phones still show.
+- Verified by: `python3 -m pytest tests/test_viz.py` — 3 passed. A first run failed because Plotly ignores a colour column with an empty name; it was renamed "network". `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors. Share warned: minute 0 54%, 1 66%, 2 77%, 5 86%, 10 91%, 15 98%, 20 98%, 30 99%. Not yet checked by eye: the browser pane cannot screenshot a local file. It will be checked in step 10.2, where Streamlit shows the same map. Full suite: 270 passed.
+
 ## 9.2 Notebook: forged and edited warnings go nowhere — 2026-09-27
 - What: section 2 of `demo.ipynb`. A table of four warnings (genuine, forged with another key, downgraded to Advice, area moved to Darwin) with "signature valid" and what a phone's store says. Then a 5-phone line where a modified phone floods the forgery: it reaches 1 phone and no phone keeps it; the genuine warning reaches all 5.
 - Ported from: new. Uses `signer`, `wire`, `AlertStore` and `Mesh` from earlier steps.
