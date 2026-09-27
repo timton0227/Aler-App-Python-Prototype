@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.2 Notebook: forged and edited warnings go nowhere — 2026-09-27
+- What: section 2 of `demo.ipynb`. A table of four warnings (genuine, forged with another key, downgraded to Advice, area moved to Darwin) with "signature valid" and what a phone's store says. Then a 5-phone line where a modified phone floods the forgery: it reaches 1 phone and no phone keeps it; the genuine warning reaches all 5.
+- Ported from: new. Uses `signer`, `wire`, `AlertStore` and `Mesh` from earlier steps.
+- Differences from the app: none.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors. Table: genuine True/accepted; forged, downgraded and moved False/rejected. "Forgery reached 1 phone(s); phones now holding it: 0". "Genuine warning: phones holding it: 5 of 5".
+
 ## 9.1 Notebook: issue a signed warning — 2026-09-27
 - What: new `demo.ipynb` with the introduction (what the app does, how to run, the simulation caveat), a setup cell, and section 1: sign an Emergency Warning for a bushfire near Katherine with the dev key, print its area code and place name, its size (217 of 383 bytes), its first bytes, and that it verifies against the pinned key. `pandas` added to `requirements.txt` for the notebook's tables.
 - Ported from: new. Uses `signer`, `wire`, `geohash` and `places` from earlier steps.

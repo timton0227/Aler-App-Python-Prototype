@@ -22,12 +22,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 6 Places | 3 | 3 |
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
-| 9 Notebook | 1 | 8 |
+| 9 Notebook | 2 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **44** | **58** |
+| **All** | **45** | **58** |
 
-**Next step:** 9.2
+**Next step:** 9.3
 
 ---
 
@@ -206,7 +206,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
 Verify each step: `jupyter nbconvert --to notebook --execute demo.ipynb --output /tmp/demo-run.ipynb` runs with no errors.
 
 - [x] 9.1 Issue a signed bushfire warning
-- [ ] 9.2 A forged or edited warning is rejected
+- [x] 9.2 A forged or edited warning is rejected
 - [ ] 9.3 Watch the warning spread on a map
 - [ ] 9.4 Who gets a loud alert, who gets a quiet one, and why
 - [ ] 9.5 Update, then cancel, the warning
