@@ -86,3 +86,47 @@ def test_tlv_read_ignores_one_or_two_stray_trailing_bytes():
     data = wire.put_tlv(0x04, b"AB")
     assert wire.read_tlvs(data + b"\x00\x00", _KNOWN, _REPEAT) == [(4, b"AB")]
     assert wire.read_tlvs(b"", _KNOWN, _REPEAT) == []
+
+
+def _fields_ok(cells=("r7hg",), headline=10, action=5, issued=1_000, expires=2_000):
+    return wire.alert_fields_are_valid(list(cells), headline, action, issued, expires)
+
+
+def test_validation_accepts_a_normal_alert():
+    assert _fields_ok()
+    assert _fields_ok(action=0)  # Swift: emptyActionTextIsAllowed
+    assert _fields_ok(cells=("r7hg", "r7hu", "r7hs", "r7hk"))
+
+
+def test_validation_area_cells():
+    """Swift: rejectsMissingAreaCells, rejectsTooManyAreaCells,
+    rejectsInvalidGeohashCharacters, rejectsAreaCellOutsidePrecisionBounds."""
+    assert not _fields_ok(cells=())
+    assert not _fields_ok(cells=("r7hg",) * 5)
+    assert not _fields_ok(cells=("ails",))
+    assert not _fields_ok(cells=("r",))
+    assert not _fields_ok(cells=("r7hg2bcd9",))
+    assert not _fields_ok(cells=("R7HG",))  # canonical lowercase only
+
+
+def test_validation_text_lengths():
+    """Swift: rejectsOversizedHeadline, rejectsEmptyHeadline."""
+    assert not _fields_ok(headline=0)
+    assert not _fields_ok(headline=101)
+    assert _fields_ok(headline=100, action=100)
+    assert not _fields_ok(action=101)
+
+
+def test_validation_times():
+    """Swift: rejectsExpiryBeforeIssue, rejectsExpiryBeyondSevenDays."""
+    assert not _fields_ok(issued=2_000, expires=2_000)
+    assert not _fields_ok(issued=2_000, expires=1_000)
+    assert _fields_ok(issued=0, expires=wire.MAX_LIFETIME_MS)
+    assert not _fields_ok(issued=0, expires=wire.MAX_LIFETIME_MS + 1)
+
+
+def test_validation_unknown_hazard_code_is_kept_but_has_no_type():
+    alert = wire.OfficialAlert(bytes(16), 0x7F, Severity.ADVICE, ("r7hg",), "h", "", 1, 2, bytes(64))
+    assert alert.hazard is None
+    assert alert.hazard_code == 0x7F
+    assert wire.OfficialAlert(bytes(16), 2, Severity.ADVICE, ("r7hg",), "h", "", 1, 2, bytes(64)).hazard is HazardType.BUSHFIRE

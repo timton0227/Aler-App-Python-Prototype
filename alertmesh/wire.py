@@ -10,6 +10,7 @@ the frozen vectors from the app's own test suite.
 
 This is free and unencumbered software released into the public domain.
 """
+from dataclasses import dataclass
 from enum import IntEnum
 
 # --- Constants (AlertWireConstants) -------------------------------------------
@@ -115,3 +116,67 @@ def read_tlvs(
         fields.append((t, bytes(data[off : off + length])))
         off += length
     return fields
+
+
+# --- Official warning ---------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class OfficialAlert:
+    """A warning signed by the publisher (Swift: `OfficialAlertPacket`).
+
+    `alert_id` names the EVENT; `issued_at` is the version. An update to the same
+    warning keeps the ID and has a later `issued_at`. Times are milliseconds since
+    1970, as on the wire.
+    """
+
+    alert_id: bytes
+    # The hazard byte exactly as it arrived. Kept raw because the signature covers
+    # it, and because a warning for a hazard this version does not know must still
+    # be shown. Read `hazard` for the typed view; None means "show generically".
+    hazard_code: int
+    severity: Severity
+    area_cells: tuple[str, ...]
+    headline: str
+    action_text: str
+    issued_at: int
+    expires_at: int
+    signature: bytes
+
+    @property
+    def hazard(self) -> HazardType | None:
+        try:
+            return HazardType(self.hazard_code)
+        except ValueError:
+            return None
+
+
+def is_valid_area_cell(cell: str) -> bool:
+    """2 to 8 characters, all from the lowercase geohash alphabet.
+
+    Unlike the general geohash check, upper case is NOT accepted: the signature
+    covers the exact bytes, so the app only accepts the canonical lowercase form.
+    """
+    return (
+        AREA_GEOHASH_MIN_LENGTH <= len(cell) <= AREA_GEOHASH_MAX_LENGTH
+        and all(c in GEOHASH_ALPHABET for c in cell)
+    )
+
+
+def alert_fields_are_valid(
+    area_cells, headline_bytes: int, action_bytes: int, issued_at: int, expires_at: int
+) -> bool:
+    """The receipt rules from `AlertWire.decode`, apart from the signature.
+
+    - 1 to 4 area cells, each valid;
+    - headline 1 to 100 bytes, action text 0 to 100 bytes;
+    - expires after it is issued, and lives at most 7 days.
+    """
+    return (
+        1 <= len(area_cells) <= MAX_AREA_CELLS
+        and all(is_valid_area_cell(c) for c in area_cells)
+        and 1 <= headline_bytes <= HEADLINE_MAX_BYTES
+        and 0 <= action_bytes <= ACTION_TEXT_MAX_BYTES
+        and expires_at > issued_at
+        and expires_at - issued_at <= MAX_LIFETIME_MS
+    )

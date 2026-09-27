@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.3 Warning data class and receipt rules — 2026-09-27
+- What: `wire.OfficialAlert` (frozen data class, with a `hazard` property that is None for an unknown code), `wire.is_valid_area_cell()`, `wire.alert_fields_are_valid()`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`OfficialAlertPacket`, `AlertWire.isValidAreaCell`, and the `guard` at the end of `AlertWire.decode` for `.alert`).
+- Differences from Swift: the Swift rules sit inside `decode`. Python pulls them into `alert_fields_are_valid()` so each rule can be tested alone; `decode` (step 2.6) calls it. `area_cells` is a tuple, so the data class can be frozen.
+- Verified by: `python3 -m pytest tests/test_wire.py -k validation` — 5 passed. Ports the rule parts of `emptyActionTextIsAllowed`, `rejectsMissingAreaCells`, `rejectsTooManyAreaCells`, `rejectsInvalidGeohashCharacters`, `rejectsAreaCellOutsidePrecisionBounds`, `rejectsOversizedHeadline`, `rejectsEmptyHeadline`, `rejectsExpiryBeforeIssue`, `rejectsExpiryBeyondSevenDays`. Step 2.6 runs the same cases again through a real encode and decode.
+
 ## 2.2 Field reader and writer (TLV) — 2026-09-27
 - What: `wire.put_tlv()` and `wire.read_tlvs()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.encode` → `putTLV`, and the loop at the top of `AlertWire.decode`).
