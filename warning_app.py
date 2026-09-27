@@ -22,7 +22,7 @@ import html
 
 import streamlit as st
 
-from alertmesh import hub, labels, lan, metrics, places, viz, world
+from alertmesh import hub, labels, lan, metrics, places, style, viz, world
 from alertmesh.console import (
     AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, NetworkShare, outcome_text, toggle_area,
 )
@@ -174,15 +174,15 @@ def byte_count(title: str, text: str, limit: int) -> None:
 def preview_card(draft: WarningDraft) -> None:
     """Roughly what a phone shows: level and hazard on the level's colour, then the
     headline and what to do."""
-    fill, on_fill = labels.SEVERITY_FILL[draft.severity], labels.SEVERITY_ON_FILL[draft.severity]
-    level = f"{labels.SEVERITY_NAMES[draft.severity]} · {labels.hazard_name(draft.hazard)}"
+    level = style.LEVEL[draft.severity]
+    title = f"{labels.SEVERITY_NAMES[draft.severity]} · {labels.hazard_name(draft.hazard)}"
     headline = html.escape(draft.headline.strip()) or '<span style="opacity:.5">Headline</span>'
     action = html.escape(draft.action_text.strip()) or "What to do"
     st.markdown(hub.one_line(f"""
-<div style="border:1px solid {fill};border-radius:10px;overflow:hidden">
-  <div style="background:{fill};color:{on_fill};padding:10px;font-weight:700">{level}</div>
-  <div style="padding:10px"><div style="font-size:1.25em;font-weight:700">{headline}</div>
-  <div style="opacity:.75">{action}</div></div>
+<div class="am-card am-border-{level}" style="padding:0;overflow:hidden">
+  <div class="am-fill-{level}" style="padding:10px 18px;font-weight:700">{title}</div>
+  <div style="padding:10px 18px 14px"><div class="am-headline" style="font-size:18px">{headline}</div>
+  <div class="am-muted">{action}</div></div>
 </div>"""), unsafe_allow_html=True)
 
 
@@ -272,8 +272,8 @@ def live_list() -> None:
         st.caption("No live warnings.")
     for alert in alerts:
         with st.container(border=True):
-            colour = labels.SEVERITY_TEXT[alert.severity]
-            st.markdown(f'<span style="color:{colour};font-weight:700">{labels.title(alert)}</span> '
+            st.markdown(f'<span class="am-t-{style.LEVEL[alert.severity]}" style="font-weight:700">'
+                        f'{labels.title(alert)}</span> '
                         f"&nbsp;**{html.escape(alert.headline)}**", unsafe_allow_html=True)
             st.caption(f"{labels.until(alert.expires_at, w.mesh.now_ms)} · {', '.join(alert.area_cells)}")
             key = alert.alert_id.hex()
@@ -356,6 +356,7 @@ def hub_tab() -> None:
 
 # --- Page -----------------------------------------------------------------------
 
+style.inject()
 sidebar()
 console, spread, board = st.tabs(["Warning console", "Map", "Hub board"])
 with console:

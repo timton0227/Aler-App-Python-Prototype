@@ -27,8 +27,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
-| 14 Desktop look: the iPhone app's style, on Mac and Windows | 0 | 7 |
-| **All** | **70** | **79** |
+| 14 Desktop look: the iPhone app's style, on Mac and Windows | 1 | 7 |
+| **All** | **71** | **79** |
 
 **Next step:** 12.4
 
@@ -343,7 +343,7 @@ Swift source of every rule, is in [`docs/desktop-design.md`](docs/desktop-design
 a clickable mockup is in [`docs/desktop-design-mockup.html`](docs/desktop-design-mockup.html).
 How each page looks is checked by eye against the mockup, in light and dark.
 
-- [ ] 14.1 Colours, system typeface and dark mode for both apps
+- [x] 14.1 Colours, system typeface and dark mode for both apps
       Swift: `AlertMesh/Utils/Theme.swift` (`ThemePalette.alertMesh`), `AlertMesh/AlertMesh/Views/EmergencyLayout.swift`, `AlertMesh/AlertMesh/Views/ChatBubbleRow.swift` (`ChatBubbleStyle`)
       Done when: both apps use the system typeface and the iPhone app's light and dark colours, and follow the system's light or dark setting; one shared stylesheet holds the colours; `theme.base = "light"` is gone from `.streamlit/config.toml` and `desktop.py`
       Verify: `python3 -m pytest -q`; then run both apps in light and in dark and compare with the mockup

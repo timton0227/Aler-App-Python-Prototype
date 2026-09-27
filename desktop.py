@@ -53,7 +53,6 @@ STREAMLIT_FLAGS = {
     "server.fileWatcherType": "none",
     "server.runOnSave": "false",
     "browser.gatherUsageStats": "false",
-    "theme.base": "light",
     "client.toolbarMode": "minimal",    # no Deploy button
 }
 
@@ -103,8 +102,13 @@ def server_command(port: int, page: Page) -> list[str]:
 
 
 def streamlit_args(port: int, page: Page) -> list[str]:
+    # The iPhone app's colours, light and dark. Imported here, not at the top: the
+    # self-check has to start and report a missing alertmesh, not crash on it.
+    from alertmesh import style
+
+    flags = {**STREAMLIT_FLAGS, **style.streamlit_flags()}
     return ["streamlit", "run", str(page.path), f"--server.port={port}",
-            *(f"--{name}={value}" for name, value in STREAMLIT_FLAGS.items())]
+            *(f"--{name}={value}" for name, value in flags.items())]
 
 
 def serve(port: int, parent: int, page: Page) -> None:

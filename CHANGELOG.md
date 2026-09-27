@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.1 Colours, system typeface and dark mode — 2026-09-27
+- What:
+  - `alertmesh/style.py` (new) holds the shared look for both apps:
+    - `THEME`, Streamlit's light and dark settings: system blue, the iPhone's backgrounds and card grey, the sidebar grey, and the system typeface (SF Pro on a Mac, Segoe UI Variable on Windows, no bundled font);
+    - `TOKENS` and `CSS`, one stylesheet whose colours are variables with a dark partner each;
+    - classes for a level as a fill, as text, as a bar and as a border;
+    - the level symbols (circle-i, triangle, octagon).
+  - `.streamlit/config.toml` no longer forces light. It holds `[theme.light]` and `[theme.dark]`, so the page follows the system's setting. `desktop.py` passes the same settings as flags, because the packaged apps start where that file is not found. It imports `style` only when starting the page, so the self-check can still report a missing `alertmesh`.
+  - Both apps put the stylesheet on the page. The phone app's warning cards and the console's preview and live list draw their level colours from the classes, so they change in dark mode.
+- Ported from: `ThemePalette.alertMesh` and the severity fill and text colours in `AlertMesh/Utils/Theme.swift`; `EmergencyLayout` and `EmergencyType` in `AlertMesh/AlertMesh/Views/EmergencyLayout.swift`; `ChatBubbleStyle` in `ChatBubbleRow.swift`; `AlertSeverity.symbolName`. The values are the ones written down in `docs/desktop-design.md`.
+- Differences from Swift:
+  - Sizes are fixed at about 88% of the iPhone's default text sizes, not Dynamic Type.
+  - The symbols are small drawings in the spirit of the SF Symbols the app uses; SF Symbols cannot be used outside Apple's platforms.
+  - The Hub board still has its white background; step 14.5 makes it black.
+- Verified by:
+  - `python3 -m pytest -q` — 448 passed, 2 skipped (7 new in `tests/test_style.py`: the config file and the desktop flags hold the same theme, no `theme.base`, the system typeface, the iPhone colours, a dark partner for every colour, no fixed colour in the stylesheet's rules).
+  - The page tests also pass with Streamlit 1.51.0, the lowest supported version (50 passed).
+  - Both apps opened headless in Chromium, with the system set to light and to dark: the page, the sidebar, the buttons and the warning cards switch between the iPhone's light and dark colours.
+
 ## 13.9 README: the two apps and the two-laptop check — 2026-09-27
 - What: the README now covers:
   - the two apps, and what is and is not covered (no iPhone compatibility);

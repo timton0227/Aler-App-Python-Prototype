@@ -1,7 +1,31 @@
-# Light theme always: the warning colours are the app's light-theme colours, and a
-# projector in a hall reads dark text on white best.
+# The iPhone app's colours and the system typeface, light and dark (alertmesh/style.py,
+# THEME; a test checks the two agree). With both a light and a dark set, the page
+# follows the system's setting. The Hub board keeps its own black background, and every
+# warning colour has a dark partner, so dark mode is safe on a projector too.
 [theme]
-base = "light"
+baseFontSize = 15
+
+[theme.light]
+font = "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
+primaryColor = "#007AFF"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F2F7"
+textColor = "#000000"
+linkColor = "#005FCC"
+
+[theme.light.sidebar]
+backgroundColor = "#F5F5F7"
+
+[theme.dark]
+font = "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
+primaryColor = "#0A84FF"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#1C1C1E"
+textColor = "#FFFFFF"
+linkColor = "#4DA3FF"
+
+[theme.dark.sidebar]
+backgroundColor = "#161618"
 
 [browser]
 gatherUsageStats = false

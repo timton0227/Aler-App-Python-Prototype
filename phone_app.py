@@ -25,7 +25,7 @@ import html
 
 import streamlit as st
 
-from alertmesh import hub, labels, notifications, phone, places, reports
+from alertmesh import hub, labels, notifications, phone, places, reports, style
 from alertmesh.chat import TEXT_MAX_BYTES
 from alertmesh.node import NEARBY
 from alertmesh.proximity import Urgency, sos_urgency
@@ -169,16 +169,16 @@ def call_for_help() -> None:
 def warning_card(item: phone.WarningView) -> None:
     """One warning as the phone lists it: level colour, headline, how close, what to do."""
     alert = item.alert
-    fill, on_fill = labels.SEVERITY_FILL[alert.severity], labels.SEVERITY_ON_FILL[alert.severity]
+    level = style.LEVEL[alert.severity]
     loud = "Loud: " if item.decision.urgency is Urgency.LOUD else ""
     st.markdown(hub.one_line(f"""
-<div style="border:1px solid {fill};border-radius:10px;overflow:hidden;margin-bottom:10px">
-  <div style="background:{fill};color:{on_fill};padding:8px 10px;font-weight:700">{labels.title(alert)}</div>
-  <div style="padding:8px 10px">
-    <div style="font-size:1.15em;font-weight:700">{html.escape(alert.headline)}</div>
-    <div style="opacity:.75">{labels.proximity(item.decision)} · {labels.until(alert.expires_at, p.clock())}</div>
+<div class="am-card am-border-{level}" style="padding:0;overflow:hidden">
+  <div class="am-fill-{level}" style="padding:8px 18px;font-weight:700">{labels.title(alert)}</div>
+  <div style="padding:10px 18px 14px">
+    <div class="am-headline">{html.escape(alert.headline)}</div>
+    <div class="am-muted">{labels.proximity(item.decision)} · {labels.until(alert.expires_at, p.clock())}</div>
     <div style="margin-top:6px"><b>What to do</b><br>{html.escape(alert.action_text)}</div>
-    <div style="margin-top:6px;font-size:.85em;opacity:.7">{loud}{labels.REASON_TEXT[item.decision.reason.kind]}</div>
+    <div class="am-muted" style="margin-top:6px">{loud}{labels.REASON_TEXT[item.decision.reason.kind]}</div>
   </div>
 </div>"""), unsafe_allow_html=True)
 
@@ -315,6 +315,7 @@ def chat_view() -> None:
 
 # --- Page -----------------------------------------------------------------------
 
+style.inject()
 sidebar()
 state.news = news()  # what this run shows; the fragment reruns the page when it changes
 watch()
