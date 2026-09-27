@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.6 Notebook: SOS, then "I'm safe"; a stranger cannot fake it — 2026-09-27
+- What: section 6 of `demo.ipynb`. Sam (a phone with no internet) sends an SOS near Katherine, cut to 7 characters (about 150 m). A table shows how far it had spread at 0, 2, 5 and 10 minutes, and how loudly phones were told. A stranger tries two fake "I'm safe" messages: one claims Sam's key, one uses their own key with Sam's SOS ID; neither calls off the SOS. Then Sam's own "I'm safe" replaces it.
+- Ported from: new. Uses `ReportAuthor`, the report store and `Mesh.send_sos` / `send_safe`.
+- Differences from the app: none.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors. The SOS reached 24 phones at once, 52 at 2 min, 102 at 5 min and 211 at 10 min; 210 were told loudly (all nearby in this 1.2 km town). After both fakes and 5 minutes, 271 phones still hold Sam's SOS. Ten minutes after Sam's "I'm safe", 205 phones hold it, 92 still show the SOS (not reached yet), and 203 were told Sam is safe. A first draft counted SOS and "safe" together, because they share one record ID, and wrongly showed 297 for both; the helper now counts by kind.
+
 ## 9.5 Notebook: update, then cancel — 2026-09-27
 - What: section 5 of `demo.ipynb`. In the section 3 town: a flood Watch and Act is published, updated to an Emergency Warning (same event, later version), then withdrawn, with 10 minutes between each. A table shows the phones showing the event, how many show the current version, and the notifications so far. Late copies of both old versions are refused.
 - Ported from: new. Uses `signer` (`WarningDraft.updating`, `cancel`), the stores and the mesh.
