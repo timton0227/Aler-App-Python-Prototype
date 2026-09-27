@@ -24,6 +24,13 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 6.1 Read towns and places from the Swift data file — 2026-09-27
+- What: new module `alertmesh/places.py` with `Place`, `DATA_FILE`, `all_places()` and `towns()`. Reads the `towns` and `places` lists out of the Swift file at run time. Coordinates are stored in thousandths of a degree and converted to degrees. Malformed lines are skipped. A clear error explains what to do if the Swift file is missing.
+- Ported from: `AlertMesh/AlertMesh/Utils/AustralianPlaces.swift` (`AustralianPlace`, `all`, `parse`); data from `AustralianPlacesData.swift`.
+- Differences from Swift: Swift compiles the list into the app; Python reads the Swift source file, so `python-prototype/` must stay next to `alert-mesh/`.
+- Checklist change: step 6.3 (rough place in words, "Near Katherine") was added to `PROGRESS.md`. The Swift `AustralianPlaces` does more than the original plan listed, and the demo needs the wording. The total is now 57 steps.
+- Verified by: `python3 -m pytest tests/test_places.py -k load` — 3 passed. 996 towns and 3,396 smaller places load (the counts in the data file's own header), all inside Australia. Ports `theListParsesAndStaysInAustralia`.
+
 ## 5.5 Report store — 2026-09-27
 - What: new module `alertmesh/report_store.py` with `ReportStore` (`ingest`, `ingest_payload`, `live_reports`, `sync_candidates`, `wipe`) and the limits `MAX_REPORTS` (300), `MAX_HAZARD_REPORTS_PER_AUTHOR` (5), `MAX_CHECK_INS_PER_AUTHOR` (2). A record is one (author, report ID) pair; a later version from the same author replaces it. Quotas are counted per author and separately for hazards and check-ins. When a quota or the store is full, hazards go first, then "safe", then an SOS last; oldest first within each. Sort order: SOS, then hazards by severity, then "safe"; newest first within each. Same time rules as the warning store, with the lifetime per kind.
 - Ported from: `AlertMesh/AlertMesh/Services/CommunityReportStore.swift` (`ingest`, `ingestLocked`, `evictLocked`, `ordered`, `Limits`, and the rank helpers).
