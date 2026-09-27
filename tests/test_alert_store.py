@@ -7,7 +7,9 @@ import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from alertmesh import wire
-from alertmesh.alert_store import CLOCK_SKEW_MS, MAX_ORPHAN_CANCELLATIONS, AlertStore, IngestResult
+from alertmesh.alert_store import (
+    CLOCK_SKEW_MS, MAX_ALERTS, MAX_ORPHAN_CANCELLATIONS, AlertStore, IngestResult,
+)
 from alertmesh.wire import HazardType, OfficialAlert, Severity
 
 PUBLISHER = Ed25519PrivateKey.generate()
@@ -259,3 +261,41 @@ def test_cancel_matched_cancellations_are_exempt_from_orphan_cap():
 
 def test_cancel_issued_beyond_clock_skew_is_rejected():
     assert make_store().ingest(make_cancellation(os.urandom(16), BASE_MS + CLOCK_SKEW_MS + 1)) is IngestResult.REJECTED
+
+
+# --- Cap, ordering, wipe (step 5.4)
+
+
+def test_global_cap_evicts_oldest_issued():
+    """Swift: globalCapEvictsOldestIssued."""
+    store = make_store()
+    oldest = None
+    for index in range(MAX_ALERTS + 1):
+        alert = make_alert(issued_at=BASE_MS + index * 1000)
+        oldest = oldest or alert.alert_id
+        assert store.ingest(alert) is IngestResult.ACCEPTED
+    alerts = store.live_alerts()
+    assert len(alerts) == MAX_ALERTS == 500
+    assert oldest not in {a.alert_id for a in alerts}
+
+
+def test_alerts_are_ordered_by_severity_then_recency():
+    """Swift: alertsAreOrderedBySeverityThenRecency."""
+    store = make_store()
+    old_emergency = make_alert(severity=Severity.EMERGENCY_WARNING, issued_at=BASE_MS - 3000)
+    advice = make_alert(severity=Severity.ADVICE, issued_at=BASE_MS - 1000)
+    new_watch = make_alert(severity=Severity.WATCH_AND_ACT, issued_at=BASE_MS)
+    old_watch = make_alert(severity=Severity.WATCH_AND_ACT, issued_at=BASE_MS - 2000)
+    for alert in (advice, old_watch, new_watch, old_emergency):
+        store.ingest(alert)
+    expected = [old_emergency, new_watch, old_watch, advice]
+    assert [a.alert_id for a in store.live_alerts()] == [a.alert_id for a in expected]
+
+
+def test_wipe_clears_everything():
+    """Swift: wipeClearsMemoryAndDisk (memory part)."""
+    store = make_store()
+    store.ingest(make_alert())
+    store.ingest(make_cancellation(os.urandom(16), BASE_MS))
+    store.wipe()
+    assert store.live_alerts() == [] and store.sync_candidates() == []

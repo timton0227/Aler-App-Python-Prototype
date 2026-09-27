@@ -18,16 +18,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 2 Official alert format | 10 | 10 |
 | 3 Community reports | 4 | 4 |
 | 4 Proximity | 3 | 3 |
-| 5 Stores | 3 | 5 |
+| 5 Stores | 4 | 5 |
 | 6 Places | 0 | 2 |
 | 7 Mesh simulation | 0 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **27** | **56** |
+| **All** | **28** | **56** |
 
-**Next step:** 5.4
+**Next step:** 5.5
 
 ---
 
@@ -144,7 +144,7 @@ tests: `OfficialAlertStoreTests.swift`, `CommunityReportStoreTests.swift`
 - [x] 5.3 Cancellations
       Done when: a cancellation removes the alert; a stale one is rejected; an orphan waits; a later alert reinstates
       Verify: `python3 -m pytest tests/test_alert_store.py -k cancel`
-- [ ] 5.4 500-alert cap
+- [x] 5.4 500-alert cap
       Done when: the oldest-issued alerts go first
       Verify: `python3 -m pytest tests/test_alert_store.py`
 - [ ] 5.5 Report store

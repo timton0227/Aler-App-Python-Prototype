@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 5.4 Warning store: 500 cap, order, wipe — 2026-09-27
+- What: `MAX_ALERTS` (500): when full, the warnings issued earliest are dropped first. The new warning still counts as accepted even if it was the one dropped, so it keeps spreading. Adds `AlertStore.wipe()`.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`Limits.maxAlerts` and the eviction in `ingestAlertLocked`, `wipe`, `ordered`).
+- Differences from Swift: `wipe()` clears memory only; there is no file to delete and no notification to send.
+- Verified by: `python3 -m pytest tests/test_alert_store.py` — 25 passed. New in this step: `globalCapEvictsOldestIssued`, `alertsAreOrderedBySeverityThenRecency`, and the memory part of `wipeClearsMemoryAndDisk`. The Swift persistence tests (`persistsAcrossRestart`, `restoreDropsEntriesThatNoLongerVerify`, `unreadableFileIsNeverOverwrittenAndMergesOnceReadable`) are not ported, because the Python store does not save to disk. Full suite: 170 passed.
+
 ## 5.3 Warning store: cancellations — 2026-09-27
 - What: `AlertStore` now takes cancellations. A cancellation removes the warning and is kept until the warning's own expiry, so it keeps spreading. A copy of the cancelled version is refused. A later version reinstates the warning. A cancellation older than the version held is rejected. A cancellation for a warning not seen yet ("orphan") is kept for at most 7 days and suppresses that warning if it arrives; at most 100 orphans are kept, oldest dropped first. `sync_candidates()` now includes live cancellations. Adds `ORPHAN_CANCELLATION_LIFETIME_MS` and `MAX_ORPHAN_CANCELLATIONS`.
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`ingestCancellationLocked`, the cancellation check at the top of `ingestAlertLocked`, cancellation pruning).

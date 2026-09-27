@@ -32,6 +32,7 @@ CLOCK_SKEW_MS = 60 * 60 * 1000
 # long as any warning could live, and at most this many are kept.
 ORPHAN_CANCELLATION_LIFETIME_MS = wire.MAX_LIFETIME_MS
 MAX_ORPHAN_CANCELLATIONS = 100
+MAX_ALERTS = 500
 
 
 class AlertStore:
@@ -92,7 +93,14 @@ class AlertStore:
             # escalation) is not worth passing on; the newer one will spread.
             if alert.issued_at < stored.issued_at:
                 return IngestResult.REJECTED
+        self._alerts.pop(alert.alert_id, None)
         self._alerts[alert.alert_id] = (alert, payload)
+        if len(self._alerts) > MAX_ALERTS:
+            by_age = sorted(self._alerts, key=lambda k: self._alerts[k][0].issued_at)
+            for k in by_age[: len(self._alerts) - MAX_ALERTS]:
+                del self._alerts[k]
+        # Accepted even when the new warning was itself the one evicted: it is
+        # still valid, and phones with room should still receive it.
         return IngestResult.ACCEPTED
 
     def _ingest_cancellation(self, cancellation: AlertCancellation, payload: bytes) -> IngestResult:
@@ -149,6 +157,13 @@ class AlertStore:
         live cancellations (so a withdrawal keeps spreading)."""
         self._prune(self.clock())
         return [p for _, p in self._alerts.values()] + [c[1] for c in self._cancellations.values()]
+
+    # --- Maintenance ---
+
+    def wipe(self) -> None:
+        """Panic wipe: drop every warning and cancellation."""
+        self._alerts.clear()
+        self._cancellations.clear()
 
     # --- Internals ---
 
