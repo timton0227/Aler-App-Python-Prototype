@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 1.3 Geohash decode_bounds and decode_center — 2026-09-27
+- What: `geohash.decode_bounds()` and `geohash.decode_center()`.
+- Ported from: `AlertMesh/Protocols/Geohash.swift` (`decodeBounds`, `decodeCenter`).
+- Differences from Swift: `decode_center` reuses `decode_bounds` instead of repeating the loop. Same result.
+- Verified by: `python3 -m pytest tests/test_geohash.py -k decode` — 3 passed (box contains the point at precisions 1–9; centre re-encodes to the same cell).
+
 ## 1.2 Geohash encode — 2026-09-27
 - What: `geohash.encode(latitude, longitude, precision)`.
 - Ported from: `AlertMesh/Protocols/Geohash.swift` (`encode`).

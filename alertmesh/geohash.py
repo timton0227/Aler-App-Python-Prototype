@@ -64,3 +64,38 @@ def encode(latitude: float, longitude: float, precision: int) -> str:
             bit = 0
             ch = 0
     return "".join(out)
+
+
+def decode_bounds(geohash: str) -> tuple[float, float, float, float]:
+    """The cell's box as (lat_min, lat_max, lon_min, lon_max).
+
+    Characters outside the alphabet are skipped, like the Swift `decodeBounds`.
+    """
+    lat_lo, lat_hi = -90.0, 90.0
+    lon_lo, lon_hi = -180.0, 180.0
+    is_even = True
+    for c in geohash.lower():
+        cd = _BASE32_MAP.get(c)
+        if cd is None:
+            continue
+        for mask in (16, 8, 4, 2, 1):
+            if is_even:
+                mid = (lon_lo + lon_hi) / 2
+                if cd & mask:
+                    lon_lo = mid
+                else:
+                    lon_hi = mid
+            else:
+                mid = (lat_lo + lat_hi) / 2
+                if cd & mask:
+                    lat_lo = mid
+                else:
+                    lat_hi = mid
+            is_even = not is_even
+    return lat_lo, lat_hi, lon_lo, lon_hi
+
+
+def decode_center(geohash: str) -> tuple[float, float]:
+    """The centre of the cell's box, as (lat, lon)."""
+    lat_lo, lat_hi, lon_lo, lon_hi = decode_bounds(geohash)
+    return (lat_lo + lat_hi) / 2, (lon_lo + lon_hi) / 2

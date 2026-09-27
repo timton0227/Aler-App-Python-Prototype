@@ -43,3 +43,21 @@ def test_encode_precisions_are_prefixes_of_each_other():
 def test_encode_zero_precision_is_empty_and_out_of_range_is_clamped():
     assert geohash.encode(10, 10, 0) == ""
     assert geohash.encode(95, 200, 4) == geohash.encode(90, 180, 4)
+
+
+def test_decode_bounds_contain_the_encoded_point():
+    lat, lon = -35.0735, 138.8566  # Mount Barker, SA
+    for precision in range(1, 10):
+        lat_lo, lat_hi, lon_lo, lon_hi = geohash.decode_bounds(geohash.encode(lat, lon, precision))
+        assert lat_lo <= lat <= lat_hi
+        assert lon_lo <= lon <= lon_hi
+
+
+def test_decode_center_re_encodes_to_the_same_cell():
+    for cell in ("r7hg", "r7hu", "u4pruydqqvj", "qd66hr"):
+        lat, lon = geohash.decode_center(cell)
+        assert geohash.encode(lat, lon, len(cell)) == cell
+
+
+def test_decode_empty_is_the_whole_world():
+    assert geohash.decode_bounds("") == (-90.0, 90.0, -180.0, 180.0)
