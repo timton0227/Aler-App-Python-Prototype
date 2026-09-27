@@ -24,6 +24,21 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 12.1 Town list found inside the desktop app — 2026-09-27
+- What: Phase 12 (a desktop app with no browser) is added to PROGRESS.md at the user's request, with 5 steps. This first step makes `alertmesh/places.py` look for the town list in two places, in order:
+  1. the Swift app's own file (development, unchanged);
+  2. `alertmesh/data/AustralianPlacesData.swift`, a copy the desktop build will put inside the app, where the Swift folder does not exist.
+
+  No copy is committed: the Swift file stays the only source. If neither exists, the error names every place it looked. New: `DATA_FILE_NAME`, `DATA_FILE_CANDIDATES`, `data_file()`. `DATA_FILE` is now the file actually in use.
+- Ported from: not applicable (packaging).
+- Differences from Swift: none. The data and parsing are unchanged.
+- Verified by: `python3 -m pytest tests/test_places.py` — 30 passed, 3 of them new:
+  - development reads the Swift app's file;
+  - with the Swift folder missing, a bundled copy is read and gives exactly the same places;
+  - the error names both places.
+
+  Full suite: 348 passed.
+
 ## 11.3 The Swift app folder is unchanged — 2026-09-27
 - What: confirmed that the port never changed the Swift app, the rule set at step 0.1. The check's commands are now in PROGRESS.md, so anyone can re-run it.
 - Ported from: not applicable.

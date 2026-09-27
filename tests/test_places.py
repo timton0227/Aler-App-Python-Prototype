@@ -154,3 +154,30 @@ def test_the_desert_gets_a_distance_and_direction():
 def test_outside_australia_says_nothing():
     """Swift: outsideAustraliaSaysNothing (London)."""
     assert places.describe(51.5074, -0.1278) is None
+
+
+# --- Finding the list inside the desktop app (step 12.1) ---
+
+
+def test_development_reads_the_swift_apps_own_file():
+    assert places.DATA_FILE == places.DATA_FILE_CANDIDATES[0]
+    assert places.DATA_FILE.parts[-5:] == ("alert-mesh", "AlertMesh", "AlertMesh", "Utils",
+                                           "AustralianPlacesData.swift")
+
+
+def test_inside_the_app_the_bundled_copy_is_used(tmp_path):
+    """No Swift folder next to the package (as inside the desktop app): the copy the
+    build put in alertmesh/data/ is read instead, with the same result."""
+    bundled = tmp_path / "data" / places.DATA_FILE_NAME
+    bundled.parent.mkdir()
+    bundled.write_text(places.DATA_FILE_CANDIDATES[0].read_text(encoding="utf-8"), encoding="utf-8")
+    missing = tmp_path / "no-swift-folder" / places.DATA_FILE_NAME
+    assert places.data_file((missing, bundled)) == bundled
+    assert places._load((missing, bundled)) == places.all_places()
+
+
+def test_the_error_names_every_place_it_looked(tmp_path):
+    a, b = tmp_path / "a.swift", tmp_path / "b.swift"
+    with pytest.raises(FileNotFoundError) as error:
+        places._load((a, b))
+    assert str(a) in str(error.value) and str(b) in str(error.value)

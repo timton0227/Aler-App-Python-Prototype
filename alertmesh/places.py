@@ -4,7 +4,8 @@ Ported from: ../alert-mesh/AlertMesh/AlertMesh/Utils/AustralianPlaces.swift
 Data:        ../alert-mesh/AlertMesh/AlertMesh/Utils/AustralianPlacesData.swift
 
 The data is NOT copied into this folder: it is read from the Swift file, so the
-prototype and the app always use the same list.
+prototype and the app always use the same list. Only the desktop app's build puts a
+copy inside the app it makes (see DATA_FILE_CANDIDATES).
 
 Place names and coordinates © GeoNames (https://www.geonames.org), licensed under
 Creative Commons Attribution 4.0. The licence asks for credit: show `CREDIT`.
@@ -21,10 +22,23 @@ from alertmesh import geohash
 # The licence (CC BY 4.0) asks for this credit wherever the names are shown.
 CREDIT = "Place names: GeoNames (geonames.org), CC BY 4.0"
 
-DATA_FILE = (
-    Path(__file__).resolve().parents[2]
-    / "alert-mesh" / "AlertMesh" / "AlertMesh" / "Utils" / "AustralianPlacesData.swift"
+DATA_FILE_NAME = "AustralianPlacesData.swift"
+# Where the list is looked for, in order:
+# 1. the Swift app next to this folder (development: the one and only copy);
+# 2. a copy the desktop app's build puts inside the app, where the Swift folder is not.
+DATA_FILE_CANDIDATES = (
+    Path(__file__).resolve().parents[2] / "alert-mesh" / "AlertMesh" / "AlertMesh" / "Utils" / DATA_FILE_NAME,
+    Path(__file__).resolve().parent / "data" / DATA_FILE_NAME,
 )
+
+
+def data_file(candidates=DATA_FILE_CANDIDATES) -> Path:
+    """The first place the list exists; the Swift app's copy when none does, so the
+    error names it."""
+    return next((path for path in candidates if path.exists()), candidates[0])
+
+
+DATA_FILE = data_file()
 
 
 @dataclass(frozen=True)
@@ -65,12 +79,17 @@ def _parse(raw: str, is_town: bool) -> list[Place]:
 @lru_cache(maxsize=1)
 def all_places() -> tuple[Place, ...]:
     """Towns first, then smaller places. Read once, on first use."""
-    if not DATA_FILE.exists():
+    return _load(DATA_FILE_CANDIDATES)
+
+
+def _load(candidates) -> tuple[Place, ...]:
+    path = data_file(candidates)
+    if not path.exists():
         raise FileNotFoundError(
-            f"{DATA_FILE} not found. The prototype reads the town list from the Swift app, "
-            "so keep python-prototype/ next to alert-mesh/."
+            "The town list was not found. The prototype reads it from the Swift app, so keep "
+            "python-prototype/ next to alert-mesh/. Looked in: " + "; ".join(str(c) for c in candidates)
         )
-    source = DATA_FILE.read_text(encoding="utf-8")
+    source = path.read_text(encoding="utf-8")
     return tuple(_parse(_section(source, "towns"), True) + _parse(_section(source, "places"), False))
 
 

@@ -25,9 +25,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
-| **All** | **58** | **58** |
+| 12 Desktop app | 1 | 5 |
+| **All** | **59** | **63** |
 
-**Next step:** none — all done
+**Next step:** 12.2
 
 ---
 
@@ -254,6 +255,30 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
       Verify (from the repository root; 6ca96ca is the commit before step 0.1):
       `git diff --name-only 6ca96ca..HEAD -- alert-mesh`, `git log --oneline 6ca96ca..HEAD -- alert-mesh`
       and `git status --porcelain -- alert-mesh` all print nothing
+
+## Phase 12 — Desktop app (no browser)
+
+Added after Phase 11, at the user's request: a double-click app that shows the live
+demo page in its own window, with no browser and no Python needed on the computer
+that runs it. A launcher (`desktop.py`) runs the page in the background and shows it
+with `pywebview`; `PyInstaller` bundles everything. Built and tested on a Mac (Apple
+Silicon); the Windows build script cannot be tested on a Mac.
+
+- [x] 12.1 Town list found inside the app
+      Done when: development still reads the Swift app's file; with no Swift folder next to the package, a copy in `alertmesh/data/` is read; the error names every place looked
+      Verify: `python3 -m pytest tests/test_places.py`
+- [ ] 12.2 Desktop launcher (`desktop.py`)
+      Done when: `python desktop.py` opens a native window showing the page, served on 127.0.0.1 only; closing the window stops the server
+      Verify: `python3 -m pytest tests/test_desktop.py`, then run `desktop.py` with the build tools installed and check by eye
+- [ ] 12.3 Mac app (`packaging/build_mac.sh`)
+      Done when: the script builds `dist/Alert Mesh.app` and a zip; a copy opened outside the repo shows all four tabs working; quitting leaves no process
+      Verify: `packaging/build_mac.sh`, then open a copy of the app from another folder
+- [ ] 12.4 Windows build script (`packaging/build_windows.ps1`)
+      Done when: the script builds `dist\Alert Mesh\Alert Mesh.exe` and a zip on a Windows PC, and the app opens and works there
+      Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open the .exe
+- [ ] 12.5 README: building the app, and opening it on another computer
+      Done when: the README says how to build on each system and how to get past the first-open warnings
+      Verify: read it against what was actually run
 
 ---
 
