@@ -305,7 +305,7 @@ to laptops, not to iPhones.
       Swift: `AlertMesh/Services/BLE/BLEService.swift` (relay with TTL), `AlertMesh/Services/MessageDeduplicationService.swift`
       Done when: with a fake radio, A's message reaches C through B, never loops, stops at TTL 0, is shown once; SOS and warnings go through the existing stores; a forged warning is refused
       Verify: `python3 -m pytest tests/test_node.py`
-- [ ] 13.4 Bluetooth link (`alertmesh/ble.py`)
+- [!] 13.4 Bluetooth link (`alertmesh/ble.py`) — blocked: built and tested on one Mac; the two-laptop check needs a second computer
       Swift: `AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift`, `BLEService+LinkLayerPeripheralRole.swift`
       Done when: messages are cut into Bluetooth-sized pieces and put back together; two laptops running the phone app see each other and chat
       Verify: `python3 -m pytest tests/test_ble.py`; then the two-laptop check in the README

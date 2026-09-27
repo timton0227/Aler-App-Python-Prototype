@@ -23,6 +23,7 @@ This is free and unencumbered software released into the public domain.
 import asyncio
 import platform
 import sys
+from pathlib import Path
 
 from bleak import BleakClient, BleakScanner
 from bless import (
@@ -31,9 +32,8 @@ from bless import (
     GATTCharacteristicProperties,
 )
 
-# Alert Mesh's own IDs: not the iPhone app's, so iPhones running it ignore these laptops.
-SERVICE_UUID = "aa857bb9-f31d-4aa0-8eb7-1f871477f392"
-INBOX_UUID = "dc246a61-32ff-4d2f-9f03-0c1d30343d78"  # other laptops write messages here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from alertmesh.ble import INBOX_UUID, SERVICE_UUID  # noqa: E402
 
 
 def on_write(characteristic, value: bytearray) -> None:

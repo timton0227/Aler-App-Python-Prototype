@@ -24,6 +24,30 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.4 Bluetooth link — 2026-09-27 (blocked: two-laptop check not yet run)
+- What: `alertmesh/ble.py`:
+  - `split` / `Reassembler`: each frame is cut into pieces that fit one Bluetooth write (at least 20 bytes), each piece carrying a 6-byte label; pieces are put back together on arrival, even out of order or mixed with another frame's; unfinished frames are dropped after 10 s.
+  - `BleLink`: advertises the Alert Mesh service with a writable "inbox" (`bless`), scans for other laptops advertising it (`bleak`), keeps connections open, and writes each frame to every laptop seen in the last 30 s. A laptop that fails is left alone for 15 s.
+  - `BluetoothProcess`: runs all of that in a separate small process and talks to it over standard input and output.
+  - `tools/ble_probe.py` now takes its IDs from here.
+- Ported from: modelled on `AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift` (scan, connect, write) and `BLEService+LinkLayerPeripheralRole.swift` (advertise, receive), and the iPhone app's `fragment` message type.
+- Differences from Swift:
+  - The inbox only takes writes: no notifications back from the peripheral side. Each laptop connects to the others itself instead.
+  - No link-quality tracking, no connection limits, no duty cycling for battery.
+  - Pieces are our own format, not the iPhone's fragments.
+  - Bluetooth runs in its own process. On a Mac, a program without permission to use Bluetooth is stopped outright; this way only the Bluetooth process stops, and the app explains why.
+- Verified by:
+  - `python3 -m pytest tests/test_ble.py` — 19 passed, with the radio replaced by fakes:
+    - the largest frame survives write sizes of 20, 23, 180 and 512;
+    - pieces arrive shuffled across two frames and are still put back together;
+    - a frame reaches every laptop in range, and connections are reused;
+    - a failed laptop is not retried for 15 s;
+    - the Bluetooth process passes frames both ways;
+    - a Bluetooth process stopped by macOS gives a plain explanation.
+  - On this Mac with real Bluetooth, inside a small app allowed to use it: status went from "starting" to "on" within a second, and sending with nobody in range did no harm.
+  - Run from a program without Bluetooth permission, macOS stopped only the Bluetooth process, and the app reported "off: macOS stopped Bluetooth because this program is not allowed to use it…".
+  - Not yet run: two laptops exchanging frames. That needs a second computer.
+
 ## 13.3 Mesh node — 2026-09-27
 - What: `alertmesh/node.py`, one laptop in a real mesh, with no radio code in it:
   - frames (version, kind, TTL, packet ID, body), with the iPhone app's kind numbers;
