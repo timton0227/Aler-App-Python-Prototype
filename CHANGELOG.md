@@ -24,6 +24,29 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 11.2 README walk-through in a fresh clone — 2026-09-27
+- What: cloned the branch into an empty folder, made a new Python environment, and followed the README step by step. Fixed what that turned up:
+  - **The page tests broke on the newest Streamlit.** A fresh install gets Streamlit 1.64 (this machine has 1.51). 1.64 resolves `AppTest.from_file("app.py")` relative to the test file, not the current folder, so all 15 page tests failed to start. `tests/test_app.py` now gives an absolute path, which works on both versions.
+  - **The prototype crashed on a Mac's built-in Python.** `/usr/bin/python3` on this Mac is 3.9.6. There, the first import fails with `TypeError: unsupported operand type(s) for |`, because the modules use `X | None` hints that need Python 3.10 or newer. `alertmesh/__init__.py` now stops with a plain message instead: which Python is running, that 3.10 or newer is needed, and where to get it. The README now says so first.
+  - **`requirements.txt` claimed versions that were never tested.** It said `streamlit>=1.30`, but the page uses features 1.30 does not have. Every minimum is now the lowest version actually tested (this machine's), and the comment lists the newest versions also tested.
+  - **README "Set up" now matches the steps that were run.** Check `python3 --version`, make a `.venv`, activate it, install, and pick that interpreter in VS Code. Some systems (such as Homebrew's Python) refuse a plain `pip install`, which the environment avoids. Windows lines are given, and the README says honestly that only macOS was tested.
+- Ported from: not applicable.
+- Differences from Swift: not applicable.
+- Verified by: three clean runs, each in a new clone with a new environment from `requirements.txt`:
+  - **Python 3.13, before the fixes.** Library versions: cryptography 50.0.1, plotly 7.1.0, pandas 3.0.6, streamlit 1.64.0, pytest 9.1.1, ipykernel 7.3.0, nbconvert 7.17.1.
+    - Tests: 330 passed and 15 page tests failed to start. After the test fix: 345 passed, with no warnings.
+    - Notebook: runs with no errors. 14 of 17 code cells give exactly the same text as on this machine. The other 3 differ only in random warning IDs, random author keys and a memory address. The summary table is identical (98% / 11% after 10 minutes).
+    - `streamlit run app.py` from the clone, checked in the browser pane: light theme and map tiles, a warning sent, and the Map and Hub board tabs showing it.
+    - `tools/cross_check_swift.py`: all passed.
+  - **Python 3.14.3** (python.org), with the same libraries: 345 passed, and the notebook ran with the same results.
+  - **Python 3.13 again, after the fixes**, applied to a second clone and following the new README "Set up" word for word:
+    - 345 passed;
+    - the notebook ran with no errors;
+    - the cross-check all passed;
+    - the page started and loaded.
+
+  Separately: the Mac's `/usr/bin/python3` (3.9.6) now stops with the new message; the old `TypeError` was seen first. This machine's own environment (the lowest versions) still passes 345.
+
 ## 11.1 Cross-check with Swift, both ways — 2026-09-27
 - What: `tools/cross_check_swift.py`, a repeatable two-way check against Swift, plus `tools/verify_signature.swift` (about 40 lines, CryptoKit) and `tests/test_cross_check.py`. The test is skipped where Swift is not installed.
   - **Swift signs, Python checks.** The app's own script `scripts/sign-test-alert.swift` signs 6 warnings. They cover every hazard and every level: the frozen vector's inputs, a Katherine flood, no "what to do" text, 4 cells lasting 7 days, French and Japanese text, and the largest warning that fits. It also signs 1 cancellation. For each, Python must decode it, verify it with the pinned key, read back every field, and produce the very same bytes up to the signature. A phone's store must accept it, and the cancellation must withdraw its warning.

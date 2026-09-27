@@ -24,10 +24,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
-| 11 Final check | 1 | 3 |
-| **All** | **56** | **58** |
+| 11 Final check | 2 | 3 |
+| **All** | **57** | **58** |
 
-**Next step:** 11.2
+**Next step:** 11.3
 
 ---
 
@@ -246,7 +246,9 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
       Swift: `scripts/sign-test-alert.swift` (signs); CryptoKit via `tools/verify_signature.swift` (verifies)
       Done when: fresh Swift-signed warnings and a cancellation decode, verify and match Python's bytes up to the signature; Python's signatures pass CryptoKit and a flipped bit fails
       Verify: `python3 tools/cross_check_swift.py` (Mac with Swift), or `python3 -m pytest tests/test_cross_check.py`
-- [ ] 11.2 README walk-through in a fresh clone
+- [x] 11.2 README walk-through in a fresh clone
+      Done when: in a fresh clone with a new environment, every README command works as written: install, tests, notebook, live page, cross-check
+      Verify: clone the branch, follow README "Set up" and "Run" word for word
 - [ ] 11.3 `git status` shows no change under `alert-mesh/`
 
 ---

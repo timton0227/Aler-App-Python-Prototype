@@ -1,8 +1,12 @@
-# Alert Mesh Python prototype. Install with: python3 -m pip install -r requirements.txt
-cryptography>=42      # Ed25519 signing and verification (same curve as the Swift app)
-plotly>=5.24          # maps and charts in the notebook and the Streamlit page
-pandas>=2             # tables in the notebook
-streamlit>=1.30       # clickable live demo (app.py)
-pytest>=8             # tests that check the Python port against the Swift reference
-ipykernel>=6          # lets VS Code run demo.ipynb
-nbconvert>=7          # runs the notebook top to bottom as a check
+# Alert Mesh Python prototype. Needs Python 3.10 or newer. Install (see README.md):
+#   python3 -m pip install -r requirements.txt
+# Each minimum is the lowest version this was tested with. The newest versions on
+# 2026-09-27 were tested too (cryptography 50.0, plotly 7.1, pandas 3.0, streamlit 1.64,
+# pytest 9.1, ipykernel 7.3, nbconvert 7.17).
+cryptography>=46      # Ed25519 signing and verification (same curve as the Swift app)
+plotly>=6.3           # maps and charts in the notebook and the Streamlit page
+pandas>=2.3           # tables in the notebook
+streamlit>=1.51       # clickable live demo (app.py)
+pytest>=8.4           # tests that check the Python port against the Swift reference
+ipykernel>=6.31       # lets VS Code run demo.ipynb
+nbconvert>=7.16       # runs the notebook top to bottom as a check

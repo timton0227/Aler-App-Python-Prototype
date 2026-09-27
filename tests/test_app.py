@@ -3,6 +3,8 @@
 These check that each tab runs and that its buttons do what they say. How the page
 looks is checked by eye in a browser (see PROGRESS.md, Phase 10).
 """
+from pathlib import Path
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -10,11 +12,14 @@ from alertmesh import reports, wire
 from alertmesh.wire import HazardType, Severity
 
 TIMEOUT = 30
+# An absolute path: newer Streamlit resolves a relative one against this test file,
+# older Streamlit against the current folder.
+APP = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
 @pytest.fixture
 def app() -> AppTest:
-    at = AppTest.from_file("app.py", default_timeout=TIMEOUT)
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
     at.run()
     assert not at.exception
     return at

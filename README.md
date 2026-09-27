@@ -22,13 +22,28 @@ Not covered: real Bluetooth, Tor, internet relays (Nostr), private chat, voice, 
 
 ## Set up (once)
 
-1. Open this folder (`python-prototype/`) in VS Code.
-2. Install the VS Code extensions **Python** and **Jupyter** if VS Code asks.
-3. In VS Code's terminal, install the libraries:
+1. Check your Python. In a terminal, `python3 --version` must say **3.10 or newer**. A
+   Mac's built-in Python is 3.9, which is too old: install a newer one from
+   [python.org](https://www.python.org/downloads/). (On Windows, type `py` instead of
+   `python3`.)
+2. Open this folder (`python-prototype/`) in VS Code. Install the VS Code extensions
+   **Python** and **Jupyter** if VS Code asks.
+3. In VS Code's terminal, make a private Python environment for this folder and install
+   the libraries into it:
 
    ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
    python3 -m pip install -r requirements.txt
    ```
+
+   On Windows, the middle line is `.venv\Scripts\activate`. Some systems refuse
+   `pip install` outside such an environment, which is why it is used here.
+4. In VS Code, choose **Python: Select Interpreter** and pick the one in `.venv`, so the
+   notebook, the Testing panel and Run and Debug all use it.
+
+Tested on macOS with Python 3.13 and 3.14, from a fresh clone. It should work on
+Windows and Linux too, but that has not been tested.
 
 ## Run
 
