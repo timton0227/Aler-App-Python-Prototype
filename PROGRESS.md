@@ -21,13 +21,13 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
 | 7 Mesh simulation | 8 | 8 |
-| 8 Metrics | 0 | 3 |
+| 8 Metrics | 1 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **40** | **58** |
+| **All** | **41** | **58** |
 
-**Next step:** 8.1
+**Next step:** 8.2
 
 ---
 
@@ -194,7 +194,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
 
 ## Phase 8 — Metrics (new)
 
-- [ ] 8.1 Share of phones in the area warned over time
+- [x] 8.1 Share of phones in the area warned over time
       Verify: `python3 -m pytest tests/test_metrics.py -k coverage`
 - [ ] 8.2 With mesh vs without mesh
       Verify: `python3 -m pytest tests/test_metrics.py -k compare`

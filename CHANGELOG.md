@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 8.1 Share of phones in the area warned over time — 2026-09-27
+- What: new module `alertmesh/metrics.py` with `Scenario` (town, number of phones, square size, share online, Bluetooth range, share moving, speed, mesh on/off, level, duration, sample interval, seed), `Result` (`times_s`, `warned_share`, `loud_share`, `in_area`, `first_heard_s`, `final_share`, `time_to_share()`), `area_cells()`, `build()` and `run()`. The warning is signed with the dev key, published to the internet at time 0, and covers the whole square. The measure counts phones where they really are, whatever their location setting.
+- Ported from: new.
+- Differences from the app: not applicable. The simulation's own limits are listed in steps 7.2–7.5.
+- Verified by: `python3 -m pytest tests/test_metrics.py -k coverage` — 5 passed. Warning cells cover squares of 0.5, 1, 4 and 10 km with at most 4 cells. The same seed gives the same layout and the same signed warning. The curve starts at least at the online share and never falls. Everyone warned inside the area was told loudly. `time_to_share` behaves at the edges. A first look at the default scenario (300 still phones in 1 km², 10% online): 64% warned at once and still 64% after an hour. Still phones never meet anyone new, so moving phones matter (step 8.3). Full suite: 257 passed.
+
 ## 7.8 Sync sends only what the other phone lacks — 2026-09-27
 - What: `Mesh.sync_pair()` now checks what the other phone already holds and sends only what is missing. A newer version of a warning counts as missing.
 - Ported from: `AlertMesh/Sync/GossipSyncManager.swift` (each side sends a compact filter of the packet IDs it holds; the reply carries only what the filter lacks).
