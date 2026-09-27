@@ -1,0 +1,7 @@
+# Alert Mesh Python prototype. Install with: python3 -m pip install -r requirements.txt
+cryptography>=42      # Ed25519 signing and verification (same curve as the Swift app)
+plotly>=5.20          # maps and charts in the notebook and the Streamlit page
+streamlit>=1.30       # clickable live demo (app.py)
+pytest>=8             # tests that check the Python port against the Swift reference
+ipykernel>=6          # lets VS Code run demo.ipynb
+nbconvert>=7          # runs the notebook top to bottom as a check
