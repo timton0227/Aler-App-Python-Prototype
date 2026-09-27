@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.4 Warning signing bytes — 2026-09-27
+- What: `wire.alert_signing_bytes()`, `wire.signing_bytes_of()`, and the private helpers `_context`, `_len16`, `_u64`. The tests now hold the frozen alert and cancellation vectors, copied from `AlertPacketsTests.swift`.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`OfficialAlertPacket.signingBytes`) and `AlertMesh/Protocols/BoardPackets.swift` (`BoardWireEncoding.appendContext`, `appendLengthPrefixed`, `appendUInt64`).
+- Differences from Swift: none.
+- Verified by: `python3 -m pytest tests/test_wire.py -k signing_bytes` — 3 passed. The 22-byte frozen prefix matches (`signingContextIsFrozen`). The byte layout matches the spec table. The Swift-made signature in the frozen vector verifies over the bytes Python builds, against the pinned dev key.
+
 ## 2.3 Warning data class and receipt rules — 2026-09-27
 - What: `wire.OfficialAlert` (frozen data class, with a `hazard` property that is None for an unknown code), `wire.is_valid_area_cell()`, `wire.alert_fields_are_valid()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`OfficialAlertPacket`, `AlertWire.isValidAreaCell`, and the `guard` at the end of `AlertWire.decode` for `.alert`).

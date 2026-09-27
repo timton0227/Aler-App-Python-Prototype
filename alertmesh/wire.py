@@ -180,3 +180,53 @@ def alert_fields_are_valid(
         and expires_at > issued_at
         and expires_at - issued_at <= MAX_LIFETIME_MS
     )
+
+
+# --- Signing bytes (what the Ed25519 signature covers) -------------------------
+
+
+def _context(name: str) -> bytes:
+    """Length byte, then the UTF-8 context (Swift: `BoardWireEncoding.appendContext`)."""
+    raw = name.encode()[:255]
+    return bytes([len(raw)]) + raw
+
+
+def _len16(value: bytes) -> bytes:
+    """2-byte big-endian length, then the value (Swift: `appendLengthPrefixed`)."""
+    value = value[:0xFFFF]
+    return len(value).to_bytes(2, "big") + value
+
+
+def _u64(value: int) -> bytes:
+    return value.to_bytes(8, "big")
+
+
+def alert_signing_bytes(
+    alert_id: bytes,
+    hazard_code: int,
+    severity: int,
+    area_cells,
+    headline: str,
+    action_text: str,
+    issued_at: int,
+    expires_at: int,
+) -> bytes:
+    """The canonical bytes a warning's signature covers. NOT the TLV encoding.
+
+    Every variable field is length-prefixed and the cell list is count-prefixed,
+    so nobody can move bytes between headline and action, or add an area cell,
+    and keep the signature valid.
+    """
+    out = _context(ALERT_SIGNING_CONTEXT) + alert_id
+    out += bytes([hazard_code, int(severity), min(len(area_cells), 255)])
+    for cell in area_cells:
+        out += _len16(cell.encode())
+    out += _len16(headline.encode()) + _len16(action_text.encode())
+    return out + _u64(issued_at) + _u64(expires_at)
+
+
+def signing_bytes_of(alert: OfficialAlert) -> bytes:
+    return alert_signing_bytes(
+        alert.alert_id, alert.hazard_code, alert.severity, alert.area_cells,
+        alert.headline, alert.action_text, alert.issued_at, alert.expires_at,
+    )

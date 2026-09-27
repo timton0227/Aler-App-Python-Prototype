@@ -130,3 +130,52 @@ def test_validation_unknown_hazard_code_is_kept_but_has_no_type():
     assert alert.hazard is None
     assert alert.hazard_code == 0x7F
     assert wire.OfficialAlert(bytes(16), 2, Severity.ADVICE, ("r7hg",), "h", "", 1, 2, bytes(64)).hazard is HazardType.BUSHFIRE
+
+
+# Frozen vectors, copied from AlertPacketsTests.swift (made by scripts/sign-test-alert.swift).
+FROZEN_ALERT_HEX = (
+    "01000101020010000102030405060708090a0b0c0d0e0f0300047237686703000472376875"
+    "0400244275736866697265206174204d6f756e74204261726b6572202d206c65617665206e"
+    "6f7705002754726176656c206e6f727468206f6e204869676877617920312e20446f206e6f"
+    "7420776169742e0700080000018bcfe568000800080000018bd12eff00090001020a000103"
+    "0b0040efefaaa2e7b4f16203f884e2c60836b273823f6769aba723273827f614a118b328f8"
+    "80187f4a42de85725d2566a6a775526c8cb1e2c87094999584e030ac5902"
+)
+FROZEN_CANCELLATION_HEX = (
+    "01000102020010000102030405060708090a0b0c0d0e0f0700080000018bd01c56800b00"
+    "40f1a7e51fe5929aa9f0b1cf3e4930595b4b5aaaebc2d1b125101abb5cbac8d7e7302fdf"
+    "3ac605770593433bd484c1e846f412398163c9b85611f812584f666b0b"
+)
+FROZEN_FIELDS = dict(
+    alert_id=bytes(range(16)),
+    hazard_code=HazardType.BUSHFIRE,
+    severity=Severity.EMERGENCY_WARNING,
+    area_cells=("r7hg", "r7hu"),
+    headline="Bushfire at Mount Barker - leave now",
+    action_text="Travel north on Highway 1. Do not wait.",
+    issued_at=1_700_000_000_000,
+    expires_at=1_700_000_000_000 + 6 * 60 * 60 * 1000,
+)
+
+
+def test_signing_bytes_start_with_the_frozen_context_prefix():
+    """Swift: signingContextIsFrozen. The 22 bytes from docs/ALERT-WIRE-FORMAT.md."""
+    frozen = bytes.fromhex("15616c6572746d6573682d6f6666696369616c2d7631")
+    assert wire.alert_signing_bytes(**FROZEN_FIELDS)[:22] == frozen
+
+
+def test_signing_bytes_layout_matches_the_spec():
+    sb = wire.alert_signing_bytes(**FROZEN_FIELDS)
+    assert sb[22:38] == bytes(range(16))          # alertID
+    assert sb[38:41] == bytes([0x02, 0x03, 0x02])  # hazard, severity, cell count
+    assert sb[41:47] == b"\x00\x04r7hg"            # first cell, length-prefixed
+    assert sb[-16:] == (1_700_000_000_000).to_bytes(8, "big") + (1_700_021_600_000).to_bytes(8, "big")
+
+
+def test_signing_bytes_are_what_the_swift_signature_covers():
+    """The Swift-made signature in the frozen vector verifies over Python's bytes."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    swift_signature = bytes.fromhex(FROZEN_ALERT_HEX)[-64:]
+    key = Ed25519PublicKey.from_public_bytes(wire.PINNED_PUBLIC_KEY)
+    key.verify(swift_signature, wire.alert_signing_bytes(**FROZEN_FIELDS))  # raises if wrong
