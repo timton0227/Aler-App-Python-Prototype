@@ -191,3 +191,15 @@ def test_no_rule_ever_returns_silent():
                 for remembered in (None, "r7hg", "9q8y"):
                     d = proximity.decide(severity, cells, device, bookmarks, remembered)
                     assert d.urgency != Urgency.SILENT
+
+
+# --- SOS proximity (step 7.7; Swift: SOSProximity in SOSNotificationsModel.swift)
+
+
+def test_sos_near_this_phone_or_a_watched_place_is_loud():
+    assert proximity.sos_urgency("r7hg5x2", DEVICE) == Urgency.LOUD          # same 5-char cell
+    near = geohash.neighbors("r7hg5")[0]
+    assert proximity.sos_urgency(near + "zz", DEVICE) == Urgency.LOUD        # neighbouring cell
+    assert proximity.sos_urgency("9q8yy5x", DEVICE) == Urgency.QUIET         # far away
+    assert proximity.sos_urgency("r7hg5x2", None, ["r7hg5"]) == Urgency.LOUD  # watched place
+    assert proximity.sos_urgency("r7hg5x2", None) == Urgency.QUIET           # no location: still notifies

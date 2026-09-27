@@ -68,6 +68,19 @@ class Notification:
     headline: str
 
 
+@dataclass(frozen=True)
+class ReportNotification:
+    """A notification about someone else's SOS or their "I'm safe"
+    (Swift: SOSNotificationsModel -> notify)."""
+
+    time_ms: int
+    kind: reports.ReportKind
+    nickname: str
+    geohash: str
+    urgency: proximity.Urgency
+    note: str
+
+
 @dataclass
 class Phone:
     """One simulated phone.
@@ -103,6 +116,10 @@ class Phone:
         # far (Swift: NotificationLedger), so a version never notifies twice at a level.
         self.notifications: list[Notification] = []
         self._notified: dict[tuple[bytes, int], proximity.Urgency] = {}
+        # Notifications about other people's SOS calls and "I'm safe", and the level
+        # notified per (author, report ID).
+        self.report_notifications: list[ReportNotification] = []
+        self._sos_notified: dict[bytes, proximity.Urgency] = {}
         self._remember()
 
     def geohash(self, precision: int = 8) -> str | None:
@@ -138,7 +155,10 @@ class Phone:
                     self.evaluate(item)
             return result
         if msg_type == COMMUNITY_REPORT_TYPE:
-            return self.report_store.ingest_payload(payload)
+            result = self.report_store.ingest_payload(payload)
+            if result is IngestResult.ACCEPTED:
+                self._report_arrived(reports.decode(payload))
+            return result
         return IngestResult.REJECTED
 
     # --- Loud or quiet ---
@@ -164,9 +184,41 @@ class Phone:
         ))
 
     def reevaluate(self) -> None:
-        """Check every live warning again, e.g. after moving into the area."""
+        """Check every live warning and SOS again, e.g. after moving closer."""
         for alert in self.alert_store.live_alerts():
             self.evaluate(alert)
+        for report in self.report_store.live_reports():
+            if report.kind is reports.ReportKind.SOS and not self._is_own(report):
+                self._evaluate_sos(report)
+
+    # --- Other people's SOS calls (port of SOSNotificationsModel) ---
+
+    def _is_own(self, report: reports.CommunityReport) -> bool:
+        return report.author_signing_key == self.author.public_key
+
+    def _report_arrived(self, report: reports.CommunityReport) -> None:
+        if self._is_own(report):
+            return
+        if report.kind is reports.ReportKind.SOS:
+            self._evaluate_sos(report)
+        elif report.kind is reports.ReportKind.SAFE:
+            # "I'm safe" is told only to phones that were told about the SOS.
+            if self._sos_notified.pop(report.author_signing_key + report.report_id, None) is not None:
+                self._notify_report(report, proximity.Urgency.QUIET)
+        # Hazard reports never notify.
+
+    def _evaluate_sos(self, report: reports.CommunityReport) -> None:
+        urgency = proximity.sos_urgency(report.geohash, self.geohash(), self.bookmarks)
+        key = report.author_signing_key + report.report_id
+        if urgency <= self._sos_notified.get(key, proximity.Urgency.SILENT):
+            return
+        self._sos_notified[key] = urgency
+        self._notify_report(report, urgency)
+
+    def _notify_report(self, report: reports.CommunityReport, urgency: proximity.Urgency) -> None:
+        self.report_notifications.append(ReportNotification(
+            self.clock(), report.kind, report.author_nickname, report.geohash, urgency, report.note,
+        ))
 
     def loudest(self, alert_id: bytes) -> proximity.Urgency:
         """The loudest notification this phone has shown for any version of a warning."""
@@ -311,6 +363,30 @@ class Mesh:
         if result is not IngestResult.REJECTED:
             self.broadcast(sender, msg_type, payload)
         return result
+
+    # --- Reports: SOS, "I'm safe", hazards ---
+
+    def _send_report(self, phone: Phone, report) -> reports.CommunityReport | None:
+        if report is None:
+            return None
+        self.send(phone, COMMUNITY_REPORT_TYPE, reports.encode(report))
+        self.log.append((self.now_ms, phone.id, report.kind.name.lower(), report.note))
+        return report
+
+    def send_sos(self, phone: Phone, note: str = "") -> reports.CommunityReport | None:
+        """The person presses the help button. Needs a location (sent at ~150 m)."""
+        cell = phone.geohash()
+        return None if cell is None else self._send_report(phone, phone.author.sos(cell, note, self.now_ms))
+
+    def send_safe(self, phone: Phone, note: str = "") -> reports.CommunityReport | None:
+        """ "I'm safe". Answers the person's SOS if they sent one."""
+        return self._send_report(phone, phone.author.safe(phone.geohash(), note, self.now_ms))
+
+    def send_hazard(self, phone: Phone, hazard, severity, note: str = "") -> reports.CommunityReport | None:
+        cell = phone.geohash()
+        if cell is None:
+            return None
+        return self._send_report(phone, phone.author.hazard(hazard, severity, cell, note, self.now_ms))
 
     # --- Internet ---
 

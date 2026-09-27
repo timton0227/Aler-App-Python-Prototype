@@ -20,14 +20,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 4 Proximity | 3 | 3 |
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
-| 7 Mesh simulation | 6 | 7 |
+| 7 Mesh simulation | 7 | 7 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **38** | **57** |
+| **All** | **39** | **57** |
 
-**Next step:** 7.7
+**Next step:** 8.1
 
 ---
 
@@ -185,7 +185,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k internet`
 - [x] 7.6 Each phone's loud/quiet decision
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k urgency`
-- [ ] 7.7 SOS and reports travel through the same mesh
+- [x] 7.7 SOS and reports travel through the same mesh
       Verify: `python3 -m pytest tests/test_mesh_sim.py`
 
 ## Phase 8 — Metrics (new)

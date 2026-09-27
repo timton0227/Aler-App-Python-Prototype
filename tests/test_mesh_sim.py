@@ -376,3 +376,72 @@ def test_urgency_location_off_uses_bookmarks_or_the_remembered_area():
     assert town[0].loudest(alert.alert_id) is town[1].loudest(alert.alert_id) is Urgency.LOUD
     assert town[2].loudest(alert.alert_id) is Urgency.QUIET  # never silent
     assert town[2].notifications[0].reason.kind is ReasonKind.LOCATION_UNKNOWN
+
+
+# --- SOS and reports through the same mesh (step 7.7)
+
+
+def test_sos_floods_and_nearby_phones_are_told_loudly():
+    mesh, phones = chain(5)
+    sos = mesh.send_sos(phones[0], "Trapped on roof")
+    assert sos is not None and sos.geohash == phones[0].geohash()[:7]
+    for p in phones[1:]:
+        assert [r.kind for r in p.report_store.live_reports()] == [reports.ReportKind.SOS]
+        assert p.report_notifications[-1].urgency is Urgency.LOUD
+    assert phones[0].report_notifications == []  # not told about its own SOS
+
+
+def test_sos_far_away_is_quiet_and_im_safe_follows_it():
+    mesh = Mesh(start_ms=T0)
+    caller = mesh.add_phone("caller", *KATHERINE)
+    relays = [mesh.add_phone(f"r{i}", *mesh_sim.offset_m(*KATHERINE, 0, (i + 1) * 50)) for i in range(6)]
+    far = relays[-1]
+    far.location_on = False  # nothing to compare against
+    mesh.send_sos(caller, "Car stuck in floodwater")
+    assert far.report_notifications[-1].urgency is Urgency.QUIET
+    mesh.run(60)
+    mesh.send_safe(caller, "Rescued")
+    assert [r.kind for r in far.report_store.live_reports()] == [reports.ReportKind.SAFE]
+    assert far.report_notifications[-1].kind is reports.ReportKind.SAFE
+    assert far.report_notifications[-1].note == "Rescued"
+
+
+def test_sos_a_phone_that_never_heard_the_sos_is_not_told_about_the_safe():
+    mesh, phones = chain(3)
+    phones[2].bluetooth_on = False
+    mesh._grid = None
+    mesh.send_sos(phones[0], "help")
+    phones[2].bluetooth_on = True
+    phones[2].report_store.wipe()
+    safe = phones[0].author.safe(None, "", mesh.now_ms)
+    phones[2].receive(COMMUNITY_REPORT_TYPE, reports.encode(safe))
+    assert phones[2].report_notifications == []
+
+
+def test_sos_needs_a_location_and_hazards_do_not_notify():
+    mesh, phones = chain(3)
+    phones[0].location_on = False
+    assert mesh.send_sos(phones[0], "help") is None
+    phones[0].location_on = True
+    report = mesh.send_hazard(phones[0], HazardType.FLOOD, reports.ReportSeverity.HIGH, "Causeway under water")
+    assert report is not None and len(report.geohash) == 8
+    assert all(len(p.report_store.live_reports()) == 1 for p in phones)
+    assert all(p.report_notifications == [] for p in phones)
+
+
+def test_sos_is_carried_by_a_driving_phone_to_a_camp_out_of_range():
+    mesh, a, b = two_camps(gap_m=5_000)
+    car = mesh.add_phone("car", *mesh_sim.offset_m(*KATHERINE, 0, 30),
+                         route=[mesh_sim.offset_m(*KATHERINE, 0, 5_030)], speed_mps=15)
+    mesh.send_sos(a[0], "Snake bite, need help")
+    assert car.report_store.live_reports()
+    mesh.run(7 * 60)
+    assert all(p.report_store.live_reports() for p in b)
+    assert all(p.report_notifications for p in b)
+
+
+def test_sos_gets_the_extra_hop_in_a_middle_density_mesh():
+    assert mesh_sim.is_urgent(COMMUNITY_REPORT_TYPE, reports.encode(
+        reports.ReportAuthor().sos("r7hg5x2", "", T0)))
+    assert not mesh_sim.is_urgent(COMMUNITY_REPORT_TYPE, reports.encode(
+        reports.ReportAuthor().safe("r7hg5x2", "", T0)))

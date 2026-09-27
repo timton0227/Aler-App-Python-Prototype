@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.7 SOS and reports through the same mesh — 2026-09-27
+- What: `Mesh.send_sos()`, `Mesh.send_safe()`, `Mesh.send_hazard()`; `ReportNotification` and `Phone.report_notifications`; `proximity.sos_urgency()` and `SOS_NEAR_PRECISION` (5). Reports flood, sync and are carried exactly like warnings, and an SOS gets the extra relay hop. Another person's SOS is loud when it is in the same or a neighbouring 5-character cell as this phone or a watched place, and quiet otherwise; it notifies once per level. "I'm safe" is told, quietly, only to phones that were told about that SOS. Hazard reports never notify. A phone is never told about its own reports.
+- Ported from: `AlertMesh/AlertMesh/Services/SOSNotificationsModel.swift` (`SOSProximity.urgency`, `handleArrival`, `evaluate`, `reevaluate`) and the send side of `CommunityReportManager` (via `ReportAuthor`, step 3.4).
+- Differences from the app: (1) Sending an SOS needs a live location in the simulation. (2) The notification wording (`SOSNotificationContent`) is not modelled; the record keeps the kind, nickname, place, level and note. (3) Reports do not travel over the internet (see step 7.5).
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py` — 35 passed (6 new). Also `tests/test_proximity.py` gained 1 test for `sos_urgency` (near, neighbouring cell, far, watched place, no location). An SOS reaches a 5-phone chain and nearby phones are told loudly; the sender is not told. A phone 6 hops away with no location is told quietly, then told about the "I'm safe". A phone that never heard the SOS is not told about the "safe". No SOS without a location. Hazards do not notify. A driving car carries an SOS to a camp 5 km away. Full suite: 249 passed.
+
 ## 7.6 Loud or quiet on each phone — 2026-09-27
 - What: `Notification`, and on `Phone`: `decide()`, `evaluate()`, `reevaluate()`, `loudest()` and the `notifications` list. A phone decides on arrival and again every tick. It notifies only when a warning version deserves a louder level than it already got, so each version notifies at most once per level. With location off, the remembered area is used.
 - Ported from: `AlertMesh/AlertMesh/Services/AlertNotificationsModel.swift` (`evaluate`, `reevaluate`, `versionKey` = event + version) and `NotificationLedger` (loudest level per version); the decision itself is `proximity.decide` from step 4.

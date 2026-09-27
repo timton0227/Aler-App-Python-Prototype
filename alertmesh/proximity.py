@@ -148,3 +148,21 @@ def decide(
     else:
         urgency = Urgency.QUIET
     return Decision(urgency, best, reason)
+
+
+# --- SOS: how loud is someone else's call for help? ------------------------------
+# Ported from SOSProximity in ../alert-mesh/AlertMesh/AlertMesh/Services/SOSNotificationsModel.swift
+
+# An SOS is "near" when it is in the same ~5 km cell as this phone or a watched
+# place, or a neighbouring one.
+SOS_NEAR_PRECISION = 5
+
+
+def sos_urgency(sos_cell: str, device_geohash: str | None, bookmarks=()) -> Urgency:
+    """Loud when the SOS is near this phone or a place it watches; quiet otherwise.
+    Every SOS that arrives notifies: nobody's call for help is silent."""
+    near = sos_cell[:SOS_NEAR_PRECISION]
+    for place in [device_geohash or "", *bookmarks]:
+        if place and match(place, [near])[0] > Match.ELSEWHERE:
+            return Urgency.LOUD
+    return Urgency.QUIET
