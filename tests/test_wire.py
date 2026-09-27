@@ -3,6 +3,10 @@
 Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift.
 Test names keep the Swift test name in their docstring where one exists.
 """
+import os
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+
 from alertmesh import wire
 from alertmesh.wire import HazardType, Severity
 
@@ -174,8 +178,6 @@ def test_signing_bytes_layout_matches_the_spec():
 
 def test_signing_bytes_are_what_the_swift_signature_covers():
     """The Swift-made signature in the frozen vector verifies over Python's bytes."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
     swift_signature = bytes.fromhex(FROZEN_ALERT_HEX)[-64:]
     key = Ed25519PublicKey.from_public_bytes(wire.PINNED_PUBLIC_KEY)
     key.verify(swift_signature, wire.alert_signing_bytes(**FROZEN_FIELDS))  # raises if wrong
@@ -191,8 +193,6 @@ def test_frozen_vector_prefix_matches_first_151_bytes():
     Python's signer is deterministic (RFC 8032) and Apple's is randomised, so the
     signature bytes themselves differ; they only have to verify.
     """
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
     dev_private = bytes.fromhex("9077bd3b4bf110ba5c9bc7375e7e771d11597918ffa4a9ddc7a2f089a291f8cc")
     signature = Ed25519PrivateKey.from_private_bytes(dev_private).sign(
         wire.alert_signing_bytes(**FROZEN_FIELDS)
@@ -212,3 +212,177 @@ def test_frozen_vector_prefix_first_seven_bytes():
     """Swift: encodedPrefixIsFrozen. kind TLV, then the alertID TLV header."""
     encoded = wire.encode_alert(_frozen_alert(bytes(64)))
     assert encoded[:7] == bytes([0x01, 0x00, 0x01, 0x01, 0x02, 0x00, 0x10])
+
+
+# --- Decode (step 2.6). Helpers mirror makeSignedAlert in AlertPacketsTests.swift.
+
+PUBLISHER = Ed25519PrivateKey.generate()
+PUBLISHER_PUBLIC = PUBLISHER.public_key().public_bytes_raw()
+
+
+def make_signed_alert(
+    hazard=HazardType.FLOOD,
+    severity=Severity.WATCH_AND_ACT,
+    area_cells=("r7hg",),
+    headline="Moderate flooding at Fitzroy Crossing",
+    action_text="Move to higher ground now.",
+    issued_at=1_700_000_000_000,
+    lifetime_ms=6 * 60 * 60 * 1000,
+    key=None,
+    hazard_code=None,
+):
+    code = int(hazard) if hazard_code is None else hazard_code
+    alert_id = os.urandom(16)
+    expires_at = issued_at + lifetime_ms
+    sb = wire.alert_signing_bytes(alert_id, code, severity, area_cells, headline, action_text, issued_at, expires_at)
+    signature = (key or PUBLISHER).sign(sb)
+    return wire.OfficialAlert(alert_id, code, severity, tuple(area_cells), headline, action_text, issued_at, expires_at, signature)
+
+
+def value_offset(tlv_type, data):
+    """Swift: valueOffset(ofTLVType:in:). Walks the structure instead of scanning bytes."""
+    off = 0
+    while off + 3 <= len(data):
+        t, length = data[off], (data[off + 1] << 8) | data[off + 2]
+        if off + 3 + length > len(data):
+            return None
+        if t == tlv_type:
+            return off + 3
+        off += 3 + length
+    return None
+
+
+def test_decodes_frozen_vector_from_the_signing_script():
+    """Swift: decodesTheFrozenVectorFromTheSigningScript."""
+    data = bytes.fromhex(FROZEN_ALERT_HEX)
+    alert = wire.decode(data)
+    assert alert is not None
+    assert wire.verify_pinned(alert)
+    assert alert.hazard is HazardType.BUSHFIRE
+    assert alert.severity is Severity.EMERGENCY_WARNING
+    assert alert.area_cells == ("r7hg", "r7hu")
+    assert alert.headline == "Bushfire at Mount Barker - leave now"
+    assert alert.action_text == "Travel north on Highway 1. Do not wait."
+    assert alert.issued_at == 1_700_000_000_000
+    assert alert.expires_at == 1_700_000_000_000 + 6 * 60 * 60 * 1000
+    assert alert.alert_id == bytes(range(16))
+    assert len(data) == 215
+
+
+def test_decodes_frozen_vector_fails_against_an_unrelated_key():
+    """Swift: frozenVectorFailsAgainstAnUnrelatedKey."""
+    assert not wire.verify(wire.decode(bytes.fromhex(FROZEN_ALERT_HEX)), PUBLISHER_PUBLIC)
+
+
+def test_decode_round_trip():
+    """Swift: alertRoundTrip."""
+    alert = make_signed_alert(hazard=HazardType.BUSHFIRE, severity=Severity.EMERGENCY_WARNING)
+    decoded = wire.decode(wire.encode_alert(alert))
+    assert decoded == alert
+    assert wire.verify(decoded, PUBLISHER_PUBLIC)
+    assert decoded.hazard is HazardType.BUSHFIRE
+
+
+def test_decode_multiple_area_cells_round_trip_in_order():
+    """Swift: multipleAreaCellsRoundTripInOrder."""
+    cells = ("r7hg", "r7hu", "r7hs", "r7hk")
+    decoded = wire.decode(wire.encode_alert(make_signed_alert(area_cells=cells)))
+    assert decoded.area_cells == cells
+    assert wire.verify(decoded, PUBLISHER_PUBLIC)
+
+
+def test_decode_empty_action_text_is_allowed():
+    """Swift: emptyActionTextIsAllowed."""
+    decoded = wire.decode(wire.encode_alert(make_signed_alert(action_text="")))
+    assert decoded is not None and wire.verify(decoded, PUBLISHER_PUBLIC)
+
+
+def test_decode_forged_signature_fails_verification():
+    """Swift: forgedSignatureFailsVerification, alertFromAnotherKeyFailsAgainstPinnedPublisher."""
+    attacker = Ed25519PrivateKey.generate()
+    decoded = wire.decode(wire.encode_alert(make_signed_alert(key=attacker)))
+    assert decoded is not None
+    assert not wire.verify(decoded, PUBLISHER_PUBLIC)
+    assert not wire.verify_pinned(wire.decode(wire.encode_alert(make_signed_alert())))
+
+
+def test_decode_rejects_bounds():
+    """Swift: rejectsExpiryBeyondSevenDays, rejectsOversizedHeadline, rejectsEmptyHeadline,
+    rejectsMissingAreaCells, rejectsTooManyAreaCells, rejectsInvalidGeohashCharacters,
+    rejectsAreaCellOutsidePrecisionBounds."""
+    bad = [
+        make_signed_alert(lifetime_ms=wire.MAX_LIFETIME_MS + 1),
+        make_signed_alert(headline="a" * 101),
+        make_signed_alert(headline=""),
+        make_signed_alert(area_cells=()),
+        make_signed_alert(area_cells=("r7hg",) * 5),
+        make_signed_alert(area_cells=("ails",)),
+        make_signed_alert(area_cells=("r",)),
+        make_signed_alert(area_cells=("r7hg2bcd9",)),
+    ]
+    for alert in bad:
+        assert wire.decode(wire.encode_alert(alert)) is None
+
+
+def test_decode_rejects_expiry_before_issue():
+    """Swift: rejectsExpiryBeforeIssue."""
+    a = make_signed_alert()
+    backwards = wire.OfficialAlert(a.alert_id, a.hazard_code, a.severity, a.area_cells, a.headline,
+                                   a.action_text, a.expires_at, a.issued_at, a.signature)
+    assert wire.decode(wire.encode_alert(backwards)) is None
+
+
+def test_decode_rejects_unknown_severity():
+    """Swift: rejectsUnknownSeverity."""
+    encoded = bytearray(wire.encode_alert(make_signed_alert()))
+    encoded[value_offset(0x0A, encoded)] = 0x7F
+    assert wire.decode(bytes(encoded)) is None
+
+
+def test_decode_tolerates_unknown_hazard_and_still_verifies():
+    """Swift: toleratesUnknownHazardTypeAndStillVerifies."""
+    alert = make_signed_alert(hazard_code=0x7F, severity=Severity.EMERGENCY_WARNING, headline="Unfamiliar hazard", action_text="")
+    decoded = wire.decode(wire.encode_alert(alert))
+    assert wire.verify(decoded, PUBLISHER_PUBLIC)
+    assert decoded.hazard is None and decoded.hazard_code == 0x7F
+
+
+def test_decode_cyclone_and_heatwave_round_trip():
+    """Swift: cycloneAndHeatwaveRoundTrip."""
+    for hazard in (HazardType.CYCLONE, HazardType.HEATWAVE):
+        decoded = wire.decode(wire.encode_alert(make_signed_alert(hazard=hazard)))
+        assert decoded.hazard is hazard and wire.verify(decoded, PUBLISHER_PUBLIC)
+
+
+def test_decode_rejects_duplicate_severity_and_headline():
+    """Swift: rejectsDuplicateSeverityTLV, rejectsDuplicateHeadlineTLV."""
+    encoded = wire.encode_alert(make_signed_alert(severity=Severity.ADVICE))
+    assert wire.decode(bytes([0x0A, 0x00, 0x01, 0x03]) + encoded) is None
+    assert wire.decode(encoded + bytes([0x04, 0x00, 0x02, 0x41, 0x42])) is None
+
+
+def test_decode_area_cells_remain_repeatable():
+    """Swift: areaCellsRemainRepeatable."""
+    assert wire.decode(wire.encode_alert(make_signed_alert(area_cells=("r7hg", "r7hu", "r7hs")))) is not None
+
+
+def test_decode_tolerates_unknown_and_retired_tlvs():
+    """Swift: toleratesUnknownTLVs, toleratesARetiredPublisherKeyTLV."""
+    alert = make_signed_alert()
+    encoded = wire.encode_alert(alert)
+    assert wire.decode(encoded + bytes([0x7F, 0x00, 0x02, 0xDE, 0xAD])) == alert
+    assert wire.decode(encoded + bytes([0x06, 0x00, 0x20]) + bytes([0xAB]) * 32) == alert
+
+
+def test_decode_rejects_truncated_payload():
+    """Swift: rejectsTruncatedPayload."""
+    encoded = wire.encode_alert(make_signed_alert())
+    assert wire.decode(encoded[:-1]) is None
+
+
+def test_decode_severity_peek():
+    """Swift: severityPeekMatchesDecodedSeverity, severityPeekReturnsNilOnGarbage."""
+    for severity in Severity:
+        assert wire.severity_peek(wire.encode_alert(make_signed_alert(severity=severity))) is severity
+    assert wire.severity_peek(bytes([0x00, 0x01, 0x02])) is None
+    assert wire.severity_peek(b"") is None

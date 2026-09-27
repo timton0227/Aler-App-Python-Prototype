@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.6 Decode a warning and verify its signature — 2026-09-27
+- What: `wire.decode()`, `wire.verify()`, `wire.verify_pinned()`, `wire.severity_peek()`. `decode()` returns an `OfficialAlert` or None. Cancellations come in step 2.8.
+- Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.decode`, `verify(using:)`, `verifyAgainstPinnedPublisher`, `AlertWire.severity(in:)`) and `BoardWireEncoding.verify` / `uint64(from:)` in `AlertMesh/Protocols/BoardPackets.swift`.
+- Differences from Swift: (1) Swift returns an `AlertWire` enum (`.alert` / `.cancellation`); Python returns the data object itself. (2) `severity_peek()` was not a separate step in `PROGRESS.md`; it is added here because it sits in the same Swift type and the mesh simulation needs it for relay priority. (3) A kind byte of `0x02` returns None until step 2.8.
+- Verified by: `python3 -m pytest tests/test_wire.py -k decode` — 16 passed. Ports `decodesTheFrozenVectorFromTheSigningScript` (the Swift-made vector decodes and verifies against the pinned key), `frozenVectorFailsAgainstAnUnrelatedKey`, `alertRoundTrip`, `multipleAreaCellsRoundTripInOrder`, `emptyActionTextIsAllowed`, `forgedSignatureFailsVerification`, `alertFromAnotherKeyFailsAgainstPinnedPublisher`, the 9 bounds tests, `rejectsUnknownSeverity`, `toleratesUnknownHazardTypeAndStillVerifies`, `cycloneAndHeatwaveRoundTrip`, both duplicate tests, `areaCellsRemainRepeatable`, both unknown-TLV tests, `rejectsTruncatedPayload`, and both severity-peek tests. The Verify command in `PROGRESS.md` was widened from `-k decodes_frozen_vector` to `-k decode`, to cover all of these.
+
 ## 2.5 Encode a warning — 2026-09-27
 - What: `wire.encode_alert()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/AlertPackets.swift` (`AlertWire.encode`, `.alert` case).

@@ -13,6 +13,9 @@ This is free and unencumbered software released into the public domain.
 from dataclasses import dataclass
 from enum import IntEnum
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 # --- Constants (AlertWireConstants) -------------------------------------------
 
 ALERT_ID_LENGTH = 16
@@ -249,3 +252,135 @@ def encode_alert(alert: OfficialAlert) -> bytes:
     out += put_tlv(TLVType.SEVERITY, bytes([int(alert.severity)]))
     out += put_tlv(TLVType.SIGNATURE, alert.signature)
     return out
+
+
+# --- Decode and verify --------------------------------------------------------
+
+_KNOWN_TYPES = {t.value for t in TLVType}
+_REPEATABLE = frozenset({TLVType.AREA_GEOHASH.value})
+
+
+def _u64_from(value: bytes) -> int | None:
+    return int.from_bytes(value, "big") if len(value) == 8 else None
+
+
+def _utf8(value: bytes) -> str | None:
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def decode(data: bytes):
+    """Read a warning payload. Returns an `OfficialAlert`, or None if malformed.
+
+    Structure only: a successful decode says NOTHING about who made it. Call
+    `verify_pinned()` before storing, showing or passing it on.
+    """
+    fields = read_tlvs(data, _KNOWN_TYPES, _REPEATABLE)
+    if fields is None:
+        return None
+    kind = alert_id = headline = action_text = issued_at = expires_at = None
+    hazard_code = severity = signature = None
+    headline_bytes = 0
+    area_cells: list[str] = []
+    for t, v in fields:
+        if t == TLVType.KIND:
+            if len(v) != 1:
+                return None
+            kind = v[0] if v[0] in (WireKind.ALERT, WireKind.CANCELLATION) else None
+        elif t == TLVType.ALERT_ID:
+            if len(v) != ALERT_ID_LENGTH:
+                return None
+            alert_id = v
+        elif t == TLVType.AREA_GEOHASH:
+            # Checked as it arrives, so thousands of cells are refused early.
+            cell = _utf8(v)
+            if len(area_cells) >= MAX_AREA_CELLS or cell is None or not is_valid_area_cell(cell):
+                return None
+            area_cells.append(cell)
+        elif t == TLVType.HEADLINE:
+            if len(v) > HEADLINE_MAX_BYTES:
+                return None
+            headline_bytes = len(v)
+            headline = _utf8(v)
+        elif t == TLVType.ACTION_TEXT:
+            if len(v) > ACTION_TEXT_MAX_BYTES:
+                return None
+            action_text = _utf8(v)
+        elif t == TLVType.ISSUED_AT:
+            issued_at = _u64_from(v)
+        elif t == TLVType.EXPIRES_AT:
+            expires_at = _u64_from(v)
+        elif t == TLVType.HAZARD_TYPE:
+            if len(v) != 1:
+                return None
+            hazard_code = v[0]  # any byte is accepted; see OfficialAlert.hazard_code
+        elif t == TLVType.SEVERITY:
+            if len(v) != 1:
+                return None
+            severity = Severity(v[0]) if v[0] in Severity._value2member_map_ else None
+        elif t == TLVType.SIGNATURE:
+            if len(v) != SIGNATURE_LENGTH:
+                return None
+            signature = v
+        # Unknown types: skipped, for forward compatibility.
+
+    if kind == WireKind.ALERT:
+        # An unknown severity decoded to None above and is rejected here, never
+        # defaulted: guessing could show an Emergency Warning as an Advice.
+        required = (alert_id, headline, action_text, issued_at, expires_at, hazard_code, severity, signature)
+        if any(x is None for x in required):
+            return None
+        if not alert_fields_are_valid(
+            area_cells, headline_bytes, len(action_text.encode()), issued_at, expires_at
+        ):
+            return None
+        return OfficialAlert(
+            alert_id, hazard_code, severity, tuple(area_cells), headline, action_text,
+            issued_at, expires_at, signature,
+        )
+    return None
+
+
+def _ed25519_ok(signature: bytes, message: bytes, public_key: bytes) -> bool:
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(signature, message)
+        return True
+    except (InvalidSignature, ValueError):
+        return False
+
+
+def verify(item, public_key: bytes) -> bool:
+    """Signature check against a given key. Tests use this with a throwaway key.
+
+    Real code wants `verify_pinned()`: checking against a key that arrived with the
+    packet proves nothing, because anyone can sign their own forgery.
+    """
+    if isinstance(item, OfficialAlert):
+        return _ed25519_ok(item.signature, signing_bytes_of(item), public_key)
+    return False
+
+
+def verify_pinned(item) -> bool:
+    """The only check that makes a warning official."""
+    return verify(item, PINNED_PUBLIC_KEY)
+
+
+def severity_peek(data: bytes) -> Severity | None:
+    """Fast look at the first severity field, for relay priority, without a full decode.
+
+    None for garbage or an unknown value. None must be treated as "not urgent": an
+    unverified peek must never RAISE a packet's priority.
+    """
+    off = 0
+    while off + 3 <= len(data):
+        t = data[off]
+        length = (data[off + 1] << 8) | data[off + 2]
+        off += 3
+        if off + length > len(data):
+            return None
+        if t == TLVType.SEVERITY and length == 1:
+            return Severity(data[off]) if data[off] in Severity._value2member_map_ else None
+        off += length
+    return None
