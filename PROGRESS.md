@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 4 | 9 |
-| **All** | **66** | **72** |
+| 13 Two apps: phone app and warning app | 5 | 9 |
+| **All** | **67** | **72** |
 
 **Next step:** 12.4
 
@@ -313,7 +313,7 @@ to laptops, not to iPhones.
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (warnings over the internet)
       Done when: a warning sent on the local network arrives and is repeated; junk and oversize packets are ignored; packets do not leave the local network
       Verify: `python3 -m pytest tests/test_lan.py`
-- [ ] 13.6 Phone app (`phone_app.py`)
+- [x] 13.6 Phone app (`phone_app.py`)
       Swift: `AlertMesh/AlertMesh/Views/EmergencyRootView.swift`, `NowView.swift`, `CommunityReportsView.swift`, `SOSView.swift`, `ChatInboxView.swift`
       Done when: Now, Report and Chat tabs work: a typed message appears and is sent; an incoming one raises the unread count; a call for help is sent
       Verify: `python3 -m pytest tests/test_phone_app.py`

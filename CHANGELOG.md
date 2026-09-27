@@ -24,6 +24,38 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.6 Phone app — 2026-09-27
+- What:
+  - `alertmesh/phone.py`, the phone app's engine:
+    - one person's saved profile (identity seed, nickname, town) in their own folder (`~/Library/Application Support/Alert Mesh/phone.json` on a Mac, `%APPDATA%\Alert Mesh` on Windows; `ALERTMESH_HOME` moves it); the file is readable by its owner only;
+    - the mesh node, fed by the Bluetooth process and the Wi-Fi listener, ticking once a second;
+    - warnings with how they concern this person (`proximity.decide`), calls for help, sending an SOS, "I'm safe" and hazard reports from the person's town.
+  - `phone_app.py`, the page, with the iPhone app's three tabs:
+    - Now: a "Call for help" button, or while one is out, "I'm safe now" and "Send it again"; people asking for help first, then warnings in their level colour with how close they are;
+    - Report: the hazard report form and the community reports list;
+    - Chat: Nearby plus one conversation per person, people in range with a "Message" button, and a message box.
+  - A pop-up for each new warning and call for help, using the existing notification words. The page checks for news once a second and redraws only when something changed. The sidebar holds nickname, town, and Bluetooth and network status.
+  - VS Code entry "Phone app".
+- Ported from: `AlertMesh/AlertMesh/Views/EmergencyRootView.swift` (three tabs), `NowView.swift` (calls for help first, then warnings), `SOSView.swift` (call for help, "I'm safe", send again, the "not 000" line), `CommunityReportsView.swift`, `ChatInboxView.swift` (Nearby and private conversations, unread counts).
+- Differences from Swift:
+  - The person picks their town instead of GPS: a laptop has none. The iPhone app will not open without location; the phone app opens, and asks for a town before a call for help or report can be sent.
+  - The tab bar is a row of choices, not real tabs, so the page knows when Chat is open and can mark messages read. Unread counts show on the line below, because a label that changes can reset the choice.
+  - Pop-ups inside the page instead of system notifications.
+  - Messages are not saved between runs.
+  - No read receipts, no map pin on a call for help.
+- Verified by:
+  - `python3 -m pytest tests/test_phone_app.py` — 19 passed, with a fake radio. They cover:
+    - the profile is kept and survives a broken file; the same person after a restart;
+    - a warning for my town is loud and elsewhere quiet;
+    - SOS and "I'm safe" from the page;
+    - someone else's call for help shows first;
+    - a hazard report sent from the page;
+    - typing a message sends a signed Nearby frame;
+    - an incoming message is counted, then marked read when Chat opens;
+    - a private message to Bob can only be opened by Bob;
+    - a too-long message is refused with a reason.
+  - By eye in a browser: picked Katherine, sent a call for help ("Your call for help is out … It says you are near Katherine", fixed from a first "Near Near Katherine"), and typed a Nearby message, which showed as a bubble. The sidebar showed "Bluetooth: off", with the reason, because that server ran from a program without Bluetooth permission.
+
 ## 13.5 Wi-Fi link — 2026-09-27
 - What: `alertmesh/lan.py`:
   - `Broadcaster` (warning app): sends each signed warning or cancellation as a UDP multicast packet (group 239.255.77.7, port 47147, TTL 1, so routers never pass it on). It repeats every 30 s until the warning ends; a cancellation replaces its warning.
