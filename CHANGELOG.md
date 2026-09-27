@@ -24,6 +24,24 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 11.1 Cross-check with Swift, both ways — 2026-09-27
+- What: `tools/cross_check_swift.py`, a repeatable two-way check against Swift, plus `tools/verify_signature.swift` (about 40 lines, CryptoKit) and `tests/test_cross_check.py`. The test is skipped where Swift is not installed.
+  - **Swift signs, Python checks.** The app's own script `scripts/sign-test-alert.swift` signs 6 warnings. They cover every hazard and every level: the frozen vector's inputs, a Katherine flood, no "what to do" text, 4 cells lasting 7 days, French and Japanese text, and the largest warning that fits. It also signs 1 cancellation. For each, Python must decode it, verify it with the pinned key, read back every field, and produce the very same bytes up to the signature. A phone's store must accept it, and the cancellation must withdraw its warning.
+  - **Python signs, Swift checks.** Apple's CryptoKit, the library the app verifies with, checks the Python signatures on the same 6 warnings and the cancellation. It must also reject each one with one signature bit flipped.
+- Ported from: nothing ported; this checks the port against `scripts/sign-test-alert.swift`, which is itself an independent implementation of `docs/ALERT-WIRE-FORMAT.md`.
+- Differences from Swift: none found. One rule worth knowing, the same in both languages: the console refuses a warning with no "what to do" (`WarningDraft.problems`), but the wire format and the script allow one, and Python decodes it. For that case the tool builds the warning straight from the wire format rather than through the console.
+- Verified by:
+  - `python3 tools/cross_check_swift.py`: 8 of 8 passed in about 3 s. The largest warning is 370 bytes, inside the 383-byte frame.
+  - The checks were broken on purpose to show they can fail. Each one then failed:
+    - phones pinning a different key: "signature does not verify with the pinned key";
+    - Python changing one byte: "Python's bytes differ from Swift's before the signature";
+    - CryptoKit given a different real key: rejected;
+    - CryptoKit given one bit of the signed message flipped: rejected.
+
+    A first try at the message check changed a byte that was already 0x00, so it changed nothing and CryptoKit rightly accepted. It was redone by flipping a bit.
+  - `python3 -m pytest tests/test_cross_check.py`: 2 passed. Full suite: 345 passed.
+  - `git status` shows no change under `alert-mesh/` after running the script.
+
 ## 10.4 Streamlit: hub board tab — 2026-09-27
 - What: the page's fourth tab, the evacuation centre's wall display. It has:
   - a header with the title and a clock;

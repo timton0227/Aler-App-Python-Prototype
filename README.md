@@ -37,6 +37,7 @@ Not covered: real Bluetooth, Tor, internet relays (Nostr), private chat, voice, 
 | Tests | `python3 -m pytest -q`, or the Testing panel in VS Code |
 | Story notebook | Open `demo.ipynb` in VS Code and choose **Run All** |
 | Live demo page | `streamlit run app.py`, or **Run and Debug → Streamlit demo** in VS Code |
+| Cross-check with the Swift app (Mac with Swift only) | `python3 tools/cross_check_swift.py` |
 
 ### The live demo page
 
