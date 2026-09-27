@@ -24,6 +24,21 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.2 Chat messages — 2026-09-27
+- What: `alertmesh/chat.py`:
+  - `Identity` holds one person's two keys (signing and chat) and nickname; its 64-byte seed is what gets saved. Its signing half also signs that person's reports, so chat and calls for help share one identity.
+  - `Announce` ("I'm here": nickname plus both keys, signed);
+  - `ChatMessage`, signed, either Nearby (everyone in range can read it) or private (names its recipient);
+  - `seal` / `open_sealed` / `Identity.open`, which lock a private message so only the recipient can read it.
+  - Text limit 280 bytes; the largest sealed message is 545 bytes.
+- Ported from: modelled on `localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift` (`announce`, `message`, `noiseEncrypted`) and `AlertMesh/Services/PrivateChatManager.swift`. The byte layout follows the Python ports of the warning and report formats (same field style, same signing style).
+- Differences from Swift:
+  - Not wire-compatible with the iPhone app.
+  - Private messages use a one-off X25519 key + HKDF-SHA256 + ChaCha20-Poly1305 per message instead of Noise XX sessions: no handshake, but no forward secrecy (someone who later steals Bob's chat key can read old messages to Bob).
+  - No read receipts, no delivery receipts, no mentions, no voice or files.
+  - The recipient is signed inside the message, so a private message cannot be shown as Nearby or re-sealed to a third person.
+- Verified by: `python3 -m pytest tests/test_chat.py` — 16 passed (round trips; changed nickname, text or recipient fails the signature; empty and oversize text refused, counting bytes not letters; only the recipient can open a private message; a changed sealed message does not open; a message written to Carol and re-sealed to Bob is refused).
+
 ## 13.1 Bluetooth trial — 2026-09-27
 - What: Phase 13 added to `PROGRESS.md` (a phone app and a separate warning app, like the iPhone app). `bleak` and `bless` added to `requirements.txt`. New `tools/ble_probe.py`: advertises the Alert Mesh service with one writable characteristic, scans for nearby devices, and writes a hello to any other laptop running it.
 - Ported from: the idea of `AlertMesh/Services/BLE/BLEService.swift`, which is both a Bluetooth central (scans, connects, writes) and a peripheral (advertises, receives). No code ported.

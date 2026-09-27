@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 1 | 9 |
-| **All** | **63** | **72** |
+| 13 Two apps: phone app and warning app | 2 | 9 |
+| **All** | **64** | **72** |
 
 **Next step:** 12.4
 
@@ -297,7 +297,7 @@ to laptops, not to iPhones.
       Swift: `AlertMesh/Services/BLE/BLEService.swift` (central + peripheral roles)
       Done when: on this Mac the probe advertises the Alert Mesh service and a scan finds nearby devices, with no error
       Verify: `python3 tools/ble_probe.py` from a program allowed to use Bluetooth (see the file)
-- [ ] 13.2 Chat messages (`alertmesh/chat.py`)
+- [x] 13.2 Chat messages (`alertmesh/chat.py`)
       Swift: `localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift` (`message`, `noiseEncrypted`), `AlertMesh/Services/PrivateChatManager.swift`
       Done when: a signed Nearby message and an encrypted private message round-trip; a changed message, a wrong key and oversize text are refused
       Verify: `python3 -m pytest tests/test_chat.py`
