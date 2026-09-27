@@ -26,6 +26,10 @@ def _system_clock_ms() -> int:
     return int(time.time() * 1000)
 
 
+# How far ahead of this phone's clock a sender's clock may be (1 hour).
+CLOCK_SKEW_MS = 60 * 60 * 1000
+
+
 class AlertStore:
     """One phone's official warnings.
 
@@ -55,6 +59,14 @@ class AlertStore:
         return IngestResult.REJECTED if item is None else self.ingest(item)
 
     def _ingest_alert(self, alert: OfficialAlert, payload: bytes) -> IngestResult:
+        now = self.clock()
+        self._prune(now)
+        if alert.expires_at <= now:
+            return IngestResult.REJECTED
+        # Receive-time sanity. A forged far-future issued_at would otherwise be "the
+        # newest version" of its event forever and sort to the top of every list.
+        if alert.issued_at > now + CLOCK_SKEW_MS or alert.expires_at > now + wire.MAX_LIFETIME_MS + CLOCK_SKEW_MS:
+            return IngestResult.REJECTED
         held = self._alerts.get(alert.alert_id)
         if held is not None:
             stored = held[0]
@@ -72,9 +84,16 @@ class AlertStore:
     def live_alerts(self) -> list[OfficialAlert]:
         """Most severe first, then most recently issued: the order someone glancing
         at a screen in an evacuation centre needs."""
+        self._prune(self.clock())
         alerts = [a for a, _ in self._alerts.values()]
         return sorted(alerts, key=lambda a: (-int(a.severity), -a.issued_at))
 
     def sync_candidates(self) -> list[bytes]:
         """Wire payloads this phone offers to other phones."""
+        self._prune(self.clock())
         return [payload for _, payload in self._alerts.values()]
+
+    # --- Internals ---
+
+    def _prune(self, now: int) -> None:
+        self._alerts = {k: v for k, v in self._alerts.items() if v[0].expires_at > now}

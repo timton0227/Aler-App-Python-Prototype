@@ -7,7 +7,7 @@ import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from alertmesh import wire
-from alertmesh.alert_store import AlertStore, IngestResult
+from alertmesh.alert_store import CLOCK_SKEW_MS, AlertStore, IngestResult
 from alertmesh.wire import HazardType, OfficialAlert, Severity
 
 PUBLISHER = Ed25519PrivateKey.generate()
@@ -103,3 +103,53 @@ def test_versions_older_version_arriving_later_is_rejected():
 
 def test_versions_malformed_payload_is_rejected():
     assert make_store().ingest_payload(b"\x01\x00") is IngestResult.REJECTED
+
+
+# --- Time rules (step 5.2)
+
+
+def test_time_rejects_already_expired_alert():
+    """Swift: rejectsAlreadyExpiredAlert."""
+    store = make_store()
+    assert store.ingest(make_alert(issued_at=BASE_MS - 2 * HOUR_MS, lifetime_ms=HOUR_MS)) is IngestResult.REJECTED
+    assert store.live_alerts() == []
+
+
+def test_time_rejects_alert_issued_beyond_clock_skew():
+    """Swift: rejectsAlertIssuedBeyondClockSkew."""
+    store = make_store()
+    assert store.ingest(make_alert(issued_at=BASE_MS + CLOCK_SKEW_MS + 60_000)) is IngestResult.REJECTED
+    assert store.live_alerts() == []
+
+
+def test_time_accepts_alert_issued_within_clock_skew():
+    """Swift: acceptsAlertIssuedWithinClockSkew."""
+    store = make_store()
+    assert store.ingest(make_alert(issued_at=BASE_MS + CLOCK_SKEW_MS - 60_000)) is IngestResult.ACCEPTED
+    assert len(store.live_alerts()) == 1
+
+
+def test_time_rejects_alert_expiring_too_far_in_the_future():
+    """Swift: rejectsAlertExpiringTooFarInTheFuture. Built directly, bypassing the decoder's span check."""
+    store = make_store()
+    assert store.ingest(make_alert(lifetime_ms=30 * 24 * HOUR_MS)) is IngestResult.REJECTED
+    assert store.live_alerts() == []
+
+
+def test_time_expired_alerts_are_swept():
+    """Swift: expiredAlertsAreSwept."""
+    clock = Clock()
+    store = make_store(clock)
+    short = make_alert(lifetime_ms=HOUR_MS)
+    long = make_alert(lifetime_ms=24 * HOUR_MS)
+    store.ingest(short)
+    store.ingest(long)
+    assert len(store.live_alerts()) == 2
+    clock.now_ms = BASE_MS + 2 * HOUR_MS
+    remaining = store.live_alerts()
+    assert [a.alert_id for a in remaining] == [long.alert_id]
+    assert len(store.sync_candidates()) == 1
+
+
+def test_time_clock_skew_is_one_hour():
+    assert CLOCK_SKEW_MS == HOUR_MS

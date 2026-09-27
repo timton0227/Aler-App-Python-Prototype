@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 5.2 Warning store: time rules — 2026-09-27
+- What: `CLOCK_SKEW_MS` (1 hour). `AlertStore` now rejects a warning that has already expired, one issued more than 1 hour ahead of this phone's clock, and one expiring more than 7 days + 1 hour from now. Expired warnings are swept on every ingest and read.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`Limits.clockSkewMs`, the time guards in `ingestAlertLocked`, `pruneExpiredLocked`).
+- Differences from Swift: none.
+- Verified by: `python3 -m pytest tests/test_alert_store.py -k time` — 6 passed. Ports `rejectsAlreadyExpiredAlert`, `rejectsAlertIssuedBeyondClockSkew`, `acceptsAlertIssuedWithinClockSkew`, `rejectsAlertExpiringTooFarInTheFuture`, `expiredAlertsAreSwept`. One extra test pins the skew at 1 hour. Full suite: 157 passed.
+
 ## 5.1 Warning store: versions — 2026-09-27
 - What: new module `alertmesh/alert_store.py` with `IngestResult` and `AlertStore` (`ingest`, `ingest_payload`, `live_alerts`, `sync_candidates`). Keeps one version per event: newer replaces, equal is a duplicate, older is rejected. Checks the signature first; a store with no key accepts nothing. `live_alerts()` sorts most severe first, then newest.
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`ingest`, `ingestAlertLocked` version rules, `liveAlerts`, `syncCandidates`, `ordered`).
