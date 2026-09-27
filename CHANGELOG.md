@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 4.1 Proximity match for one place — 2026-09-27
+- What: new module `alertmesh/proximity.py` with `Match` (ELSEWHERE, ADJACENT, INSIDE), `MINIMUM_PRECISION_FOR_ADJACENCY` (5) and `match(place, area_cells)`.
+- Ported from: `AlertMesh/AlertMesh/Services/AlertProximity.swift` (`AlertProximityMatch`, `AlertProximity.match(place:areaCells:)` and its private single-cell `match`).
+- Differences from Swift: none. Returns a `(match, cell)` tuple like the Swift tuple.
+- Verified by: `python3 -m pytest tests/test_proximity.py -k match` — 13 passed. Ports all 7 cases of `containmentByPrefix`, `coarsePlaceContainingTheWarningIsAdjacentNotInside`, `neighbouringCellAtPrecisionFiveIsAdjacent`, `neighbouringCellAtPrecisionFourIsNotAdjacent`, `precisionFourAlertAgainstPrecisionEightDevice`, `placeCoarserThanCellCannotBeAdjacent`. One extra test covers an empty place or an empty cell list.
+
 ## 3.4 Report signing, verification and supersession — 2026-09-27
 - What: `reports.verify()`, `reports.supersedes()`, and `reports.ReportAuthor`: one person's key, with `hazard()`, `sos()` and `safe()`.
 - Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`verifySignature`, `supersedes`) and the signing part of `AlertMesh/AlertMesh/Services/CommunityReportManager.swift` (`send`, `sendHazard`, `sendSOS`, `markSafe`).
