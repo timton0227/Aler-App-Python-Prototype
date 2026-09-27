@@ -1,7 +1,9 @@
 """Tests for alertmesh.metrics (new code: no Swift tests to port)."""
 from dataclasses import replace
 
-from alertmesh import geohash, metrics, places
+import pytest
+
+from alertmesh import metrics, places
 from alertmesh.metrics import Scenario
 
 SMALL = Scenario(n_phones=120, area_m=500, share_online=0.1, duration_s=600, sample_s=60, seed=3)
@@ -80,3 +82,41 @@ def test_compare_summary_has_both_rows():
     assert set(s) == {"with mesh", "internet only"}
     assert set(s["with mesh"]) == {"warned after 10 min", "warned at end", "minutes to 80%", "told loudly"}
     assert s["internet only"]["warned after 10 min"] == s["internet only"]["warned at end"]
+
+
+# --- Sweeps (step 8.3)
+
+QUICK = Scenario(n_phones=150, area_m=800, share_online=0.1, duration_s=1_800, sample_s=300, seed=11)
+
+
+def test_sweep_has_one_row_per_run_and_repeats_exactly():
+    rows = metrics.sweep(QUICK, "n_phones", [50, 150], repeats=2)
+    assert [(r["n_phones"], r["seed"]) for r in rows] == [(50, 11), (50, 12), (150, 11), (150, 12)]
+    assert rows == metrics.sweep(QUICK, "n_phones", [50, 150], repeats=2)  # fixed seeds
+
+
+def test_sweep_more_people_close_together_reach_more_of_them():
+    table = metrics.means(metrics.sweep(QUICK, "n_phones", [40, 300], repeats=2), "n_phones")
+    assert [row["n_phones"] for row in table] == [40, 300]
+    assert table[1]["with mesh"] > table[0]["with mesh"]
+
+
+def test_sweep_longer_bluetooth_range_reaches_more():
+    table = metrics.means(metrics.sweep(QUICK, "bluetooth_range_m", [20, 100], repeats=2), "bluetooth_range_m")
+    assert table[1]["with mesh"] > table[0]["with mesh"]
+
+
+def test_sweep_people_moving_about_carry_the_warning_further():
+    base = replace(QUICK, n_phones=80, speed_mps=5.0)
+    table = metrics.means(metrics.sweep(base, "share_moving", [0.0, 0.5], repeats=2), "share_moving")
+    assert table[1]["with mesh"] > table[0]["with mesh"]
+
+
+def test_sweep_everyone_online_is_everyone_warned_either_way():
+    rows = metrics.sweep(QUICK, "share_online", [1.0], repeats=1)
+    assert rows[0]["with mesh"] == rows[0]["internet only"] == 1.0
+
+
+def test_sweep_rejects_an_unknown_parameter():
+    with pytest.raises(ValueError):
+        metrics.sweep(QUICK, "colour", [1])

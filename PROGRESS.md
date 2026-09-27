@@ -21,13 +21,13 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
 | 7 Mesh simulation | 8 | 8 |
-| 8 Metrics | 2 | 3 |
+| 8 Metrics | 3 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **42** | **58** |
+| **All** | **43** | **58** |
 
-**Next step:** 8.3
+**Next step:** 9.1
 
 ---
 
@@ -198,7 +198,7 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
       Verify: `python3 -m pytest tests/test_metrics.py -k coverage`
 - [x] 8.2 With mesh vs without mesh
       Verify: `python3 -m pytest tests/test_metrics.py -k compare`
-- [ ] 8.3 Sweeps over phone density, Bluetooth range, share offline (fixed random seed)
+- [x] 8.3 Sweeps over phone density, Bluetooth range, share offline (fixed random seed)
       Verify: `python3 -m pytest tests/test_metrics.py`
 
 ## Phase 9 — Notebook (`demo.ipynb`)

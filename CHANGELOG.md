@@ -24,6 +24,23 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 8.3 Sweeps with fixed seeds — 2026-09-27
+- What: `metrics.sweep(base, parameter, values, repeats)` runs any `Scenario` field over a list of values, each value with several seeds (`base.seed`, `+1`, …), with and without the mesh. It gives one row per run. `metrics.means()` averages the repeats. Also tidied the test imports (removed an unused `geohash` import).
+- Ported from: new.
+- Differences from the app: not applicable.
+- Verified by: `python3 -m pytest tests/test_metrics.py` — 15 passed (6 new). One row per run, and identical rows on a second run (fixed seeds). The test scenario is 800 m square, 10% online, 30 minutes, 2 seeds each; the averages it printed:
+
+  | Changed | Value | With mesh | Internet only |
+  |---|---|---|---|
+  | Phones | 40 | 22% | 15% |
+  | Phones | 300 | 88% | 9% |
+  | Bluetooth range | 20 m | 9% | 7% |
+  | Bluetooth range | 100 m | 97% | 7% |
+  | Moving at 5 m/s (80 phones) | none | 31% | 11% |
+  | Moving at 5 m/s (80 phones) | half | 100% | 10% |
+
+  Everyone online gives 100% either way. An unknown field is refused. Full suite: 267 passed. These are simulation results under the simplifications in steps 7.2–7.5, not field measurements.
+
 ## 8.2 With the mesh vs internet only — 2026-09-27
 - What: `metrics.compare()` and `Comparison` (with `summary()`: warned after 10 minutes, warned at the end, minutes to 80%, told loudly, for both). "Internet only" is the same scenario with Bluetooth off on every phone, so only phones with internet are warned: what a warning app without the mesh would reach.
 - Ported from: new.

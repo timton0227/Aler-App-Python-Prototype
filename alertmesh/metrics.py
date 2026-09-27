@@ -164,3 +164,44 @@ def compare(scenario: Scenario) -> Comparison:
     """The same people in the same places, once with Bluetooth mesh and once with
     internet only. "Internet only" is what a warning app without the mesh reaches."""
     return Comparison(run(replace(scenario, mesh_on=True)), run(replace(scenario, mesh_on=False)))
+
+
+# --- Sweeps: what changes the answer? -------------------------------------------
+
+
+def sweep(base: Scenario, parameter: str, values, repeats: int = 3) -> list[dict]:
+    """Run `base` with `parameter` set to each value, `repeats` times each (seeds
+    base.seed, base.seed + 1, ...), with and without the mesh. One row per run.
+
+    Example: sweep(Scenario(), "n_phones", [100, 200, 400]) asks how the share
+    warned depends on how many people are around.
+    """
+    if parameter not in Scenario.__dataclass_fields__:
+        raise ValueError(f"unknown scenario field: {parameter}")
+    rows = []
+    for value in values:
+        for repeat in range(repeats):
+            scenario = replace(base, **{parameter: value, "seed": base.seed + repeat})
+            comparison = compare(scenario)
+            rows.append({
+                parameter: value,
+                "seed": scenario.seed,
+                "with mesh": comparison.with_mesh.final_share,
+                "internet only": comparison.without_mesh.final_share,
+                "with mesh after 10 min": _share_at(comparison.with_mesh, 600),
+            })
+    return rows
+
+
+def means(rows: list[dict], parameter: str) -> list[dict]:
+    """Average the repeats of a sweep: one row per value, in the order swept."""
+    grouped: dict = {}
+    for row in rows:
+        grouped.setdefault(row[parameter], []).append(row)
+    out = []
+    for value, group in grouped.items():
+        averaged = {parameter: value, "runs": len(group)}
+        for key in ("with mesh", "internet only", "with mesh after 10 min"):
+            averaged[key] = sum(r[key] for r in group) / len(group)
+        out.append(averaged)
+    return out
