@@ -128,6 +128,35 @@ def stop(server: subprocess.Popen) -> None:
             server.wait()
 
 
+def check() -> int:
+    """Import everything app.py imports and read the town list, without a window.
+    The build runs this on the finished app, so an app with a missing part fails
+    the build instead of showing an error page to whoever opens it."""
+    import ast
+    import importlib
+
+    names = []
+    for node in ast.walk(ast.parse(APP.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            names += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.append(node.module)
+            # `from package import module` names modules too; plain names are skipped below.
+            names += [f"{node.module}.{alias.name}" for alias in node.names]
+    for name in sorted(set(names)):
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError as error:
+            parent, _, attribute = name.rpartition(".")
+            if not (parent and error.name == name and hasattr(importlib.import_module(parent), attribute)):
+                print(f"missing: {name} ({error})")
+                return 1
+    from alertmesh import places
+
+    print(f"ok: {len(set(names))} imports of app.py load; {len(places.towns())} towns from {places.DATA_FILE}")
+    return 0
+
+
 PAGE = """<html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
 font-family:-apple-system,'Segoe UI',sans-serif;color:#333;background:#fff"><div style="text-align:center;max-width:600px">
 <h2>Alert Mesh</h2><p>{message}</p></div></body></html>"""
@@ -165,8 +194,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--serve", type=int, metavar="PORT", help="run the page on this port (internal)")
     parser.add_argument("--parent", type=int, help="stop when this process ends (internal)")
+    parser.add_argument("--check", action="store_true", help="check the app has every part it needs, then exit")
     # Known arguments only: older macOS adds its own (-psn_…) when opening an app.
     options, _ = parser.parse_known_args()
+    if options.check:
+        sys.exit(check())
     if options.serve:
         serve(options.serve, options.parent or os.getppid())
     else:

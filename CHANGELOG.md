@@ -24,6 +24,36 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 12.3 Mac app — 2026-09-27
+- What: `packaging/build_mac.sh` builds `dist/Alert Mesh.app` and `dist/Alert-Mesh-mac.zip`, in about 45 s once the build tools are installed. The app runs with no Python on the computer. The script:
+  - makes or reuses the build environment `packaging/.venv-mac`, choosing the Python with `PYTHON=` (3.10 or newer; tested with python.org 3.14.3);
+  - installs the build tools;
+  - makes the icon (`.icns`, with `iconutil`) from the Swift app's own icon images;
+  - runs PyInstaller with the new recipe `packaging/alert_mesh.spec`;
+  - checks the finished app with `--check`;
+  - zips the app with `ditto` for sharing.
+
+  The recipe is shared with Windows. It bundles `desktop.py`, `app.py`, every `alertmesh` module, Streamlit and Plotly with their files, and a copy of the Swift app's town list at `alertmesh/data/` (step 12.1). It leaves out the test and notebook tools. New `desktop.py --check` imports everything `app.py` imports and reads the town list, without opening a window.
+- Ported from: new (packaging). Bundle id `au.alertmesh.prototype`, version 1.0.0.
+- Differences from Swift: not applicable. (The Swift app has its own Mac build; this app is the Python prototype.)
+- Verified by:
+  - **Build.** `packaging/build_mac.sh` from empty `build/` and `dist/` finished in 46 s. Results: app 287 MB, zip 113 MB, Apple Silicon only (`arm64`). It is ad-hoc signed only, which is PyInstaller's default; not signed by a registered Apple developer.
+  - **The first build did not work, and the fix is now part of the build.**
+    - Symptom: the window opened, but the page showed `ImportError: cannot import name 'hub' from 'alertmesh' (unknown location)`.
+    - Cause: `collect_submodules("alertmesh")` ran where `alertmesh` could not be imported, so it found no modules and no alertmesh code was bundled. Only the town-list folder `alertmesh/data/` was, and Python took that folder for the package.
+    - Fix: the recipe now lists the modules straight from the folder.
+    - Guard: the build runs `--check` on the finished app. In a folder set up like that broken build, `--check` printed `missing: alertmesh.console` and exited 1; on the fixed app it prints `ok: 30 imports of app.py load; 996 towns from …/Alert Mesh.app/Contents/Resources/alertmesh/data/AustralianPlacesData.swift`.
+  - **The fixed app, unzipped outside the repo (scratchpad) and opened there:**
+    - its page was up 2 s after opening, on `127.0.0.1` only;
+    - a native "Alert Mesh" window in the light theme with the map background, and no Deploy button;
+    - by hand in that window: wrote and sent an Emergency Warning covering the town ("Sent: … — 1 device connected over Bluetooth, handed to internet relays"), pressed +5, and checked the Map (spread shown), the Phone view (card, "Loud now: You are inside the warning area.", notification) and the Hub board (large type, "2 devices nearby");
+    - closing the window, or quitting the app, left no process within 1–2 s.
+  - **Nothing outside the app is needed:**
+    - no linked library outside the app or macOS (`otool -L`);
+    - no file inside it mentions this user's home folder;
+    - `env -i … --check` run from `/` passes.
+  - **Tests:** `python3 -m pytest tests/test_desktop.py` — 8 passed, 2 new (`--check` passes here; `--check` fails when the alertmesh code is missing). Full suite: 356 passed.
+
 ## 12.2 Desktop launcher — 2026-09-27
 - What: `desktop.py` shows the live demo page in its own window, with no browser. Streamlit's server and the window both need the program's main thread, so the program starts a second copy of itself with `--serve PORT --parent PID` to run the page, and shows the page with `pywebview` (Safari's engine on a Mac, Edge's on Windows).
   - Before the page is up, the window shows "Starting the simulated town…". If the page is not up within 60 s, or the server stops, the window says so and names the log file (`alert-mesh-server.log` in the system temp folder).

@@ -25,10 +25,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
-| 12 Desktop app | 2 | 5 |
-| **All** | **60** | **63** |
+| 12 Desktop app | 3 | 5 |
+| **All** | **61** | **63** |
 
-**Next step:** 12.3
+**Next step:** 12.4
 
 ---
 
@@ -270,7 +270,7 @@ Silicon); the Windows build script cannot be tested on a Mac.
 - [x] 12.2 Desktop launcher (`desktop.py`)
       Done when: `python desktop.py` opens a native window showing the page, served on 127.0.0.1 only; closing the window stops the server
       Verify: `python3 -m pytest tests/test_desktop.py`, then run `desktop.py` with the build tools installed and check by eye
-- [ ] 12.3 Mac app (`packaging/build_mac.sh`)
+- [x] 12.3 Mac app (`packaging/build_mac.sh`)
       Done when: the script builds `dist/Alert Mesh.app` and a zip; a copy opened outside the repo shows all four tabs working; quitting leaves no process
       Verify: `packaging/build_mac.sh`, then open a copy of the app from another folder
 - [ ] 12.4 Windows build script (`packaging/build_windows.ps1`)

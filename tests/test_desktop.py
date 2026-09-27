@@ -97,3 +97,25 @@ def alive(pid: int) -> bool:
     # An exited child not yet reaped by its new parent still has an entry; ask ps.
     state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
     return bool(state) and not state.startswith("Z")
+
+
+# --- The self-check the build runs on the finished app (step 12.3) ---
+
+
+def test_the_self_check_passes_here():
+    out = subprocess.run([sys.executable, str(desktop.HERE / "desktop.py"), "--check"],
+                         capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert out.stdout.startswith("ok:") and "996 towns" in out.stdout
+
+
+def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
+    """Like the first Mac build: app.py is there, but the alertmesh code is not
+    (only the town-list folder alertmesh/data/ is)."""
+    (tmp_path / "alertmesh" / "data").mkdir(parents=True)
+    for name in ("desktop.py", "app.py"):
+        (tmp_path / name).write_text((desktop.HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
+    out = subprocess.run([sys.executable, str(tmp_path / "desktop.py"), "--check"], cwd=tmp_path,
+                         capture_output=True, text=True, timeout=120)
+    assert out.returncode == 1
+    assert out.stdout.startswith("missing: alertmesh.")
