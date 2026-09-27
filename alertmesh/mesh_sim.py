@@ -33,6 +33,9 @@ HIGH_DEGREE_THRESHOLD = 6
 # 100 m; 60 m is a middle value. Every run can set its own.
 DEFAULT_BLUETOOTH_RANGE_M = 60.0
 DEFAULT_TICK_S = 10.0
+# GossipSyncManager: warnings and reports are swapped with each neighbour every 60 s,
+# and about 5 s after two phones first meet (scheduleInitialSyncToPeer).
+SYNC_INTERVAL_S = 60.0
 
 EARTH_M_PER_DEGREE = 111_195.0  # metres per degree of latitude (Earth radius 6371 km)
 
@@ -178,6 +181,9 @@ class Mesh:
         self._seen: dict[str, set[int]] = defaultdict(set)
         # (time_ms, phone_id, what, detail): a readable record for the notebook.
         self.log: list[tuple[int, str, str, str]] = []
+        self.sync_interval_s = SYNC_INTERVAL_S
+        self._last_sync_ms = start_ms
+        self._links: set[frozenset[str]] = set()
 
     def clock(self) -> int:
         return self.now_ms
@@ -254,15 +260,49 @@ class Mesh:
             self.broadcast(sender, msg_type, payload)
         return result
 
+    # --- Carrying: gossip sync ---
+
+    def links(self) -> set[frozenset[str]]:
+        """Every pair of phones currently in range of each other."""
+        return {frozenset((p.id, n.id)) for p in self.phones.values() for n in self.neighbours(p)}
+
+    def sync_pair(self, a: Phone, b: Phone) -> int:
+        """Two neighbours swap what they hold, both ways. Sync replies go out with
+        TTL 0 in the app (link-local), so nothing received here is relayed onward;
+        it spreads further at the next sync. Returns how many items were new."""
+        new = 0
+        for giver, taker in ((a, b), (b, a)):
+            for payload in giver.alert_store.sync_candidates():
+                if taker.receive(OFFICIAL_ALERT_TYPE, payload) is IngestResult.ACCEPTED:
+                    new += 1
+                    self.log.append((self.now_ms, taker.id, "synced", giver.id))
+            for payload in giver.report_store.sync_candidates():
+                if taker.receive(COMMUNITY_REPORT_TYPE, payload) is IngestResult.ACCEPTED:
+                    new += 1
+                    self.log.append((self.now_ms, taker.id, "synced report", giver.id))
+        return new
+
+    def _sync(self) -> None:
+        links = self.links()
+        periodic = self.now_ms - self._last_sync_ms >= self.sync_interval_s * 1000
+        if periodic:
+            self._last_sync_ms = self.now_ms
+        for pair in links if periodic else links - self._links:
+            a, b = (self.phones[i] for i in sorted(pair))
+            self.sync_pair(a, b)
+        self._links = links
+
     # --- Time ---
 
     def step(self) -> None:
-        """Advance one tick: time moves on and phones on a route drive."""
+        """Advance one tick: time moves on, phones on a route drive, and neighbours
+        sync (pairs that just met at once, everyone every 60 s)."""
         self.now_ms += int(self.tick_s * 1000)
         for phone in self.phones.values():
             if phone.route:
                 phone.move(self.tick_s)
                 self._grid = None
+        self._sync()
 
     def run(self, seconds: float) -> None:
         for _ in range(int(round(seconds / self.tick_s))):

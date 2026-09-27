@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.4 Carrying: sync between neighbours and moving phones — 2026-09-27
+- What: `Mesh.links()`, `Mesh.sync_pair()` and sync inside `Mesh.step()`. Two phones swap every warning and report they hold (both ways) when they first come into range, and every 60 s after that (`SYNC_INTERVAL_S`). Sync copies are not flooded onward; they spread one hop per sync, like the app's TTL-0 sync replies. Phones on a route drive each tick.
+- Ported from: `AlertMesh/Sync/GossipSyncManager.swift` (`officialAlertSyncIntervalSeconds` and `communityReportSyncIntervalSeconds` of 60 s, `scheduleInitialSyncToPeer` about 5 s after meeting, and `ttl = 0` on replies).
+- Differences from the app: (1) The app sends a compact filter of what it holds, and the other phone replies with only what is missing. The simulation offers everything, and the store drops what it already has; the result is the same, only the radio cost differs. (2) All phones share one 60 s timer instead of one each. (3) The "5 s after meeting" sync happens in the same 10 s tick.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k carry` — 5 passed. Two camps 5 km apart: with no carrier, camp B hears nothing in an hour. With a car driving across at 15 m/s, camp B holds the warning between 5 and 7 minutes after it was sent. A phone whose Bluetooth was off during the flood gets the warning in the first tick after it comes back. Sync makes no new broadcast. Periodic sync lands at 60 s. Full suite: 232 passed.
+
 ## 7.3 Only verified packets relay — 2026-09-27
 - What: tests only, no code change. The rule "relay only what the store accepted" was built in step 7.2; this step proves it holds in the mesh.
 - Ported from: new. The rule comes from `BLEService.handleOfficialAlert` and `sendOfficialAlertPayload`.

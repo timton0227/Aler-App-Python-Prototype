@@ -172,3 +172,83 @@ def test_forged_the_real_warning_still_spreads_alongside():
     real = signed_warning(mesh)
     mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(real))
     assert all([a.alert_id for a in p.alert_store.live_alerts()] == [real.alert_id] for p in phones)
+
+
+# --- Carrying: sync and moving phones (step 7.4)
+
+
+def two_camps(gap_m=5_000):
+    """Camp A (3 phones) and camp B (3 phones), `gap_m` apart: no Bluetooth path between them."""
+    mesh = Mesh(start_ms=T0)
+    a = [mesh.add_phone(f"a{i}", *mesh_sim.offset_m(*KATHERINE, 0, i * 20)) for i in range(3)]
+    b = [mesh.add_phone(f"b{i}", *mesh_sim.offset_m(*KATHERINE, 0, gap_m + i * 20)) for i in range(3)]
+    return mesh, a, b
+
+
+def test_carry_a_group_out_of_range_hears_nothing_without_a_carrier():
+    mesh, a, b = two_camps()
+    alert = signed_warning(mesh)
+    mesh.send(a[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    mesh.run(3600)
+    assert all(holds(p, alert) for p in a)
+    assert not any(holds(p, alert) for p in b)
+
+
+def test_carry_a_driving_phone_brings_the_warning_to_the_other_camp():
+    mesh, a, b = two_camps(gap_m=5_000)
+    car = mesh.add_phone("car", *mesh_sim.offset_m(*KATHERINE, 0, 30),
+                         route=[mesh_sim.offset_m(*KATHERINE, 0, 5_000 + 30)], speed_mps=15)
+    alert = signed_warning(mesh)
+    mesh.send(a[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    assert holds(car, alert)  # in range at the start: flooded
+    assert not any(holds(p, alert) for p in b)
+    mesh.run(5 * 60)  # 5 km at 15 m/s is about 5.6 minutes
+    assert not any(holds(p, alert) for p in b)
+    mesh.run(2 * 60)
+    assert all(holds(p, alert) for p in b)  # carried, then synced
+    arrived = min(p.first_heard_ms[alert.alert_id] for p in b)
+    assert 5 * 60_000 < arrived - T0 <= 7 * 60_000
+
+
+def test_carry_sync_reaches_a_phone_that_was_off_during_the_flood():
+    mesh, phones = chain(3)
+    phones[2].bluetooth_on = False
+    mesh._grid = None
+    alert = signed_warning(mesh)
+    mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    assert not holds(phones[2], alert)
+    phones[2].bluetooth_on = True
+    mesh._grid = None
+    mesh.step()  # newly linked pair syncs at once
+    assert holds(phones[2], alert)
+
+
+def test_carry_sync_replies_are_not_flooded_onward():
+    # p2 is off during the flood. When it comes back it syncs from p1, but does not
+    # flood: p3, which is also new, only gets it from p2 by sync, one hop per sync.
+    mesh, phones = chain(4)
+    for p in phones[2:]:
+        p.bluetooth_on = False
+    mesh._grid = None
+    alert = signed_warning(mesh)
+    mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    for p in phones[2:]:
+        p.bluetooth_on = True
+    mesh._grid = None
+    before = mesh._next_packet_id
+    mesh.step()
+    assert mesh._next_packet_id == before  # no new broadcast was made
+    assert holds(phones[2], alert)
+
+
+def test_carry_periodic_sync_runs_every_60_seconds():
+    mesh, phones = chain(2)
+    mesh.step()  # first links recorded
+    alert = signed_warning(mesh)
+    phones[0].receive(OFFICIAL_ALERT_TYPE, wire.encode(alert))  # held but never broadcast
+    for _ in range(4):
+        mesh.step()
+    assert not holds(phones[1], alert)  # 50 s: not yet
+    mesh.step()
+    mesh.step()
+    assert holds(phones[1], alert)  # by 60 s
