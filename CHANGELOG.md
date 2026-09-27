@@ -24,6 +24,18 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 11.3 The Swift app folder is unchanged — 2026-09-27
+- What: confirmed that the port never changed the Swift app, the rule set at step 0.1. The check's commands are now in PROGRESS.md, so anyone can re-run it.
+- Ported from: not applicable.
+- Differences from Swift: not applicable.
+- Verified by, from the repository root, against `6ca96ca` (the commit just before step 0.1; 59 `[py …]` commits since):
+  - `git diff --name-only 6ca96ca..HEAD -- alert-mesh`: nothing.
+  - `git log --oneline 6ca96ca..HEAD -- alert-mesh`: nothing. No commit of any kind touched it.
+  - `git status --porcelain -- alert-mesh`: nothing. No change, tracked or untracked.
+  - Files on disk: nothing that git tracks changed. One thing did change, outside git's view: at 16:06 today, 47 files in `alert-mesh/.build/index-build/` were rewritten. That is Swift's code-index cache, which git ignores (`.build/`) and which rebuilds itself. The time matches the first manual run of `swift scripts/sign-test-alert.swift` from inside `alert-mesh/` during step 11.1, so this session most likely caused it. No source file was involved.
+  - The committed tool, `tools/cross_check_swift.py` (and its pytest test), runs the script from `python-prototype/`. After running both, no file under `alert-mesh/` had changed.
+  - A first attempt at the on-disk check used `find -newermt` with a date that included a time zone. It silently matched nothing, which would have wrongly reported no changes. Comparing against a reference file gave the real answer above.
+
 ## 11.2 README walk-through in a fresh clone — 2026-09-27
 - What: cloned the branch into an empty folder, made a new Python environment, and followed the README step by step. Fixed what that turned up:
   - **The page tests broke on the newest Streamlit.** A fresh install gets Streamlit 1.64 (this machine has 1.51). 1.64 resolves `AppTest.from_file("app.py")` relative to the test file, not the current folder, so all 15 page tests failed to start. `tests/test_app.py` now gives an absolute path, which works on both versions.

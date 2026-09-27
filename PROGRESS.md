@@ -24,10 +24,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
 | 10 Streamlit | 4 | 4 |
-| 11 Final check | 2 | 3 |
-| **All** | **57** | **58** |
+| 11 Final check | 3 | 3 |
+| **All** | **58** | **58** |
 
-**Next step:** 11.3
+**Next step:** none — all done
 
 ---
 
@@ -249,7 +249,11 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
 - [x] 11.2 README walk-through in a fresh clone
       Done when: in a fresh clone with a new environment, every README command works as written: install, tests, notebook, live page, cross-check
       Verify: clone the branch, follow README "Set up" and "Run" word for word
-- [ ] 11.3 `git status` shows no change under `alert-mesh/`
+- [x] 11.3 `git status` shows no change under `alert-mesh/`
+      Done when: no commit since the port began touches `alert-mesh/`, and the working tree has no change there
+      Verify (from the repository root; 6ca96ca is the commit before step 0.1):
+      `git diff --name-only 6ca96ca..HEAD -- alert-mesh`, `git log --oneline 6ca96ca..HEAD -- alert-mesh`
+      and `git status --porcelain -- alert-mesh` all print nothing
 
 ---
 
