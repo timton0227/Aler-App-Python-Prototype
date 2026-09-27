@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 3.1 Report constants, kinds and severities — 2026-09-27
+- What: new module `alertmesh/reports.py` with the field limits, lifetimes, signing context, `MESSAGE_TYPE` (0x2E), and the `ReportKind`, `ReportSeverity`, `ReportTLVType` enums.
+- Ported from: `AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift` (`CommunityReportWireConstants`, `CommunityReportKind`, `CommunityReportSeverity`, `CommunityReportTLVType`).
+- Differences from Swift: `MESSAGE_TYPE` is a written-out number here; in Swift it comes from upstream's `MessageType` enum.
+- Verified by: `python3 -m pytest tests/test_reports.py -k constants` — 4 passed. Ports `wireValuesAreFrozen` and the constant part of `signingContextIsFrozenAndDistinct`. An extra test checks that report severities share no names with official warning levels.
+
 ## 2.10 Warning draft checks and dev signer — 2026-09-27
 - What: new module `alertmesh/signer.py`: `WarningDraft` (with `problems` and `WarningDraft.updating()`), `Problem`, `OfficialAlertSigner` (`sign`, `cancel`, `public_key`), `new_alert_id()`, `next_issued_at()`, and `DEV_PRIVATE_KEY` (marked dev-only).
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertSigning.swift` (`WarningDraft`, `OfficialAlertSigner`) and `OfficialAlertIssuer.swift` (`nextIssuedAt`, random `makeAlertID`).
