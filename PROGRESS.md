@@ -26,7 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| **All** | **62** | **63** |
+| 13 Two apps: phone app and warning app | 1 | 9 |
+| **All** | **63** | **72** |
 
 **Next step:** 12.4
 
@@ -278,6 +279,53 @@ Silicon); the Windows build script cannot be tested on a Mac.
       Verify (on Windows): `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`, then open the .exe
 - [x] 12.5 README: building the app, and opening it on another computer
       Done when: the README says how to build on each system and how to get past the first-open warnings
+      Verify: read it against what was actually run
+
+---
+
+## Phase 13 — Two apps: phone app and warning app
+
+Added after Phase 12, at the user's request, to make the prototype work like the iPhone
+app: a **phone app** for texting people nearby, reading warnings and calling for help,
+and a separate, simple **warning app** that sends warnings. The phone app has the
+iPhone's three tabs (Now, Report, Chat) and talks to other laptops over real
+Bluetooth; the warning app keeps the Warning console, Map and Hub board, and reaches
+phone apps over the local Wi-Fi network. The Bluetooth format is our own: laptops talk
+to laptops, not to iPhones.
+
+- [x] 13.1 Bluetooth trial (`tools/ble_probe.py`)
+      Swift: `AlertMesh/Services/BLE/BLEService.swift` (central + peripheral roles)
+      Done when: on this Mac the probe advertises the Alert Mesh service and a scan finds nearby devices, with no error
+      Verify: `python3 tools/ble_probe.py` from a program allowed to use Bluetooth (see the file)
+- [ ] 13.2 Chat messages (`alertmesh/chat.py`)
+      Swift: `localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift` (`message`, `noiseEncrypted`), `AlertMesh/Services/PrivateChatManager.swift`
+      Done when: a signed Nearby message and an encrypted private message round-trip; a changed message, a wrong key and oversize text are refused
+      Verify: `python3 -m pytest tests/test_chat.py`
+- [ ] 13.3 Mesh node (`alertmesh/node.py`)
+      Swift: `AlertMesh/Services/BLE/BLEService.swift` (relay with TTL), `AlertMesh/Services/MessageDeduplicationService.swift`
+      Done when: with a fake radio, A's message reaches C through B, never loops, stops at TTL 0, is shown once; SOS and warnings go through the existing stores; a forged warning is refused
+      Verify: `python3 -m pytest tests/test_node.py`
+- [ ] 13.4 Bluetooth link (`alertmesh/ble.py`)
+      Swift: `AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift`, `BLEService+LinkLayerPeripheralRole.swift`
+      Done when: messages are cut into Bluetooth-sized pieces and put back together; two laptops running the phone app see each other and chat
+      Verify: `python3 -m pytest tests/test_ble.py`; then the two-laptop check in the README
+- [ ] 13.5 Wi-Fi link (`alertmesh/lan.py`)
+      Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (warnings over the internet)
+      Done when: a warning sent on the local network arrives and is repeated; junk and oversize packets are ignored; packets do not leave the local network
+      Verify: `python3 -m pytest tests/test_lan.py`
+- [ ] 13.6 Phone app (`phone_app.py`)
+      Swift: `AlertMesh/AlertMesh/Views/EmergencyRootView.swift`, `NowView.swift`, `CommunityReportsView.swift`, `SOSView.swift`, `ChatInboxView.swift`
+      Done when: Now, Report and Chat tabs work: a typed message appears and is sent; an incoming one raises the unread count; a call for help is sent
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 13.7 Warning app (`warning_app.py`)
+      Swift: `AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift`, `AlertMesh/AlertMesh/Views/IssueWarningView.swift`
+      Done when: the warning app has the Warning console, Map and Hub board; each warning, update and cancellation is also sent on the local network
+      Verify: `python3 -m pytest tests/test_app.py tests/test_console.py`
+- [ ] 13.8 Two desktop apps
+      Done when: `packaging/build_mac.sh` builds and checks `Alert Mesh.app` and `Alert Mesh Warnings.app`; a warning sent from one reaches the other on the same Mac
+      Verify: `packaging/build_mac.sh`, then open both apps
+- [ ] 13.9 README: the two apps and the two-laptop check
+      Done when: the README says how to run both apps, what needs Wi-Fi and what needs Bluetooth, and how to test with two laptops
       Verify: read it against what was actually run
 
 ---

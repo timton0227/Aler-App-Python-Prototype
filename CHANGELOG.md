@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.1 Bluetooth trial — 2026-09-27
+- What: Phase 13 added to `PROGRESS.md` (a phone app and a separate warning app, like the iPhone app). `bleak` and `bless` added to `requirements.txt`. New `tools/ble_probe.py`: advertises the Alert Mesh service with one writable characteristic, scans for nearby devices, and writes a hello to any other laptop running it.
+- Ported from: the idea of `AlertMesh/Services/BLE/BLEService.swift`, which is both a Bluetooth central (scans, connects, writes) and a peripheral (advertises, receives). No code ported.
+- Differences from Swift: our own service ID (`aa857bb9-…`), not the iPhone app's (`F47B5E2D-…`), so laptops and iPhones ignore each other. The iPhone app's Bluetooth protocol (Noise encryption, announces, fragments, gossip sync) is not reproduced.
+- Verified by: on this Mac (macOS 15, Python 3.13), the probe run inside a small app that declares Bluetooth use printed `advertising: True` and `78 Bluetooth devices nearby`, exit 0. Found on the way: macOS stops any program that uses Bluetooth without a written reason in its app's Info.plist (crash report: "attempted to access privacy-sensitive data without a usage description"). Terminal and iTerm have no such reason, VS Code does, so run the Bluetooth parts from VS Code; the packaged app will carry its own. Not yet checked: two laptops finding each other (needs a second computer).
+
 ## 12.5 README: the desktop app — 2026-09-27
 - What: a new README section, "Desktop app (no browser)":
   - how to build on a Mac (`packaging/build_mac.sh`) and on Windows (`packaging\build_windows.ps1`, marked not yet run), what each makes and how big it is, and how to pick the build Python;
