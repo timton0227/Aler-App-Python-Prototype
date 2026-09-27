@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 5.5 Report store — 2026-09-27
+- What: new module `alertmesh/report_store.py` with `ReportStore` (`ingest`, `ingest_payload`, `live_reports`, `sync_candidates`, `wipe`) and the limits `MAX_REPORTS` (300), `MAX_HAZARD_REPORTS_PER_AUTHOR` (5), `MAX_CHECK_INS_PER_AUTHOR` (2). A record is one (author, report ID) pair; a later version from the same author replaces it. Quotas are counted per author and separately for hazards and check-ins. When a quota or the store is full, hazards go first, then "safe", then an SOS last; oldest first within each. Sort order: SOS, then hazards by severity, then "safe"; newest first within each. Same time rules as the warning store, with the lifetime per kind.
+- Ported from: `AlertMesh/AlertMesh/Services/CommunityReportStore.swift` (`ingest`, `ingestLocked`, `evictLocked`, `ordered`, `Limits`, and the rank helpers).
+- Differences from Swift: (1) Memory only, no saving to disk, like the warning store. (2) It reuses `IngestResult` and `CLOCK_SKEW_MS` from `alert_store.py` instead of its own copies; the values are the same.
+- Verified by: `python3 -m pytest tests/test_report_store.py` — 16 passed. Ports `reportWhoseSignatureDoesNotMatchItsAuthorKeyIsRejected`, `strangerCannotMarkAuthorSafe`, both duplicate tests, the four time tests, `safeWithSameIDAndAuthorReplacesSOS`, `staleSOSArrivingAfterSafeIsRejected`, `updatedHazardReportReplacesOlderVersion`, `fiveHazardReportsDoNotEvictTheAuthorsSOS`, `hazardQuotaEvictsOldestHazardOnly`, `checkInQuotaIsSeparateAndEvictsSafeBeforeSOS`, `quotasAreCountedPerAuthor`, `globalCapEvictsHazardReportsBeforeSOSCalls`, `reportsAreOrderedSOSFirstThenHazardBySeverityThenSafe`, `expiredReportsAreSwept`, and the memory part of `wipeClearsMemoryAndDisk`. The three Swift persistence tests are not ported (no disk). One extra test: reports signed by `ReportAuthor` (step 3.4) flow through the store, and an SOS followed by "I'm safe" leaves one record. Full suite: 186 passed.
+
 ## 5.4 Warning store: 500 cap, order, wipe — 2026-09-27
 - What: `MAX_ALERTS` (500): when full, the warnings issued earliest are dropped first. The new warning still counts as accepted even if it was the one dropped, so it keeps spreading. Adds `AlertStore.wipe()`.
 - Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertStore.swift` (`Limits.maxAlerts` and the eviction in `ingestAlertLocked`, `wipe`, `ordered`).
