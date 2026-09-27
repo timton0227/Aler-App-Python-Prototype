@@ -24,6 +24,29 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.3 Mesh node — 2026-09-27
+- What: `alertmesh/node.py`, one laptop in a real mesh, with no radio code in it:
+  - frames (version, kind, TTL, packet ID, body), with the iPhone app's kind numbers;
+  - each packet handled once, remembering the last 1000 IDs;
+  - relaying with `mesh_sim.relay_ttl`, the same rule as the simulation;
+  - announces every 30 s, and a "people nearby" list that drops anyone silent for 95 s;
+  - a gossip every 60 s: neighbours are sent every warning and report held, one hop;
+  - `ChatStore`: Nearby plus one conversation per person, each message kept once, unread counts.
+  - Warnings go through the existing `AlertStore` and reports through `ReportStore`, so a forged warning is refused exactly as in the simulation. `take_official` takes warnings from outside the mesh (the Wi-Fi link, step 13.5).
+  - A lock around every public method, because the radio and the page run on different threads.
+- Ported from: modelled on `AlertMesh/Services/BLE/BLEService.swift` (relay with TTL, per-type handling), `AlertMesh/Services/MessageDeduplicationService.swift` (each packet once, LRU of 1000), and GossipSyncManager (neighbours swap what they hold).
+- Differences from Swift:
+  - Gossip sends everything held each minute, instead of first swapping a compact filter of what each side has. That is fine for tens of items; the app's filter scales to thousands.
+  - No store-and-forward courier for private messages to someone out of range: a private message can only go to a person heard from recently.
+  - A warning repeated from Wi-Fi is not relayed again (only new ones are), so the Wi-Fi repeat every 30 s does not flood the Bluetooth.
+- Verified by: `python3 -m pytest tests/test_node.py` — 19 passed, with a fake radio:
+  - A's message reaches C through B, and in a ring it is sent exactly 3 times;
+  - a 12-laptop row: N1 to N7 hear it and N8 does not;
+  - forged messages and forged warnings go no further than the first laptop;
+  - a private message is read only by its recipient and never appears in clear on the air;
+  - a call for help crosses two hops and "I'm safe" replaces it;
+  - a laptop that arrives late gets warnings and reports at the next gossip.
+
 ## 13.2 Chat messages — 2026-09-27
 - What: `alertmesh/chat.py`:
   - `Identity` holds one person's two keys (signing and chat) and nickname; its 64-byte seed is what gets saved. Its signing half also signs that person's reports, so chat and calls for help share one identity.

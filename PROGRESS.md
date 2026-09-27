@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 2 | 9 |
-| **All** | **64** | **72** |
+| 13 Two apps: phone app and warning app | 3 | 9 |
+| **All** | **65** | **72** |
 
 **Next step:** 12.4
 
@@ -301,7 +301,7 @@ to laptops, not to iPhones.
       Swift: `localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift` (`message`, `noiseEncrypted`), `AlertMesh/Services/PrivateChatManager.swift`
       Done when: a signed Nearby message and an encrypted private message round-trip; a changed message, a wrong key and oversize text are refused
       Verify: `python3 -m pytest tests/test_chat.py`
-- [ ] 13.3 Mesh node (`alertmesh/node.py`)
+- [x] 13.3 Mesh node (`alertmesh/node.py`)
       Swift: `AlertMesh/Services/BLE/BLEService.swift` (relay with TTL), `AlertMesh/Services/MessageDeduplicationService.swift`
       Done when: with a fake radio, A's message reaches C through B, never loops, stops at TTL 0, is shown once; SOS and warnings go through the existing stores; a forged warning is refused
       Verify: `python3 -m pytest tests/test_node.py`
