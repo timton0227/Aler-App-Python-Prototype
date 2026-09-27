@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 1.4 Geohash neighbors — 2026-09-27
+- What: `geohash.neighbors()`, in N, NE, E, SE, S, SW, W, NW order.
+- Ported from: `AlertMesh/Protocols/Geohash.swift` (`neighbors(of:)`).
+- Differences from Swift: none. Same centre-offset method, same date-line wrap, same skipping of cells past a pole.
+- Verified by: `python3 -m pytest tests/test_geohash.py -k neighbors` — 4 passed. Includes the Swift pole test (`geohashNeighborsNearPoleSkipOutOfBoundsCells`). A first draft of the test used neighbour cells written from memory, and they were wrong; the test now checks each neighbour's position geometrically instead.
+
 ## 1.3 Geohash decode_bounds and decode_center — 2026-09-27
 - What: `geohash.decode_bounds()` and `geohash.decode_center()`.
 - Ported from: `AlertMesh/Protocols/Geohash.swift` (`decodeBounds`, `decodeCenter`).

@@ -14,7 +14,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | Phase | Done | Total |
 |---|---|---|
 | 0 Setup | 3 | 3 |
-| 1 Geohash | 3 | 4 |
+| 1 Geohash | 4 | 4 |
 | 2 Official alert format | 0 | 10 |
 | 3 Community reports | 0 | 4 |
 | 4 Proximity | 0 | 3 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **6** | **56** |
+| **All** | **7** | **56** |
 
-**Next step:** 1.4
+**Next step:** 2.1
 
 ---
 
@@ -56,7 +56,7 @@ Swift: `AlertMesh/Protocols/Geohash.swift` · tests: `AlertMeshTests/LocationCha
 - [x] 1.3 `decode_bounds` and `decode_center`
       Done when: decoding the encoded point gives a box that contains it
       Verify: `python3 -m pytest tests/test_geohash.py -k decode`
-- [ ] 1.4 `neighbors`
+- [x] 1.4 `neighbors`
       Done when: 8 neighbours away from the poles; fewer near a pole; wraps at longitude ±180
       Verify: `python3 -m pytest tests/test_geohash.py -k neighbors`
 
