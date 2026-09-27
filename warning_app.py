@@ -74,34 +74,47 @@ def town_names() -> list[str]:
     return list(dict.fromkeys(p.name for p in places.towns()))
 
 
-def sidebar() -> None:
-    s = w.scenario
-    st.sidebar.title("Alert Mesh")
-    st.sidebar.caption("A simulated town, plus real phone apps on this network. Nothing here uses the real "
-                       "internet.")
-    st.sidebar.caption(f"Local network: {network().status}")
-    st.sidebar.metric("Simulated time", labels.clock(w.mesh.now_ms), f"minute {w.minutes:g}", delta_color="off")
-    st.sidebar.write("Let time pass, in minutes:")
-    cols = st.sidebar.columns(3)
-    for col, minutes in zip(cols, (1, 5, 15)):
-        col.button(f"+{minutes}", key=f"advance_{minutes}", on_click=w.advance, args=(minutes,),
-                   width="stretch")
+CONSOLE, MAP, BOARD = "Warning console", "Map", "Hub board"
 
-    with st.sidebar.form("town"):
-        st.write("**Build a new town**")
-        names = town_names()
-        town = st.selectbox("Town", names, index=names.index(s.town))
-        n = st.slider("Phones", 50, 600, s.n_phones, step=50)
-        online = st.slider("Share with internet", 0.0, 1.0, s.share_online, step=0.05)
-        moving = st.slider("Share walking about", 0.0, 1.0, s.share_moving, step=0.05)
-        reach = st.slider("Bluetooth reach (m)", 20, 100, int(s.bluetooth_range_m), step=10)
-        seed = st.number_input("Layout number (same number, same town)", 1, 999, s.seed)
-        if st.form_submit_button("Build", width="stretch"):
-            new_town(metrics.Scenario(town=town, n_phones=n, area_m=s.area_m, share_online=online,
-                                      share_moving=moving, bluetooth_range_m=reach, speed_mps=s.speed_mps,
-                                      seed=int(seed)))
-            st.rerun()
-    st.sidebar.caption(places.CREDIT)
+
+def town_settings() -> None:
+    """Build a new simulated town. Tucked into the sidebar: most people never change it."""
+    s = w.scenario
+    with st.sidebar.expander(f"Simulated town: {s.town}, {s.n_phones} phones"):
+        with st.form("town", border=False):
+            names = town_names()
+            town = st.selectbox("Town", names, index=names.index(s.town))
+            n = st.slider("Phones", 50, 600, s.n_phones, step=50)
+            online = st.slider("Share with internet", 0.0, 1.0, s.share_online, step=0.05)
+            moving = st.slider("Share walking about", 0.0, 1.0, s.share_moving, step=0.05)
+            reach = st.slider("Bluetooth reach (m)", 20, 100, int(s.bluetooth_range_m), step=10)
+            seed = st.number_input("Layout number (same number, same town)", 1, 999, s.seed)
+            if st.form_submit_button("Build", width="stretch"):
+                new_town(metrics.Scenario(town=town, n_phones=n, area_m=s.area_m, share_online=online,
+                                          share_moving=moving, bluetooth_range_m=reach, speed_mps=s.speed_mps,
+                                          seed=int(seed)))
+                st.rerun()
+        st.caption("A simulated town, plus real phone apps on this network. Nothing here uses the real internet.")
+        st.caption(places.CREDIT)
+
+
+def clock_box() -> None:
+    """The simulated clock at the foot of the sidebar. Time there only moves when asked."""
+    with st.sidebar.container(key="am_foot"):
+        st.markdown(f'<div class="am-muted am-hide-compact" style="font-size:12px">Simulated time · minute '
+                    f'{w.minutes:g}</div><div class="am-clock">{labels.clock(w.mesh.now_ms)}</div>',
+                    unsafe_allow_html=True)
+        with st.container(horizontal=True, gap="small", key="am_advance"):
+            for minutes in (1, 5, 15):
+                st.button(f"+{minutes}", key=f"advance_{minutes}", on_click=w.advance, args=(minutes,),
+                          help=f"Let {minutes} simulated minutes pass")
+
+
+def status_bar() -> None:
+    on = network().status == "on"
+    words = ("Local network on · warnings go to phone apps on this network" if on
+             else f"Local network {network().status}")
+    style.status_bar([(on, words)], "Signed with the development key")
 
 
 # --- Warning console (IssueWarningView) -----------------------------------------
@@ -172,18 +185,20 @@ def byte_count(title: str, text: str, limit: int) -> None:
 
 
 def preview_card(draft: WarningDraft) -> None:
-    """Roughly what a phone shows: level and hazard on the level's colour, then the
-    headline and what to do."""
+    """The warning as a phone in the area shows it: the solid block in the level's colour
+    (NowView.affectedBlock), then what to do."""
     level = style.LEVEL[draft.severity]
-    title = f"{labels.SEVERITY_NAMES[draft.severity]} · {labels.hazard_name(draft.hazard)}"
-    headline = html.escape(draft.headline.strip()) or '<span style="opacity:.5">Headline</span>'
-    action = html.escape(draft.action_text.strip()) or "What to do"
+    headline = style.esc(draft.headline.strip()) or '<span style="opacity:.6">Headline</span>'
+    action = style.esc(draft.action_text.strip()) or '<span style="opacity:.6">What to do</span>'
     st.markdown(hub.one_line(f"""
-<div class="am-card am-border-{level}" style="padding:0;overflow:hidden">
-  <div class="am-fill-{level}" style="padding:10px 18px;font-weight:700">{title}</div>
-  <div style="padding:10px 18px 14px"><div class="am-headline" style="font-size:18px">{headline}</div>
-  <div class="am-muted">{action}</div></div>
-</div>"""), unsafe_allow_html=True)
+<div class="am-block am-fill-{level}">{style.symbol_on_fill(draft.severity)}
+<span class="am-lvl">{labels.SEVERITY_NAMES[draft.severity]}</span>
+<span class="am-stand">You are in this area</span>
+<span class="am-headline">{headline}</span>
+<span class="am-meta"><span>{labels.hazard_name(draft.hazard)}</span><span>For {int(draft.duration_hours)} hours</span></span>
+</div>
+<div class="am-card am-border-{level}"><div class="am-section">What to do</div>
+<div class="am-action">{action}</div></div>"""), unsafe_allow_html=True)
 
 
 def places_by_distance() -> list:
@@ -200,11 +215,14 @@ def console_tab() -> None:
     if state.c_editing is not None and editing_alert() is None:
         stop_editing()  # the warning being updated ended or was cancelled meanwhile
 
+    if w.console.last_outcome is not None:
+        st.info(outcome_text(w.console.last_outcome), icon=":material/send:")
     st.caption("You play the Bureau or a government agency. Write a warning, pick its area, check the "
                "preview, send. It is signed with the development key, which phones in this demo trust.")
     left, right = st.columns([5, 6], gap="large")
     with left:
-        st.subheader("Update warning" if state.c_editing else "New warning")
+        st.markdown(f'<div class="am-section">{"Update warning" if state.c_editing else "New warning"}</div>',
+                    unsafe_allow_html=True)
         if state.c_editing:
             st.button("Start a new warning", on_click=stop_editing)
 
@@ -217,7 +235,7 @@ def console_tab() -> None:
         st.text_area("What to do", key="c_action", height=80, label_visibility="collapsed")
         st.number_input("Lasts (hours)", DURATION_RANGE.start, DURATION_RANGE.stop - 1, key="c_hours")
 
-        st.markdown("**Area**")
+        st.markdown('<div class="am-section">Area</div>', unsafe_allow_html=True)
         options = places_by_distance()
         lat, lon = w.centre
         place = st.selectbox(
@@ -237,7 +255,6 @@ def console_tab() -> None:
             st.caption("Pick a place and a size, then add it. Up to 4 areas.")
 
         draft = draft_from_form()
-        preview_card(draft)
         for problem in draft.problems:
             st.markdown(f":gray[:material/error: {PROBLEM_TEXT[problem]}]")
 
@@ -253,12 +270,14 @@ def console_tab() -> None:
             where = "on every phone in the area?" if updating else "to every phone in the area?"
             st.warning(f"**{verb} {level} {where}**\n\n{CONFIRM_BODY}")
             with st.container(horizontal=True):
-                st.button("Send update" if updating else "Send warning", type="primary", on_click=send)
-                st.button("Back", on_click=lambda: state.update(c_confirm=False))
-        if w.console.last_outcome is not None:
-            st.info(outcome_text(w.console.last_outcome), icon=":material/send:")
+                for draw in style.button_order(
+                        lambda: st.button("Send update" if updating else "Send warning", type="primary", on_click=send),
+                        lambda: st.button("Back", on_click=lambda: state.update(c_confirm=False))):
+                    draw()
 
     with right:
+        st.markdown('<div class="am-section">As phones in the area show it</div>', unsafe_allow_html=True)
+        preview_card(draft)
         st.caption("The area picked so far. The black dot is the evacuation centre.")
         st.plotly_chart(viz.area_map(draft.area_cells, labels.SEVERITY_FILL[draft.severity], w.centre),
                         width="stretch", key="console_map", config=MAP_CONFIG)
@@ -266,29 +285,34 @@ def console_tab() -> None:
 
 
 def live_list() -> None:
-    st.subheader("Live warnings")
+    st.markdown('<div class="am-section">Live warnings</div>', unsafe_allow_html=True)
     alerts = w.live_warnings()
     if not alerts:
         st.caption("No live warnings.")
     for alert in alerts:
-        with st.container(border=True):
-            st.markdown(f'<span class="am-t-{style.LEVEL[alert.severity]}" style="font-weight:700">'
-                        f'{labels.title(alert)}</span> '
-                        f"&nbsp;**{html.escape(alert.headline)}**", unsafe_allow_html=True)
-            st.caption(f"{labels.until(alert.expires_at, w.mesh.now_ms)} · {', '.join(alert.area_cells)}")
-            key = alert.alert_id.hex()
-            if state.c_cancelling == alert.alert_id:
-                st.warning("**Cancel this warning on every phone?**")
-                with st.container(horizontal=True):
-                    st.button("Cancel warning", key=f"cancel_yes_{key}", type="primary", on_click=cancel,
-                              args=(alert,))
-                    st.button("Keep it", key=f"cancel_no_{key}", on_click=lambda: state.update(c_cancelling=None))
-                continue
+        level = style.LEVEL[alert.severity]
+        st.markdown(hub.one_line(f"""
+<div class="am-card am-other" style="margin-bottom:0"><span class="am-colourbar am-bar-{level}"></span><div>
+<div class="am-level am-t-{level}">{style.symbol(alert.severity, "var(--am-card)")}{labels.title(alert)}</div>
+<div class="am-headline">{style.esc(alert.headline)}</div>
+<div class="am-muted">{labels.until(alert.expires_at, w.mesh.now_ms)} · {", ".join(alert.area_cells)}</div>
+</div></div>"""), unsafe_allow_html=True)
+        key = alert.alert_id.hex()
+        if state.c_cancelling == alert.alert_id:
+            st.warning("**Cancel this warning on every phone?**")
             with st.container(horizontal=True):
-                st.button("Update…", key=f"update_{key}", on_click=start_update, args=(alert,))
-                st.button("Send again", key=f"resend_{key}", on_click=w.console.resend, args=(alert,))
-                st.button("Cancel warning", key=f"cancel_{key}",
-                          on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
+                for draw in style.button_order(
+                        lambda: st.button("Cancel warning", key=f"cancel_yes_{key}", type="primary", on_click=cancel,
+                                          args=(alert,)),
+                        lambda: st.button("Keep it", key=f"cancel_no_{key}",
+                                          on_click=lambda: state.update(c_cancelling=None))):
+                    draw()
+            continue
+        with st.container(horizontal=True):
+            st.button("Update…", key=f"update_{key}", on_click=start_update, args=(alert,))
+            st.button("Send again", key=f"resend_{key}", on_click=w.console.resend, args=(alert,))
+            st.button("Cancel warning", key=f"cancel_{key}",
+                      on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
 
 
 # --- Map ----------------------------------------------------------------------
@@ -349,7 +373,7 @@ def map_tab() -> None:
 
 def hub_tab() -> None:
     st.caption("The evacuation centre's wall display: every live warning its Mac holds, the most serious in "
-               "large type. For a hall, collapse the sidebar and make the browser full screen. It changes "
+               "large type. It stays black whatever the system's setting, for a projector in a hall. It changes "
                "only when time passes or something is sent.")
     st.markdown(hub.board_html(w.board(), w.mesh.now_ms), unsafe_allow_html=True)
 
@@ -357,11 +381,15 @@ def hub_tab() -> None:
 # --- Page -----------------------------------------------------------------------
 
 style.inject()
-sidebar()
-console, spread, board = st.tabs(["Warning console", "Map", "Hub board"])
-with console:
-    console_tab()
-with spread:
+view = style.nav([(CONSOLE, ":material/edit_note:"), (MAP, ":material/map:"), (BOARD, ":material/tv:")], {},
+                 "Warnings")
+town_settings()
+clock_box()
+status_bar()
+style.page_title(view)
+if view == MAP:
     map_tab()
-with board:
+elif view == BOARD:
     hub_tab()
+else:
+    console_tab()

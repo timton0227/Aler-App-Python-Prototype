@@ -157,7 +157,7 @@ CSS = f"""
 .am-pagetitle{{font-size:22px;font-weight:700;line-height:1.2;margin:0 0 6px;}}
 .st-key-am_foot{{position:fixed;bottom:34px;left:10px;width:200px;z-index:2;border-top:1px solid var(--am-sep);
   padding-top:8px;}}
-.st-key-am_foot button{{justify-content:flex-start;border:0;background:transparent;text-align:left;}}
+.st-key-open_settings button{{justify-content:flex-start;border:0;background:transparent;text-align:left;}}
 .am-statusbar{{position:fixed;left:0;right:0;bottom:0;height:26px;z-index:1000000;display:flex;align-items:center;
   gap:18px;padding:0 14px;font-size:12px;color:var(--am-ink-2);background:var(--am-sidebar);
   border-top:1px solid var(--am-sep);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}}
@@ -187,8 +187,10 @@ CSS = f"""
   .stSidebar [class*="st-key-nav_"] button p{{font-size:11px;text-align:center;}}
   .stSidebar [class*="st-key-nav_"] [data-testid="stIconMaterial"]{{font-size:22px;}}
   .st-key-am_foot{{left:6px;width:64px;}}
-  .st-key-am_foot button{{justify-content:center;}}
-  .st-key-am_foot button p,.st-key-am_foot .am-hide-compact{{display:none;}}
+  .st-key-open_settings button{{justify-content:center;}}
+  .st-key-am_foot [class*="st-key-open_"] button p,.st-key-am_foot .am-hide-compact{{display:none;}}
+  .am-clock{{font-size:14px;text-align:center;}}
+  .st-key-am_advance{{flex-direction:column;}}
   .st-key-am_helpbar{{left:76px;padding:10px 20px;}}
 }}
 
@@ -247,6 +249,14 @@ CSS = f"""
 [class*="st-key-chat_"] .stMarkdownBadge{{background-color:var(--am-blue)!important;color:#fff!important;
   border-radius:10px;padding:0 6px;margin-left:6px;}}
 [data-testid="stChatInput"]{{border-radius:18px;}}
+
+/* Warning app: the simulated clock at the foot of the sidebar, and Cancel in red. */
+.am-clock{{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;}}
+.st-key-am_advance button{{min-height:28px;padding:2px 10px;border-radius:7px;}}
+.st-key-am_advance button p{{font-size:12.5px;}}
+[class*="st-key-cancel_"]:not([class*="st-key-cancel_yes_"]):not([class*="st-key-cancel_no_"]) button p{{
+  color:var(--am-red-text);}}
+[class*="st-key-cancel_yes_"] button{{background:var(--am-red);border-color:var(--am-red);color:#fff;}}
 
 /* Side columns move under the main column in a narrow window. */
 @media (max-width:1100px){{

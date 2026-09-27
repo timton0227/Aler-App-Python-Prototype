@@ -30,6 +30,11 @@ def button(at: AppTest, label: str):
     return next(b for b in at.button if b.label == label)
 
 
+def show(at: AppTest, view: str) -> None:
+    at.button(key="nav_" + view.lower().replace(" ", "_")).click().run()
+    assert not at.exception and at.session_state["view"] == view
+
+
 def fill_warning(at: AppTest) -> None:
     at.selectbox(key="c_hazard").set_value(HazardType.BUSHFIRE)
     at.radio(key="c_level").set_value(Severity.EMERGENCY_WARNING)
@@ -49,7 +54,10 @@ def send(at: AppTest, first: str = "Send warning…", confirm: str = "Send warni
 
 
 def test_the_page_opens_on_the_console(app):
-    assert [t.label for t in app.tabs][0] == "Warning console"
+    assert [b.key for b in app.sidebar.button if b.key.startswith("nav_")] == [
+        "nav_warning_console", "nav_map", "nav_hub_board"]
+    assert app.session_state["view"] == "Warning console"
+    assert "Local network on" in " ".join(m.value for m in app.markdown)
     assert app.session_state.world.minutes == 0
     assert button(app, "Send warning…").disabled  # an empty draft cannot be sent
     assert any("Write a headline." in m.value for m in app.markdown)
@@ -113,13 +121,21 @@ def test_offline_the_console_says_so(app):
 def test_time_passes_only_when_asked(app):
     button(app, "+5").click().run()
     assert app.session_state.world.minutes == 5
+    assert "minute 5" in " ".join(m.value for m in app.sidebar.markdown)
+
+
+def test_the_preview_shows_the_block_phones_in_the_area_show(app):
+    fill_warning(app)
+    shown = " ".join(m.value for m in app.markdown)
+    assert 'class="am-block am-fill-e"' in shown and "Bushfire near Katherine - leave now" in shown
+    assert "Go to the evacuation centre on Giles Street." in shown
 
 
 # --- Map ---
 
 
 def test_the_map_waits_for_a_warning(app):
-    assert [t.label for t in app.tabs][:2] == ["Warning console", "Map"]
+    show(app, "Map")
     assert any("No warning yet" in i.value for i in app.info)
 
 
@@ -128,6 +144,7 @@ def test_the_map_shows_how_far_a_warning_has_got_and_plays_minutes(app):
     send(app)
     world = app.session_state.world
     [alert] = world.live_warnings()
+    show(app, "Map")
     assert app.selectbox(key="m_alert").value == alert.alert_id
     phones = int(next(m for m in app.metric if m.label.startswith("Warned")).value)
     assert 0 < phones <= world.scenario.n_phones
@@ -186,10 +203,12 @@ def test_cancelling_reaches_phone_apps(app, heard):
 
 
 def test_the_board_is_empty_then_shows_the_warning(app):
-    assert "Hub board" in [t.label for t in app.tabs]
+    show(app, "Hub board")
     assert any("No current warnings" in m.value for m in app.markdown)
+    show(app, "Warning console")
     fill_warning(app)
     send(app)
+    show(app, "Hub board")
     board = next(m.value for m in app.markdown if "Evacuation centre board" in m.value)
     assert "Emergency Warning · Bushfire" in board
     assert "Bushfire near Katherine - leave now" in board

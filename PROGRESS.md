@@ -27,8 +27,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
-| 14 Desktop look: the iPhone app's style, on Mac and Windows | 4 | 7 |
-| **All** | **74** | **79** |
+| 14 Desktop look: the iPhone app's style, on Mac and Windows | 5 | 7 |
+| **All** | **75** | **79** |
 
 **Next step:** 12.4
 
@@ -359,7 +359,7 @@ How each page looks is checked by eye against the mockup, in light and dark.
       Swift: `AlertMesh/AlertMesh/Views/CommunityReportsView.swift`, `CommunityReportStyle.swift`, `SOSView.swift`, `ChatBubbleRow.swift`
       Done when: hazard reports are grey and calls for help red; chat shows bubbles (yours blue on the right, others grey on the left, name above the first of a run, time under the last); "I need help" opens a sheet with the iPhone's wording, its main button last on a Mac and first on Windows
       Verify: `python3 -m pytest tests/test_phone_app.py`
-- [ ] 14.5 Warning app in the same style
+- [x] 14.5 Warning app in the same style
       Swift: `AlertMesh/AlertMesh/Views/IssueWarningView.swift`, `HubBoardView.swift`
       Done when: Console, Map and Hub board are in a sidebar with the simulated clock at its foot; the console has the form on the left and the phone preview and live warnings on the right; the Hub board stays black in light mode
       Verify: `python3 -m pytest tests/test_warning_app.py`; then check by eye

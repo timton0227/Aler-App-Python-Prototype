@@ -101,3 +101,13 @@ def test_the_board_is_one_line_so_markdown_never_turns_it_into_code():
                          live.issued_at, live.expires_at, live.signature)
     for b in (hub.board([bare], 0), hub.board([], 0), hub.board(make_store(list(Severity)).live_alerts(), 2)):
         assert "\n" not in hub.board_html(b, NOW_MS)
+
+
+def test_the_board_stays_black_with_the_apps_dark_colours():
+    """Shown on a projector in a hall: black whatever the system's light or dark setting,
+    with the iPhone app's colours made for a dark background (docs/desktop-design.md)."""
+    html = hub.board_html(hub.board(make_store(list(Severity)).live_alerts(), 2), NOW_MS)
+    assert html.startswith('<div class="am-board" style="background:#000000;color:#FFFFFF')
+    assert "background:#FF9426" in html  # Watch and Act's dark-mode fill, on a row's bar
+    assert "color:#FFD84D" in html       # Advice's dark-mode text colour
+    assert "background:#BF1A1A;color:#FFFFFF" in html  # the Emergency Warning hero: white on red

@@ -24,6 +24,28 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.5 Warning app in the same style — 2026-09-27
+- What:
+  - Warning console, Map and Hub board are tabs in the sidebar, like the phone app's.
+  - The simulated clock and its +1, +5 and +15 minute buttons sit at the sidebar's foot. "Build a new town" is folded into a "Simulated town" section under the tabs.
+  - A status bar says whether the local network is on and that warnings are signed with the development key.
+  - Console:
+    - the result of the last send at the top, in its usual wording;
+    - the form on the left;
+    - on the right: the warning as phones in the area show it (the solid block and "What to do", as on Now), the area map, and the live warnings as grey cards with a colour bar, with Update…, Send again and a red Cancel warning.
+    The confirm and cancel prompts put their buttons in the system's order.
+  - Hub board (`alertmesh/hub.py`): black whatever the system's light or dark setting, with the iPhone app's dark colours: the fills on the hero and row bars, the text colours for level names. Rows are dark grey cards; calls for help are in a red-bordered card.
+- Ported from: `IssueWarningView.swift` (console layout and preview), `HubBoardView.swift` (the board), as written down in `docs/desktop-design.md`.
+- Differences from Swift:
+  - The console's preview shows the block a phone *in* the area shows. The Mac console's preview is its own card.
+  - The Hub board used to be black text on white, chosen for projectors. The design moves it to black, with colours made for a dark background.
+- Verified by:
+  - `python3 -m pytest tests/test_warning_app.py tests/test_hub.py` — 23 passed (2 new: the preview block, the black board with dark colours). The tab tests now switch pages with the sidebar buttons, since only the open page is drawn. The clock test also checks the sidebar's minute.
+  - `python3 -m pytest -q` — 468 passed, 2 skipped. The page tests also pass with Streamlit 1.51.0.
+  - Checked by eye in headless Chromium, in light and dark:
+    - wrote and sent an Emergency Warning;
+    - saw the preview, the live warning with its red Cancel, and the black Hub board.
+
 ## 14.4 Report, Chat and the call-for-help sheet like the iPhone — 2026-09-27
 - What:
   - **Call for help**: "I need help" opens a sheet with the iPhone's wording:
