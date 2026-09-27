@@ -16,7 +16,9 @@ This is free and unencumbered software released into the public domain.
 """
 from dataclasses import dataclass, field
 
-from alertmesh import metrics, places, wire
+import pandas as pd
+
+from alertmesh import geohash, metrics, places, proximity, viz, wire
 from alertmesh.console import Console
 from alertmesh.mesh_sim import OFFICIAL_ALERT_TYPE, Mesh, Phone
 
@@ -64,6 +66,40 @@ class World:
 
     def advance(self, minutes: float) -> None:
         self.mesh.run(minutes * 60)
+
+    # --- How far a warning has got (the map tab) ---
+
+    def phones_now(self, alert_id: bytes) -> pd.DataFrame:
+        """Every phone (not the centre) and whether it has the warning, at this minute."""
+        rows = [r for r in viz.phone_status(self.mesh, alert_id) if r["phone"] != HUB_ID]
+        return pd.DataFrame(rows).assign(minute=round(self.minutes))
+
+    def play(self, alert_id: bytes, minutes: int) -> pd.DataFrame:
+        """Let `minutes` pass, recording every phone each minute, labelled with the
+        town's own minutes. Time really moves on, as with the + buttons."""
+        start = round(self.minutes)
+        frames = viz.spread_frames(self.mesh, alert_id, minutes)
+        return frames[frames["phone"] != HUB_ID].assign(minute=frames["minute"] + start)
+
+    def spread(self, alert_id: bytes) -> dict[str, int]:
+        """Counts for one warning: phones by status, phones inside its area and how
+        many of those have it, and how many were told loudly."""
+        alert = self.sent[alert_id]
+        phones = [p for p in self.mesh.phones.values() if p.id != HUB_ID]
+        counts = {status: 0 for status in viz.STATUS_COLOURS}
+        for row in viz.phone_status(self.mesh, alert_id):
+            if row["phone"] != HUB_ID:
+                counts[row["status"]] += 1
+        # Where the phone really is, whatever its location setting.
+        inside = [p for p in phones
+                  if proximity.match(geohash.encode(p.lat, p.lon, 8), alert.area_cells)[0] == proximity.Match.INSIDE]
+        return {
+            **counts,
+            "phones": len(phones),
+            "in area": len(inside),
+            "in area warned": sum(alert_id in p.first_heard_ms for p in inside),
+            "told loudly": sum(p.loudest(alert_id) >= proximity.Urgency.LOUD for p in phones),
+        }
 
     # --- Console wiring ---
 

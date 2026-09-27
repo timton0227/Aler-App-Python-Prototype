@@ -25,6 +25,9 @@ st.set_page_config(page_title="Alert Mesh prototype", layout="wide")
 
 state = st.session_state
 
+# The mouse wheel scrolls the page, not the map; the maps zoom with their + and - buttons.
+MAP_CONFIG = {"scrollZoom": False}
+
 
 # --- The town -----------------------------------------------------------------
 
@@ -177,10 +180,9 @@ def console_tab() -> None:
                "preview, send. It is signed with the development key, which phones in this demo trust.")
     left, right = st.columns([5, 6], gap="large")
     with left:
-        head, button = st.columns([3, 2])
-        head.subheader("Update warning" if state.c_editing else "New warning")
+        st.subheader("Update warning" if state.c_editing else "New warning")
         if state.c_editing:
-            button.button("Start a new warning", on_click=stop_editing)
+            st.button("Start a new warning", on_click=stop_editing)
 
         st.selectbox("Hazard", list(HazardType), format_func=labels.hazard_name, key="c_hazard")
         st.radio("Warning level", list(Severity), format_func=labels.SEVERITY_NAMES.get, horizontal=True,
@@ -194,21 +196,19 @@ def console_tab() -> None:
         st.markdown("**Area**")
         options = places_by_distance()
         lat, lon = w.centre
-        pick, size = st.columns([3, 2])
-        place = pick.selectbox(
-            "Place", options, key="c_place", label_visibility="collapsed",
+        place = st.selectbox(
+            "Place (nearest first)", options, key="c_place",
             format_func=lambda p: f"{p.name} ({places.distance_km(lat, lon, p.latitude, p.longitude):.0f} km away)")
-        area_size = size.selectbox("Area size", list(AreaSize), index=2, format_func=AREA_SIZE_NAMES.get,
-                                   key="c_size", label_visibility="collapsed")
-        add, whole = st.columns(2)
-        add.button("Add or remove this area", on_click=toggle_place, args=(place, area_size),
-                   width="stretch")
-        whole.button("Cover the simulated town", on_click=lambda: state.update(c_cells=w.town_cells()),
-                     width="stretch")
+        area_size = st.selectbox("Area size", list(AreaSize), index=2, format_func=AREA_SIZE_NAMES.get, key="c_size")
+        # Rows of buttons wrap onto the next line in a narrow window.
+        with st.container(horizontal=True):
+            st.button("Add or remove this area", on_click=toggle_place, args=(place, area_size))
+            st.button("Cover the simulated town", on_click=lambda: state.update(c_cells=w.town_cells()))
         if state.c_cells:
-            for col, cell in zip(st.columns(4), state.c_cells):
-                col.button(cell, key=f"remove_{cell}", icon=":material/close:", help="Remove this area",
-                           on_click=remove_cell, args=(cell,), width="stretch")
+            with st.container(horizontal=True):
+                for cell in state.c_cells:
+                    st.button(cell, key=f"remove_{cell}", icon=":material/close:", help="Remove this area",
+                              on_click=remove_cell, args=(cell,))
         else:
             st.caption("Pick a place and a size, then add it. Up to 4 areas.")
 
@@ -228,17 +228,16 @@ def console_tab() -> None:
             verb = "Update this" if updating else "Send this"
             where = "on every phone in the area?" if updating else "to every phone in the area?"
             st.warning(f"**{verb} {level} {where}**\n\n{CONFIRM_BODY}")
-            yes, no = st.columns(2)
-            yes.button("Send update" if updating else "Send warning", type="primary", on_click=send,
-                       width="stretch")
-            no.button("Back", on_click=lambda: state.update(c_confirm=False), width="stretch")
+            with st.container(horizontal=True):
+                st.button("Send update" if updating else "Send warning", type="primary", on_click=send)
+                st.button("Back", on_click=lambda: state.update(c_confirm=False))
         if w.console.last_outcome is not None:
             st.info(outcome_text(w.console.last_outcome), icon=":material/send:")
 
     with right:
         st.caption("The area picked so far. The black dot is the evacuation centre.")
         st.plotly_chart(viz.area_map(draft.area_cells, labels.SEVERITY_FILL[draft.severity], w.centre),
-                        width="stretch", key="console_map")
+                        width="stretch", key="console_map", config=MAP_CONFIG)
         live_list()
 
 
@@ -256,23 +255,76 @@ def live_list() -> None:
             key = alert.alert_id.hex()
             if state.c_cancelling == alert.alert_id:
                 st.warning("**Cancel this warning on every phone?**")
-                yes, no = st.columns(2)
-                yes.button("Cancel warning", key=f"cancel_yes_{key}", type="primary", on_click=cancel,
-                           args=(alert,), width="stretch")
-                no.button("Keep it", key=f"cancel_no_{key}", width="stretch",
-                          on_click=lambda: state.update(c_cancelling=None))
+                with st.container(horizontal=True):
+                    st.button("Cancel warning", key=f"cancel_yes_{key}", type="primary", on_click=cancel,
+                              args=(alert,))
+                    st.button("Keep it", key=f"cancel_no_{key}", on_click=lambda: state.update(c_cancelling=None))
                 continue
-            a, b, c = st.columns(3)
-            a.button("Update…", key=f"update_{key}", on_click=start_update, args=(alert,), width="stretch")
-            b.button("Send again", key=f"resend_{key}", on_click=w.console.resend, args=(alert,),
-                     width="stretch")
-            c.button("Cancel warning", key=f"cancel_{key}", width="stretch",
-                     on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
+            with st.container(horizontal=True):
+                st.button("Update…", key=f"update_{key}", on_click=start_update, args=(alert,))
+                st.button("Send again", key=f"resend_{key}", on_click=w.console.resend, args=(alert,))
+                st.button("Cancel warning", key=f"cancel_{key}",
+                          on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
+
+
+# --- Map ----------------------------------------------------------------------
+
+
+def warning_label(alert_id: bytes) -> str:
+    alert = w.sent[alert_id]
+    live = any(a.alert_id == alert_id for a in w.live_warnings())
+    return f"{labels.title(alert)}: {alert.headline}" + ("" if live else " (ended or cancelled)")
+
+
+def play(alert_id: bytes, minutes: int) -> None:
+    state.m_played = (alert_id, w.play(alert_id, minutes), w.mesh.now_ms)
+
+
+def map_tab() -> None:
+    st.caption("Every dot is a phone. Blue phones read the warning on the internet; red phones got it over "
+               "Bluetooth, from a phone nearby or one that walked past. The black dot is the evacuation centre.")
+    if not w.sent:
+        st.info("No warning yet. Send one from the Warning console, then watch it spread here.")
+        alert_id, alert = b"", None
+    else:
+        ids = list(reversed(w.sent))  # newest first
+        alert_id = st.selectbox("Warning", ids, format_func=warning_label, key="m_alert")
+        alert = w.sent[alert_id]
+
+    extra = []
+    if alert is not None:
+        extra += viz.area_traces(alert.area_cells, labels.SEVERITY_FILL[alert.severity])
+    extra += [viz.centre_trace(w.centre)]
+
+    played = state.get("m_played")
+    if played and played[0] == alert_id and played[2] == w.mesh.now_ms:
+        frames = played[1]
+        st.caption("Press ▶ to play the minutes that just passed, or drag the slider.")
+    else:
+        frames = w.phones_now(alert_id)
+    _, zoom = viz.fit_zoom(list(zip(frames["lat"], frames["lon"])), maximum=15.5)
+    st.plotly_chart(viz.spread_map(frames, zoom=zoom, extra_traces=extra), key="spread_map", config=MAP_CONFIG)
+
+    if alert is not None:
+        counts = w.spread(alert_id)
+        a, b, c, d = st.columns(4)
+        a.metric(f"Warned, of {counts['phones']}", counts["phones"] - counts["not warned yet"],
+                 help="Phones holding the warning")
+        b.metric(f"In area, of {counts['in area']}", counts["in area warned"],
+                 help="Phones inside the warning area that hold it")
+        c.metric("Told loudly", counts["told loudly"], help="Phones that showed a loud notification")
+        d.metric("Via Bluetooth", counts["warned by Bluetooth"],
+                 help="Phones with no internet that got it from another phone")
+        minutes = st.slider("Minutes to play", 1, 30, 10, key="m_minutes")
+        st.button(f"Let {minutes} minutes pass and record them", type="primary", on_click=play,
+                  args=(alert_id, minutes))
 
 
 # --- Page -----------------------------------------------------------------------
 
 sidebar()
-(console,) = st.tabs(["Warning console"])
+console, spread = st.tabs(["Warning console", "Map"])
 with console:
     console_tab()
+with spread:
+    map_tab()

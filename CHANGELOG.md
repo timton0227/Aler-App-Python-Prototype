@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 10.2 Streamlit: map tab — 2026-09-27
+- What: the page's second tab. Pick any warning the console has sent (newest first, marked "(ended or cancelled)" when no longer live). The map shows every phone in the simulated town: blue = warned by internet, red = got it over Bluetooth, grey = not warned yet. It also shows the warning area in the level's colour and the evacuation centre as a black dot. Four counts sit under the map:
+  - warned, out of all phones;
+  - warned inside the area, out of the phones in it;
+  - told loudly;
+  - got it over Bluetooth.
+
+  "Let N minutes pass and record them" (1–30) moves the town's time on and records every minute. ▶ then plays those minutes, or drag the slider. New in `world.py`: `phones_now`, `play` (frames labelled with the town's own minutes) and `spread` (the counts). New in `viz.py`: `area_traces`, `centre_trace` and `fit_zoom`. `spread_map` shows a single moment with no play controls.
+- Ported from: new (no Swift screen shows the simulation). Builds on step 9.3's `spread_frames` and the 9.3 fix to `spread_map`.
+- Differences from Swift: not applicable.
+- Verified by: `python3 -m pytest tests/test_world.py tests/test_app.py -k "map or spread or play"` passed. These include a headless page test (send, then "Let 10 minutes pass": time moves 10 minutes, frames cover minutes 0 to 10, and the count rises) and tests that the counts add up and the frames use the town's own minutes. The full suite passed 309, and the notebook still runs (`nbconvert --execute`, no errors).
+
+  By eye in the browser pane: sent an Emergency Warning covering the town, then played 10 minutes. At minute 10: 272 of 300 warned (91%, the same as the notebook's town), 272 told loudly, 242 over Bluetooth. ▶ played minutes 0 to 10 with the colours correct. The same check found and fixed five things:
+  - The mouse wheel zoomed the maps instead of scrolling the page, so the page's maps no longer zoom on scroll; their + and − buttons still work.
+  - The counts were cut off in a narrow window, so their labels are now shorter, with the full wording on hover.
+  - The play controls overlapped the map's credit line, so they now sit below it.
+  - The slider's "minute" label sat under the buttons, so it moved to the right.
+  - Rows of buttons were squeezed letter by letter in a narrow window, so they now wrap to the next line, and the place and area-size pickers are stacked.
+
 ## 9.3 (fix) The spread map keeps its colours while it plays — 2026-09-27
 - What: `viz.spread_map` now builds the animated map itself, with one trace per status ("warned by internet", "warned by Bluetooth", "not warned yet") in every frame, even an empty one. Before, it used Plotly Express, which leaves a status out of any minute where no phone has it. Plotly animates traces by position, so from that minute on the phones would take the wrong colour, or not show at all. The notebook's town happened to have all three statuses in every minute, so its map was right. The page's map starts before anyone is warned, so it would have been wrong. It also takes `extra_traces` (such as the warning area), which stay the same in every frame, and puts the play button and slider below the map instead of over the map's credit line.
 - Ported from: not applicable (drawing fix).

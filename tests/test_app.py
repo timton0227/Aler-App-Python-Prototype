@@ -107,3 +107,29 @@ def test_offline_the_console_says_so(app):
 def test_time_passes_only_when_asked(app):
     button(app, "+5").click().run()
     assert app.session_state.world.minutes == 5
+
+
+# --- Map ---
+
+
+def test_the_map_waits_for_a_warning(app):
+    assert [t.label for t in app.tabs] == ["Warning console", "Map"]
+    assert any("No warning yet" in i.value for i in app.info)
+
+
+def test_the_map_shows_how_far_a_warning_has_got_and_plays_minutes(app):
+    fill_warning(app)
+    send(app)
+    world = app.session_state.world
+    [alert] = world.live_warnings()
+    assert app.selectbox(key="m_alert").value == alert.alert_id
+    phones = int(next(m for m in app.metric if m.label.startswith("Warned")).value)
+    assert 0 < phones <= world.scenario.n_phones
+
+    button(app, "Let 10 minutes pass and record them").click().run()
+    assert not app.exception
+    assert world.minutes == 10
+    played_id, frames, _ = app.session_state.m_played
+    assert played_id == alert.alert_id
+    assert sorted(frames["minute"].unique()) == list(range(11))
+    assert int(next(m for m in app.metric if m.label.startswith("Warned")).value) > phones

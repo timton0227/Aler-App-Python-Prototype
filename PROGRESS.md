@@ -23,11 +23,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 3 | 3 |
 | 9 Notebook | 8 | 8 |
-| 10 Streamlit | 1 | 4 |
+| 10 Streamlit | 2 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **52** | **58** |
+| **All** | **53** | **58** |
 
-**Next step:** 10.2
+**Next step:** 10.3
 
 ---
 
@@ -225,7 +225,10 @@ Streamlit's test runner, no browser), then `streamlit run app.py` and check the 
       tests: `OfficialAlertIssuerTests.swift`, `IssueWarningViewTests.swift`
       Done when: a warning written on the page is signed, goes out over Bluetooth from the evacuation centre and to the internet, and is listed as live; update, send again and cancel work
       Verify: `python3 -m pytest tests/test_console.py tests/test_world.py tests/test_app.py`, then send a warning in the browser
-- [ ] 10.2 Map tab (phones light up as the warning spreads)
+- [x] 10.2 Map tab (phones light up as the warning spreads)
+      Swift: none (the simulation view is new); it uses the step 9.3 map
+      Done when: a sent warning's spread shows on the map with its area and the evacuation centre; "Let N minutes pass" records every minute and ▶ plays them; the counts match the phones
+      Verify: `python3 -m pytest tests/test_world.py tests/test_app.py -k "map or spread or play"`, then send a warning and play 10 minutes in the browser
 - [ ] 10.3 Phone view tab (one phone's alerts and the loud/quiet reason)
 - [ ] 10.4 Hub board tab (large-type board with the SOS list)
 

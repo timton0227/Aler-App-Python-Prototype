@@ -102,3 +102,32 @@ def test_every_level_and_hazard_has_words_and_colours():
     for hazard in HazardType:
         assert labels.hazard_name(hazard) != labels.UNKNOWN_HAZARD
     assert labels.hazard_name(None) == labels.UNKNOWN_HAZARD
+
+
+# --- The map tab ---
+
+
+def test_spread_counts_add_up():
+    w = world.build(SMALL)
+    alert = w.console.issue(warning(w))
+    w.advance(5)
+    counts = w.spread(alert.alert_id)
+    statuses = counts["warned by internet"] + counts["warned by Bluetooth"] + counts["not warned yet"]
+    assert statuses == counts["phones"] == SMALL.n_phones
+    assert counts["in area"] == SMALL.n_phones  # the area covers the whole town
+    assert counts["in area warned"] == SMALL.n_phones - counts["not warned yet"]
+    assert 0 < counts["told loudly"] <= counts["in area warned"]
+
+
+def test_play_records_each_minute_with_the_towns_own_minutes():
+    w = world.build(SMALL)
+    alert = w.console.issue(warning(w))
+    w.advance(3)
+    frames = w.play(alert.alert_id, 4)
+    assert w.minutes == 7
+    assert sorted(frames["minute"].unique()) == [3, 4, 5, 6, 7]
+    assert world.HUB_ID not in set(frames["phone"])
+    assert (frames.groupby("minute").size() == SMALL.n_phones).all()
+    now = w.phones_now(alert.alert_id)
+    assert set(now["minute"]) == {7}
+    assert list(now["status"]) == list(frames[frames["minute"] == 7]["status"])

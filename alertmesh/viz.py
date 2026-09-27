@@ -78,17 +78,24 @@ def spread_map(frames: pd.DataFrame, title: str = "", zoom: float = 13.5, extra_
         frames=[go.Frame(data=_status_traces(by_minute[m]), name=str(m), traces=status_indexes) for m in minutes],
     )
     centre_lat, centre_lon = frames["lat"].mean(), frames["lon"].mean()
+    fig.update_layout(
+        title=title, height=560, margin={"l": 0, "r": 0, "t": 40 if title else 0, "b": 0}, legend_title_text="",
+        map={"style": "open-street-map", "center": {"lat": centre_lat, "lon": centre_lon}, "zoom": zoom},
+        legend={"x": 0, "y": 1, "bgcolor": "rgba(255,255,255,0.8)"},
+    )
+    if len(minutes) == 1:
+        return fig  # one moment: nothing to play
     step = {"frame": {"duration": 500, "redraw": True}, "transition": {"duration": 0}, "mode": "immediate"}
     fig.update_layout(
-        title=title, height=640, margin={"l": 0, "r": 0, "t": 40, "b": 90}, legend_title_text="",
-        map={"style": "open-street-map", "center": {"lat": centre_lat, "lon": centre_lon}, "zoom": zoom},
+        # Below the map's credit line, which some pages draw under the map rather than on it.
+        height=680, margin={"b": 130},
         updatemenus=[{"type": "buttons", "direction": "left", "x": 0.0, "y": 0.0, "xanchor": "left", "yanchor": "top",
-                      "pad": {"t": 40, "r": 10}, "showactive": False, "buttons": [
+                      "pad": {"t": 75, "r": 10}, "showactive": False, "buttons": [
                           {"label": "▶", "method": "animate", "args": [None, {**step, "fromcurrent": True}]},
                           {"label": "◼", "method": "animate", "args": [[None], {**step, "frame": {"duration": 0}}]},
                       ]}],
-        sliders=[{"x": 0.1, "y": 0.0, "len": 0.9, "xanchor": "left", "yanchor": "top", "pad": {"t": 40},
-                  "currentvalue": {"prefix": "minute="}, "steps": [
+        sliders=[{"x": 0.1, "y": 0.0, "len": 0.9, "xanchor": "left", "yanchor": "top", "pad": {"t": 75},
+                  "currentvalue": {"prefix": "minute ", "xanchor": "right"}, "steps": [
                       {"label": str(m), "method": "animate", "args": [[str(m)], {**step, "frame": {"duration": 0}}]}
                       for m in minutes]}],
     )
@@ -156,13 +163,18 @@ def area_map(cells, colour: str, centre: tuple[float, float], centre_label: str 
     points = [centre] + [c for cell in cells for c in corners(cell)]
     view, zoom = fit_zoom(points, maximum=13.5)
     fig = go.Figure(area_traces(cells, colour))
-    # Hover text only: the OpenStreetMap style has no font for text drawn on the map.
-    fig.add_trace(go.Scattermap(lat=[centre[0]], lon=[centre[1]], mode="markers", name=centre_label,
-                                hoverinfo="name", marker={"size": 14, "color": "#222222"}))
+    fig.add_trace(centre_trace(centre, centre_label))
     fig.update_layout(map={"style": "open-street-map", "center": {"lat": view[0], "lon": view[1]}, "zoom": zoom},
                       height=height, margin={"l": 0, "r": 0, "t": 0, "b": 0},
                       legend={"x": 0, "y": 1, "bgcolor": "rgba(255,255,255,0.7)"})
     return fig
+
+
+def centre_trace(centre: tuple[float, float], label: str = "Evacuation centre"):
+    """The evacuation centre as a black dot. Hover text only: the OpenStreetMap style
+    has no font for text drawn on the map."""
+    return go.Scattermap(lat=[centre[0]], lon=[centre[1]], mode="markers", name=label,
+                         hoverinfo="name", marker={"size": 14, "color": "#222222"})
 
 
 def _with_alpha(hex_colour: str, alpha: float) -> str:
