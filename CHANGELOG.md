@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 1.1 Geohash alphabet and is_valid — 2026-09-27
+- What: `alertmesh/geohash.py` with `BASE32` and `is_valid()`.
+- Ported from: `AlertMesh/Protocols/Geohash.swift` (`base32Chars`, `isValidGeohash`).
+- Differences from Swift: none. Same 1–12 length rule, same case-insensitive check.
+- Verified by: `python3 -m pytest tests/test_geohash.py -k valid` — 3 passed.
+
 ## 0.3 VS Code setup, package and smoke test — 2026-09-27
 - What: `.vscode/settings.json` (pytest in the Testing panel), `.vscode/launch.json` ("Streamlit demo" and "Run all tests"), `pytest.ini`, empty `alertmesh` package, `tests/test_smoke.py`, and `tools/update_status.py`, which recounts the Status table in `PROGRESS.md` so it never drifts.
 - Ported from: new.

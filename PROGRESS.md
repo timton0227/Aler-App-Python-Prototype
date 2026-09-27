@@ -14,7 +14,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | Phase | Done | Total |
 |---|---|---|
 | 0 Setup | 3 | 3 |
-| 1 Geohash | 0 | 4 |
+| 1 Geohash | 1 | 4 |
 | 2 Official alert format | 0 | 10 |
 | 3 Community reports | 0 | 4 |
 | 4 Proximity | 0 | 3 |
@@ -25,9 +25,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **3** | **56** |
+| **All** | **4** | **56** |
 
-**Next step:** 1.1
+**Next step:** 1.2
 
 ---
 
@@ -47,7 +47,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 
 Swift: `AlertMesh/Protocols/Geohash.swift` · tests: `AlertMeshTests/LocationChannelsTests.swift`
 
-- [ ] 1.1 Alphabet and `is_valid`
+- [x] 1.1 Alphabet and `is_valid`
       Done when: the alphabet has no `a`, `i`, `l`, `o`; empty and bad characters are invalid
       Verify: `python3 -m pytest tests/test_geohash.py -k valid`
 - [ ] 1.2 `encode(lat, lon, precision)`
