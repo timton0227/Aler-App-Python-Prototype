@@ -44,7 +44,7 @@ simplified, left out, or behaves differently from the app.
   - `alertmesh/style.py`:
     - `shortcuts()` puts a small script on the page that presses the page's own buttons, found by their keys;
     - `shortcut_label()` writes a shortcut the system's way (⌘ and ⇧ on a Mac, Ctrl+ and Shift+ on Windows);
-    - the tabs', Settings' and "I need help"'s tooltips show their shortcut.
+    - a line under the tabs gives their shortcuts ("⌘1 to ⌘3 switch tabs"), and the Settings and "I need help" tooltips give theirs. The tabs have no tooltip: a tab's tooltip covered the tab above it while the pointer moved there (found in the browser check).
   - Newer Streamlit runs the script in the page itself. Streamlit 1.51 has no way to do that, so it runs in a hidden frame that reaches up to the page.
 - Ported from: new. The iPhone has no keyboard shortcuts. The list is from `docs/desktop-design.md`, "Keyboard".
 - Differences from Swift: not applicable.

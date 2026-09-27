@@ -146,6 +146,7 @@ CSS = f"""
   border-radius:8px;border:0;}}
 .stSidebar [class*="st-key-nav_"] button > div{{width:100%;justify-content:flex-start;}}
 .st-key-am_nav{{gap:2px;}}
+.am-navhint{{font-size:12px;padding:6px 10px 0;}}
 /* Counts as on the iPhone tab bar: white on the system red. */
 .stSidebar [class*="st-key-nav_"] .stMarkdownBadge{{background-color:var(--am-badge)!important;color:#fff!important;
   font-size:12px!important;font-weight:600;border-radius:10px;padding:0 6px;margin-left:6px;
@@ -190,7 +191,7 @@ CSS = f"""
   .stSidebar [class*="st-key-nav_"] [data-testid="stIconMaterial"]{{font-size:22px;}}
   .st-key-am_foot{{left:6px;width:64px;}}
   .st-key-open_settings button{{justify-content:center;}}
-  .st-key-am_foot [class*="st-key-open_"] button p,.st-key-am_foot .am-hide-compact{{display:none;}}
+  .st-key-am_foot [class*="st-key-open_"] button p,.am-hide-compact{{display:none;}}
   .am-clock{{font-size:14px;text-align:center;}}
   .st-key-am_advance{{flex-direction:column;}}
   .st-key-am_helpbar{{left:76px;padding:10px 20px;}}
@@ -319,11 +320,15 @@ def nav(pages: list[tuple[str, str]], badges: dict[str, int], brand: str) -> str
     st.sidebar.markdown(f'<div class="am-brand"><span class="am-appicon">{APP_ICON}</span><span>{esc(brand)}</span>'
                         f'</div>', unsafe_allow_html=True)
     tabs = st.sidebar.container(key="am_nav")
-    for number, (name, icon) in enumerate(pages, start=1):
+    for name, icon in pages:
         count = badges.get(name, 0)
         tabs.button(name + (f" :red-badge[{count}]" if count else ""), key=nav_key(name), icon=icon,
                     type="primary" if state.view == name else "tertiary", width="stretch",
-                    on_click=state.update, kwargs={"view": name}, help=f"{name} ({shortcut_label(str(number))})")
+                    on_click=state.update, kwargs={"view": name})
+    # The shortcut as a line under the tabs, not a tooltip: a tab's tooltip covers the tab
+    # above it while the pointer moves there.
+    tabs.markdown(f'<div class="am-muted am-hide-compact am-navhint">{shortcut_label("1")} to '
+                  f'{shortcut_label(str(len(pages)))} switch tabs</div>', unsafe_allow_html=True)
     return state.view
 
 

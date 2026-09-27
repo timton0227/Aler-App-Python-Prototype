@@ -110,3 +110,18 @@ def test_the_shortcut_script_presses_the_buttons_it_is_given(monkeypatch):
         assert json.dumps(bindings) in script
         assert f"mac = {'true' if mac else 'false'}" in script
     assert "'.st-key-' + key + ' button'" in script
+
+
+def test_the_tab_shortcuts_are_written_under_the_tabs(monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    def page():
+        from alertmesh import style
+
+        style.nav([("Now", ":material/home:"), ("Report", ":material/campaign:"), ("Chat", ":material/chat:")],
+                  {}, "Alert Mesh")
+
+    at = AppTest.from_function(page)
+    at.run()
+    hint = next(m.value for m in at.sidebar.markdown if "am-navhint" in m.value)
+    assert f"{style.shortcut_label('1')} to {style.shortcut_label('3')} switch tabs" in hint
