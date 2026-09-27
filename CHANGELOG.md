@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.2 Mesh, links and the 7-hop flood — 2026-09-27
+- What: `Mesh` (clock, phones, Bluetooth range, links, `broadcast`, `send`, `step`, `run`, and a readable `log`), `relay_ttl()`, `is_urgent()`, `Phone.receive()`, `Phone.first_heard_ms`. Constants `MESSAGE_TTL_DEFAULT` (7), `HIGH_DEGREE_THRESHOLD` (6), `DEFAULT_BLUETOOTH_RANGE_M` (60 m), `DEFAULT_TICK_S` (10 s).
+- Ported from: the broadcast branch of `AlertMesh/Services/RelayController.swift` (`relay_ttl`); `TransportConfig.messageTTLDefault` and `bleHighDegreeThreshold`; relay-only-if-accepted-or-duplicate from `BLEService.handleOfficialAlert`; "the store is the gate" from `sendOfficialAlertPayload`.
+- Differences from the app: (1) Hops within a tick are instant; real relays wait 10–220 ms of random jitter, which is tiny next to a 10-second tick. (2) There is no random relay suppression or radio loss; every phone in range hears every packet. (3) Links are a plain distance cut-off (60 m by default); real Bluetooth range varies with walls, bodies and phones, from about 10 m to over 100 m. (4) Each phone handles each packet once, standing in for the app's message deduplicator.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k ttl` — 5 passed. A 10-phone chain carries a warning to the sender plus exactly 7 hops. Links respect range and Bluetooth off. `relay_ttl` gives the `RelayController` numbers for thin, middle, urgent and dense cases. A crowd of 12 hands the packet to each of the other 11 once. First-heard time is kept from the first arrival. Full suite: 222 passed.
+
 ## 7.1 Simulated phone — 2026-09-27
 - What: new module `alertmesh/mesh_sim.py` with `Phone` and the helpers `offset_m()` and `flat_distance_m()`. Each phone has its own `AlertStore`, `ReportStore` and `ReportAuthor`. It has internet, Bluetooth and location switches, watched places (`bookmarks`), and a route it drives along at a set speed. It gives its own 8-character area code (None with location off) and keeps its last 4-character area as the remembered area. Also defines `OFFICIAL_ALERT_TYPE` (0x2D) and `COMMUNITY_REPORT_TYPE` (0x2E).
 - Ported from: new. The remembered area follows `AlertMesh/AlertMesh/Services/RememberedArea.swift` (last precision-4 cell, kept while location is off).

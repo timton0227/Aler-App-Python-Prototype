@@ -15,13 +15,24 @@ This is free and unencumbered software released into the public domain.
 import math
 from dataclasses import dataclass, field
 
-from alertmesh import geohash, reports
-from alertmesh.alert_store import AlertStore
+from collections import defaultdict, deque
+
+from alertmesh import geohash, reports, wire
+from alertmesh.alert_store import AlertStore, IngestResult
 from alertmesh.report_store import ReportStore
 
 # Mesh message types (Swift: MessageType.officialAlert / .communityReport).
 OFFICIAL_ALERT_TYPE = 0x2D
 COMMUNITY_REPORT_TYPE = reports.MESSAGE_TYPE  # 0x2E
+
+# TransportConfig.messageTTLDefault: a new broadcast reaches at most 7 hops.
+MESSAGE_TTL_DEFAULT = 7
+# TransportConfig.bleHighDegreeThreshold: 6 or more neighbours is a "dense" spot.
+HIGH_DEGREE_THRESHOLD = 6
+# Phone-to-phone Bluetooth reach outdoors. Real range varies from about 10 m to over
+# 100 m; 60 m is a middle value. Every run can set its own.
+DEFAULT_BLUETOOTH_RANGE_M = 60.0
+DEFAULT_TICK_S = 10.0
 
 EARTH_M_PER_DEGREE = 111_195.0  # metres per degree of latitude (Earth radius 6371 km)
 
@@ -71,6 +82,8 @@ class Phone:
         # The last rough area (4 characters, ~40 km) seen with location on
         # (Swift: RememberedArea). Used when location is off.
         self.remembered_cell: str | None = None
+        # When this phone first held each warning event (alert_id -> ms).
+        self.first_heard_ms: dict[bytes, int] = {}
         self._remember()
 
     def geohash(self, precision: int = 8) -> str | None:
@@ -95,6 +108,162 @@ class Phone:
                 left = 0
         self._remember()
 
+    def receive(self, msg_type: int, payload: bytes) -> IngestResult:
+        """Hand a payload to the right store. The store checks the signature."""
+        if msg_type == OFFICIAL_ALERT_TYPE:
+            result = self.alert_store.ingest_payload(payload)
+            if result is IngestResult.ACCEPTED:
+                item = wire.decode(payload)
+                if isinstance(item, wire.OfficialAlert):
+                    self.first_heard_ms.setdefault(item.alert_id, self.clock())
+            return result
+        if msg_type == COMMUNITY_REPORT_TYPE:
+            return self.report_store.ingest_payload(payload)
+        return IngestResult.REJECTED
+
     def _remember(self) -> None:
         if self.location_on:
             self.remembered_cell = geohash.encode(self.lat, self.lon, 4)
+
+
+# --- Relay rule ---------------------------------------------------------------
+
+
+def relay_ttl(ttl: int, degree: int, urgent: bool) -> int | None:
+    """The TTL to relay a broadcast with, or None to stop.
+
+    Port of the broadcast branch of RelayController.decide:
+    - dense spots (6+ neighbours) cap at 5 so a crowd does not flood the air;
+    - thin chains (2 or fewer neighbours) keep the full depth: every hop counts;
+    - otherwise 6, or 7 for an Emergency Warning or an SOS ("the extra hop is what
+      reaches the last house").
+    """
+    cap = min(ttl, MESSAGE_TTL_DEFAULT)
+    if cap <= 1:
+        return None
+    if degree >= HIGH_DEGREE_THRESHOLD:
+        limit = max(2, min(cap, 5))
+    elif degree <= 2:
+        limit = cap
+    else:
+        limit = max(2, min(cap, 7 if urgent else 6))
+    return limit - 1
+
+
+def is_urgent(msg_type: int, payload: bytes) -> bool:
+    """Emergency Warnings and SOS calls get the extra hop. Only asked about payloads
+    the store has already accepted, so a forged claim cannot buy hops."""
+    if msg_type == OFFICIAL_ALERT_TYPE:
+        return wire.severity_peek(payload) == wire.Severity.EMERGENCY_WARNING
+    if msg_type == COMMUNITY_REPORT_TYPE:
+        return reports.kind_peek(payload) == reports.ReportKind.SOS
+    return False
+
+
+# --- The mesh -----------------------------------------------------------------
+
+
+class Mesh:
+    """All simulated phones, the clock, and the Bluetooth links between them."""
+
+    def __init__(self, start_ms: int = 1_700_000_000_000, tick_s: float = DEFAULT_TICK_S,
+                 bluetooth_range_m: float = DEFAULT_BLUETOOTH_RANGE_M):
+        self.now_ms = start_ms
+        self.tick_s = tick_s
+        self.bluetooth_range_m = bluetooth_range_m
+        self.phones: dict[str, Phone] = {}
+        self._grid: dict[tuple[int, int], list[Phone]] | None = None
+        self._next_packet_id = 0
+        # Which packets each phone has already handled (Swift: messageDeduplicator).
+        self._seen: dict[str, set[int]] = defaultdict(set)
+        # (time_ms, phone_id, what, detail): a readable record for the notebook.
+        self.log: list[tuple[int, str, str, str]] = []
+
+    def clock(self) -> int:
+        return self.now_ms
+
+    def add_phone(self, phone_id: str, lat: float, lon: float, **options) -> Phone:
+        phone = Phone(phone_id, lat, lon, clock=self.clock, **options)
+        self.phones[phone_id] = phone
+        self._grid = None
+        return phone
+
+    # --- Links ---
+
+    def _cell(self, lat: float, lon: float) -> tuple[int, int]:
+        size = self.bluetooth_range_m
+        return (int(math.floor(lat * EARTH_M_PER_DEGREE / size)),
+                int(math.floor(lon * EARTH_M_PER_DEGREE * math.cos(math.radians(lat)) / size)))
+
+    def neighbours(self, phone: Phone) -> list[Phone]:
+        """Phones within Bluetooth range, both with Bluetooth on."""
+        if not phone.bluetooth_on:
+            return []
+        if self._grid is None:
+            self._grid = defaultdict(list)
+            for p in self.phones.values():
+                if p.bluetooth_on:
+                    self._grid[self._cell(p.lat, p.lon)].append(p)
+        row, col = self._cell(phone.lat, phone.lon)
+        out = []
+        for d_row in (-1, 0, 1):
+            for d_col in (-1, 0, 1):
+                for other in self._grid.get((row + d_row, col + d_col), ()):
+                    if other is not phone and flat_distance_m(phone.lat, phone.lon, other.lat, other.lon) <= self.bluetooth_range_m:
+                        out.append(other)
+        return out
+
+    # --- Flooding ---
+
+    def broadcast(self, sender: Phone, msg_type: int, payload: bytes, ttl: int = MESSAGE_TTL_DEFAULT) -> int:
+        """Send a payload from `sender` to everyone in range, and let it flood.
+
+        A phone relays only what its store ACCEPTED or already held (DUPLICATE),
+        like BLEService.handleOfficialAlert; a REJECTED payload goes no further.
+        Each phone handles one packet once. Hops within a tick are treated as
+        instant: real relays take tens of milliseconds, a tick is 10 seconds.
+        Returns how many phones received it.
+        """
+        packet_id = self._next_packet_id
+        self._next_packet_id += 1
+        self._seen[sender.id].add(packet_id)
+        queue = deque([(sender, ttl)])
+        reached = 0
+        while queue:
+            relayer, packet_ttl = queue.popleft()
+            for other in self.neighbours(relayer):
+                if packet_id in self._seen[other.id]:
+                    continue
+                self._seen[other.id].add(packet_id)
+                reached += 1
+                result = other.receive(msg_type, payload)
+                if result is IngestResult.ACCEPTED:
+                    self.log.append((self.now_ms, other.id, "received", relayer.id))
+                if result is IngestResult.REJECTED:
+                    continue
+                next_ttl = relay_ttl(packet_ttl, len(self.neighbours(other)), is_urgent(msg_type, payload))
+                if next_ttl is not None:
+                    queue.append((other, next_ttl))
+        return reached
+
+    def send(self, sender: Phone, msg_type: int, payload: bytes) -> IngestResult:
+        """A phone sends something of its own: its store must take it first (the
+        store is the gate, as in sendOfficialAlertPayload), then it floods."""
+        result = sender.receive(msg_type, payload)
+        if result is not IngestResult.REJECTED:
+            self.broadcast(sender, msg_type, payload)
+        return result
+
+    # --- Time ---
+
+    def step(self) -> None:
+        """Advance one tick: time moves on and phones on a route drive."""
+        self.now_ms += int(self.tick_s * 1000)
+        for phone in self.phones.values():
+            if phone.route:
+                phone.move(self.tick_s)
+                self._grid = None
+
+    def run(self, seconds: float) -> None:
+        for _ in range(int(round(seconds / self.tick_s))):
+            self.step()
