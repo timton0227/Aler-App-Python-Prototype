@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 3 | 9 |
-| **All** | **65** | **72** |
+| 13 Two apps: phone app and warning app | 4 | 9 |
+| **All** | **66** | **72** |
 
 **Next step:** 12.4
 
@@ -309,7 +309,7 @@ to laptops, not to iPhones.
       Swift: `AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift`, `BLEService+LinkLayerPeripheralRole.swift`
       Done when: messages are cut into Bluetooth-sized pieces and put back together; two laptops running the phone app see each other and chat
       Verify: `python3 -m pytest tests/test_ble.py`; then the two-laptop check in the README
-- [ ] 13.5 Wi-Fi link (`alertmesh/lan.py`)
+- [x] 13.5 Wi-Fi link (`alertmesh/lan.py`)
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (warnings over the internet)
       Done when: a warning sent on the local network arrives and is repeated; junk and oversize packets are ignored; packets do not leave the local network
       Verify: `python3 -m pytest tests/test_lan.py`

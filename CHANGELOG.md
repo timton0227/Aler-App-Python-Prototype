@@ -24,6 +24,20 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.5 Wi-Fi link — 2026-09-27
+- What: `alertmesh/lan.py`:
+  - `Broadcaster` (warning app): sends each signed warning or cancellation as a UDP multicast packet (group 239.255.77.7, port 47147, TTL 1, so routers never pass it on). It repeats every 30 s until the warning ends; a cancellation replaces its warning.
+  - `Listener` (phone app): hands every warning packet heard to the node, which checks the signature before keeping it. Several listeners can share one computer.
+  - Every packet is sent twice, on the network and inside the computer, so both apps on one computer always work.
+- Ported from: stands in for `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (warnings over Nostr internet relays). The local network plays the internet.
+- Differences from Swift:
+  - Local network only, not the internet.
+  - No relay list, no Nostr event wrapping (kind 1403), no area-based subscription: every phone app on the network hears every warning and decides by its own location, as for Bluetooth.
+- Verified by:
+  - `python3 -m pytest tests/test_lan.py` — 8 passed, 5 runs in a row: a warning arrives; two listeners on one computer both hear it; junk and oversize packets are ignored; TTL is 1; repeats keep coming; a cancellation replaces its warning; ended ones stop.
+  - Found on the way, on this Mac (macOS 15): multicast on the Wi-Fi interface is silently dropped until the program has "Local Network" permission. From a program without it, nothing arrived, with no error. Inside a small app with a Local Network usage description, the first sends were dropped and then arrived once allowed. That is why every packet also goes through the loopback interface, and why the packaged apps will need that description (step 13.8).
+  - Not yet run: two computers on one Wi-Fi.
+
 ## 13.4 Bluetooth link — 2026-09-27 (blocked: two-laptop check not yet run)
 - What: `alertmesh/ble.py`:
   - `split` / `Reassembler`: each frame is cut into pieces that fit one Bluetooth write (at least 20 bytes), each piece carrying a 6-byte label; pieces are put back together on arrival, even out of order or mixed with another frame's; unfinished frames are dropped after 10 s.
