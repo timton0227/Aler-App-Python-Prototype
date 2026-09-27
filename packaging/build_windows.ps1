@@ -1,9 +1,11 @@
-# Build the Alert Mesh desktop app for Windows.
+# Build the two Alert Mesh desktop apps for Windows.
 #
 #   powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1      (from python-prototype\)
 #
-# Makes "dist\Alert Mesh\Alert Mesh.exe" (keep it inside its folder: the folder holds
-# the parts it needs) and dist\Alert-Mesh-windows.zip (that folder, zipped for sharing).
+# Makes "dist\Alert Mesh\Alert Mesh.exe" (the phone app) and
+# "dist\Alert Mesh Warnings\Alert Mesh Warnings.exe" (the warning app). Keep each .exe
+# inside its folder: the folder holds the parts it needs. Each folder is also zipped for
+# sharing: dist\Alert-Mesh-windows.zip and dist\Alert-Mesh-Warnings-windows.zip.
 # The first run makes a separate build environment, packaging\.venv-windows, with the
 # newest Python 3 the Python launcher knows (py -3), or the python.exe named by
 # $env:PYTHON. Needs Python 3.10 or newer from python.org, and the ..\alert-mesh folder
@@ -14,6 +16,9 @@
 # If installing pywebview fails on the newest Python (its Windows part, pythonnet, can
 # lag behind new Python versions), set PYTHON to a Python 3.13 python.exe and try again.
 # The window needs Microsoft Edge WebView2, which Windows 10 and 11 normally include.
+# The phone app's Bluetooth needs a Bluetooth LE adapter that Windows can advertise with.
+# Windows Firewall may ask whether the apps may use the network: allow private networks,
+# or warnings will not travel between computers.
 #
 # This is free and unencumbered software released into the public domain.
 $ErrorActionPreference = "Stop"
@@ -40,22 +45,25 @@ if (-not (Test-Path $VenvPython)) {
 & $VenvPython -m pip install --quiet -r packaging\requirements-build.txt
 if ($LASTEXITCODE -ne 0) { throw "Installing the build tools failed." }
 
-Write-Host "Building the app (a few minutes)"
+Write-Host "Building the apps (a few minutes)"
 & "$Venv\Scripts\pyinstaller.exe" --noconfirm --clean --log-level WARN `
     --distpath dist --workpath build\pyinstaller packaging\alert_mesh.spec
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
 
 # A window app has no text output, so --check also writes its result to a file.
-Write-Host "Checking the finished app has every part it needs"
+Write-Host "Checking each finished app has every part it needs"
 $Result = Join-Path ([System.IO.Path]::GetTempPath()) "alert-mesh-check.txt"
-Remove-Item $Result -ErrorAction SilentlyContinue
-$Exe = (Resolve-Path "dist\Alert Mesh\Alert Mesh.exe").Path
-$Check = Start-Process -FilePath $Exe -ArgumentList "--check" -Wait -PassThru
-if (Test-Path $Result) { Get-Content $Result }
-if ($Check.ExitCode -ne 0) { throw "The finished app is missing a part (see above)." }
+foreach ($Name in @("Alert Mesh", "Alert Mesh Warnings")) {
+    Remove-Item $Result -ErrorAction SilentlyContinue
+    $Exe = (Resolve-Path "dist\$Name\$Name.exe").Path
+    $Check = Start-Process -FilePath $Exe -ArgumentList "--check" -Wait -PassThru
+    if (Test-Path $Result) { Get-Content $Result }
+    if ($Check.ExitCode -ne 0) { throw "$Name is missing a part (see above)." }
+}
 
-Remove-Item dist\Alert-Mesh-windows.zip -ErrorAction SilentlyContinue
+Remove-Item dist\Alert-Mesh-windows.zip, dist\Alert-Mesh-Warnings-windows.zip -ErrorAction SilentlyContinue
 Compress-Archive -Path "dist\Alert Mesh" -DestinationPath dist\Alert-Mesh-windows.zip
+Compress-Archive -Path "dist\Alert Mesh Warnings" -DestinationPath dist\Alert-Mesh-Warnings-windows.zip
 
 Write-Host ""
-Write-Host "Done: dist\Alert Mesh\Alert Mesh.exe and dist\Alert-Mesh-windows.zip"
+Write-Host "Done: dist\Alert Mesh\Alert Mesh.exe, dist\Alert Mesh Warnings\Alert Mesh Warnings.exe, and a zip of each"

@@ -20,17 +20,28 @@ def test_a_free_port_is_on_this_computer_and_usable():
     assert 1024 <= port <= 65535
 
 
+PHONE, WARNING = desktop.PAGES["phone"], desktop.PAGES["warning"]
+
+
 def test_the_server_command_in_development_and_in_the_packaged_app(monkeypatch):
-    dev = desktop.server_command(8765)
+    dev = desktop.server_command(8765, WARNING)
     assert dev[:2] == [sys.executable, str(desktop.Path(desktop.__file__).resolve())]
-    assert dev[2:] == ["--serve", "8765", "--parent", str(os.getpid())]
+    assert dev[2:] == ["--app", "warning", "--serve", "8765", "--parent", str(os.getpid())]
     monkeypatch.setattr(desktop, "FROZEN", True)
-    assert desktop.server_command(8765) == [sys.executable, "--serve", "8765", "--parent", str(os.getpid())]
+    # Each packaged app is its own executable, which knows its page.
+    assert desktop.server_command(8765, PHONE) == [sys.executable, "--serve", "8765", "--parent", str(os.getpid())]
+
+
+def test_two_apps_each_with_its_page_and_title():
+    assert (PHONE.file, PHONE.title) == ("phone_app.py", "Alert Mesh")
+    assert (WARNING.file, WARNING.title) == ("warning_app.py", "Alert Mesh Warnings")
+    assert PHONE.path.exists() and WARNING.path.exists()
+    assert "bless" in PHONE.also_needs and "alertmesh.ble" in PHONE.also_needs
 
 
 def test_streamlit_is_told_to_stay_on_this_computer_and_off_development_mode():
-    args = desktop.streamlit_args(8765)
-    assert args[:3] == ["streamlit", "run", str(desktop.APP)]
+    args = desktop.streamlit_args(8765, WARNING)
+    assert args[:3] == ["streamlit", "run", str(WARNING.path)]
     assert "--server.port=8765" in args
     assert "--server.address=127.0.0.1" in args
     assert "--global.developmentMode=false" in args
@@ -44,7 +55,8 @@ def get(port: int, path: str) -> int:
 
 def test_the_server_starts_answers_and_stops():
     port = desktop.free_port()
-    server = subprocess.Popen(desktop.server_command(port), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    server = subprocess.Popen(desktop.server_command(port, WARNING), stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
     try:
         assert desktop.wait_until_up(port, server, timeout=60)
         assert get(port, "/") == 200
@@ -70,7 +82,8 @@ def test_the_server_stops_when_the_window_process_dies():
         import subprocess, sys, time
         sys.path.insert(0, {str(desktop.HERE)!r})
         import desktop
-        server = subprocess.Popen(desktop.server_command({port}), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        server = subprocess.Popen(desktop.server_command({port}, desktop.PAGES["warning"]),
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(server.pid, flush=True)
         time.sleep(120)
     """)
@@ -102,11 +115,13 @@ def alive(pid: int) -> bool:
 # --- The self-check the build runs on the finished app (step 12.3) ---
 
 
-def test_the_self_check_passes_here():
-    out = subprocess.run([sys.executable, str(desktop.HERE / "desktop.py"), "--check"],
+@pytest.mark.parametrize("app", ["phone", "warning"])
+def test_the_self_check_passes_here(app):
+    out = subprocess.run([sys.executable, str(desktop.HERE / "desktop.py"), "--app", app, "--check"],
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stdout + out.stderr
     assert out.stdout.startswith("ok:") and "996 towns" in out.stdout
+    assert desktop.PAGES[app].file in out.stdout
 
 
 def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
@@ -115,7 +130,7 @@ def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
     (tmp_path / "alertmesh" / "data").mkdir(parents=True)
     for name in ("desktop.py", "warning_app.py"):
         (tmp_path / name).write_text((desktop.HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
-    out = subprocess.run([sys.executable, str(tmp_path / "desktop.py"), "--check"], cwd=tmp_path,
+    out = subprocess.run([sys.executable, str(tmp_path / "desktop.py"), "--app", "warning", "--check"], cwd=tmp_path,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 1
     assert out.stdout.startswith("missing: alertmesh.")
@@ -125,7 +140,7 @@ def test_the_self_check_works_without_text_output():
     """A Windows window app has no text output (sys.stdout is None): the check must
     still finish and leave its result in a file for the build script."""
     desktop.CHECK_RESULT.unlink(missing_ok=True)
-    code = ("import sys; sys.stdout = None; sys.path.insert(0, %r); import desktop; sys.exit(desktop.check())"
+    code = ("import sys; sys.stdout = None; sys.path.insert(0, %r); import desktop; sys.exit(desktop.check(desktop.PAGES['phone']))"
             % str(desktop.HERE))
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr

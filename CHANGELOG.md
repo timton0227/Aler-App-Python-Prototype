@@ -24,6 +24,30 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 13.8 Two desktop apps — 2026-09-27
+- What:
+  - `desktop.py` knows two pages (`PAGES`: phone and warning), takes `--app`, and can be the phone app's Bluetooth process (`--bluetooth`, used by the packaged app). Its self-check also imports the modules a page loads only later (Bluetooth and network libraries).
+  - `packaging/start_phone.py` and `start_warning.py` are the two packaged apps' start files.
+  - `packaging/alert_mesh.spec` builds both:
+    - `Alert Mesh.app`, the phone app: it keeps the Phase 12 bundle ID, bundles `bleak` and `bless`, and leaves out the simulation and its maps;
+    - `Alert Mesh Warnings.app` (`au.alertmesh.warnings`);
+    - both Info.plists carry a Local Network usage description, and the phone app's also carries a Bluetooth one.
+  - `packaging/build_mac.sh` builds, checks and zips both.
+  - `packaging/build_windows.ps1` does the same for Windows, still not run.
+  - VS Code has "Desktop window: phone app" and "Desktop window: warning app".
+- Ported from: new (Phase 12 packaging, now for two apps).
+- Differences from Swift: the iPhone app and the Mac console are one codebase built twice. Here too: one package, two start files.
+- Verified by:
+  - `python3 -m pytest tests/test_desktop.py` — 11 passed (commands for both apps, self-check of both).
+  - `packaging/build_mac.sh` built both apps, and each finished app passed its own `--check`. Sizes: `Alert Mesh.app` is 246 MB (zip 97 MB); `Alert Mesh Warnings.app` is 287 MB (zip 112 MB).
+  - Opened both packaged apps on this Mac:
+    - the phone app's sidebar said "Bluetooth: on" (its Bluetooth process ran, and was not stopped by macOS) and "Local network: on";
+    - I picked Katherine and sent a Watch and Act warning from the warning app. It appeared in the phone app as "You are in this area", loud. The warning app's line said "sent to phone apps on the local network".
+    - "Cancel warning" cleared it from the phone app.
+    - Quitting both left no process, including the Bluetooth process.
+    - The phone app saved its profile in `~/Library/Application Support/Alert Mesh/phone.json`, readable by the owner only.
+  - Not yet run: the Windows build.
+
 ## 13.7 Warning app — 2026-09-27
 - What:
   - `app.py` is now `warning_app.py`, with three tabs (Warning console, Map, Hub board); the Phone view tab gave way to the phone app. `tests/test_app.py` is now `tests/test_warning_app.py`.

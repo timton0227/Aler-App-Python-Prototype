@@ -24,10 +24,19 @@
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Desktop window",
+      "name": "Desktop window: phone app",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/desktop.py",
+      "args": ["--app", "phone"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Desktop window: warning app",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/desktop.py",
+      "args": ["--app", "warning"],
       "cwd": "${workspaceFolder}"
     },
     {

@@ -26,8 +26,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 10 Streamlit | 4 | 4 |
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
-| 13 Two apps: phone app and warning app | 6 | 9 |
-| **All** | **68** | **72** |
+| 13 Two apps: phone app and warning app | 7 | 9 |
+| **All** | **69** | **72** |
 
 **Next step:** 12.4
 
@@ -324,7 +324,7 @@ to laptops, not to iPhones.
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift`, `AlertMesh/AlertMesh/Views/IssueWarningView.swift`
       Done when: the warning app has the Warning console, Map and Hub board; each warning, update and cancellation is also sent on the local network
       Verify: `python3 -m pytest tests/test_warning_app.py tests/test_console.py`
-- [ ] 13.8 Two desktop apps
+- [x] 13.8 Two desktop apps
       Done when: `packaging/build_mac.sh` builds and checks `Alert Mesh.app` and `Alert Mesh Warnings.app`; a warning sent from one reaches the other on the same Mac
       Verify: `packaging/build_mac.sh`, then open both apps
 - [ ] 13.9 README: the two apps and the two-laptop check
