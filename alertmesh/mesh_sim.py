@@ -447,9 +447,12 @@ class Mesh:
         periodic = self.now_ms - self._last_sync_ms >= self.sync_interval_s * 1000
         if periodic:
             self._last_sync_ms = self.now_ms
-        for pair in links if periodic else links - self._links:
-            a, b = (self.phones[i] for i in sorted(pair))
-            self.sync_pair(a, b)
+        # Sorted, so every run syncs pairs in the same order. A set's order changes
+        # from one Python run to the next, and within a tick the order decides
+        # whether an item crosses one pair or two.
+        pairs = links if periodic else links - self._links
+        for a_id, b_id in sorted(tuple(sorted(pair)) for pair in pairs):
+            self.sync_pair(self.phones[a_id], self.phones[b_id])
         self._links = links
 
     # --- Time ---

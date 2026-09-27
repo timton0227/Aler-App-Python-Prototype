@@ -1,5 +1,8 @@
 """Tests for alertmesh.metrics (new code: no Swift tests to port)."""
+import subprocess
+import sys
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -120,3 +123,15 @@ def test_sweep_everyone_online_is_everyone_warned_either_way():
 def test_sweep_rejects_an_unknown_parameter():
     with pytest.raises(ValueError):
         metrics.sweep(QUICK, "colour", [1])
+
+
+def test_results_are_the_same_in_every_python_run():
+    """Python shuffles set order per run (PYTHONHASHSEED). Results must not depend on it."""
+    code = ("from alertmesh import metrics; r = metrics.run(metrics.Scenario(n_phones=200, area_m=1000, "
+            "share_online=0.1, share_moving=0.3, speed_mps=1.4, seed=4, duration_s=600)); print(r.warned_share)")
+    outputs = {
+        subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
+                       env={"PYTHONHASHSEED": seed, "PATH": ""}, cwd=str(Path(__file__).parents[1])).stdout
+        for seed in ("1", "2", "3")
+    }
+    assert len(outputs) == 1, outputs

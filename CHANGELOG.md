@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.4 (fix) Same results in every Python run — 2026-09-27
+- What: `Mesh._sync()` now syncs phone pairs in sorted order. Before, it walked a Python set, whose order changes between runs (Python shuffles string hashes per run). Within one tick, that order decides whether a warning crosses one pair or two, so the same scenario gave slightly different curves each run (for example 64%, 65% or 66% at minute 1). Found while writing the notebook, which promises the same numbers on every run.
+- Ported from: not applicable (simulation fix).
+- Differences from the app: none added. The app has no such order; each phone syncs on its own timer.
+- Verified by: new test `tests/test_metrics.py::test_results_are_the_same_in_every_python_run` runs one scenario under three hash seeds and requires identical results. It **fails** with the old code (checked by temporarily undoing the fix) and passes with the fix. The step 8.3 sweep numbers were re-run: unchanged to the nearest percent. Full suite: 271 passed.
+
 ## 9.3 Notebook: watch the warning spread on a map — 2026-09-27
 - What: section 3 of `demo.ipynb`: 300 phones over about 1.2 km × 1.2 km around Katherine, 10% online, a quarter walking about. An animated map shows each minute for 30 minutes, followed by a table of the share warned. New shared module `alertmesh/viz.py` (`phone_status`, `spread_frames`, `spread_map`, `share_by_minute`, `curves_chart`, `sweep_chart`) and `tests/test_viz.py`.
 - Ported from: new.
