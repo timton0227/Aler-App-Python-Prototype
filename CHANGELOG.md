@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 9.5 Notebook: update, then cancel — 2026-09-27
+- What: section 5 of `demo.ipynb`. In the section 3 town: a flood Watch and Act is published, updated to an Emergency Warning (same event, later version), then withdrawn, with 10 minutes between each. A table shows the phones showing the event, how many show the current version, and the notifications so far. Late copies of both old versions are refused.
+- Ported from: new. Uses `signer` (`WarningDraft.updating`, `cancel`), the stores and the mesh.
+- Differences from the app: none.
+- Verified by: `jupyter nbconvert --to notebook --execute demo.ipynb` ran with no errors. Watch and Act after 10 min: 289 phones, all 289 on that version, 289 notifications. After the update: 295 showing, 287 on the Emergency Warning (8 not reached by the update yet), 580 notifications. After the withdrawal: 4 still showing (not reached yet). Both old copies rejected. The first draft had two faults, both fixed before this commit. (1) The helper counted the wrong warning's level, giving 0; the phones also hold the section 3 bushfire warning, which sorts first. (2) The text claimed the withdrawal cleared every phone; it now says almost every phone, and explains the rest.
+
 ## 9.4 Notebook: loud or quiet, and why — 2026-09-27
 - What: section 4 of `demo.ipynb`. A table of six people and their notification with a plain-English reason. Anna at home: loud. Ben 60 km away: quiet. Fin just outside the area: quiet. Cara with location off but a remembered area: loud. Dev with location off watching Katherine: loud. Eve with location off and nothing known: quiet, never silent. Then the count for the whole town from section 3.
 - Ported from: new. Uses `proximity` through each simulated phone.
