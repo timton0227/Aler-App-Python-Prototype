@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 2.10 Warning draft checks and dev signer — 2026-09-27
+- What: new module `alertmesh/signer.py`: `WarningDraft` (with `problems` and `WarningDraft.updating()`), `Problem`, `OfficialAlertSigner` (`sign`, `cancel`, `public_key`), `new_alert_id()`, `next_issued_at()`, and `DEV_PRIVATE_KEY` (marked dev-only).
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertSigning.swift` (`WarningDraft`, `OfficialAlertSigner`) and `OfficialAlertIssuer.swift` (`nextIssuedAt`, random `makeAlertID`).
+- Differences from Swift: (1) `PublisherKeyStore` (Keychain) is not ported; the Python signer takes the key directly and defaults to the public dev key. (2) Text trimming uses Python's `str.strip()`, which removes Unicode whitespace; Swift's `trimmingCharacters(in: .whitespacesAndNewlines)` is close but may differ on rare characters. (3) The issuer's sending (Bluetooth + internet) is not ported; the simulation does that in Phase 7.
+- Verified by: `python3 -m pytest tests/test_signer.py` — 9 passed. Ports `matchesTheFrozenVectorFromTheSigningScript` (215 bytes, first 151 match, verifies against the pinned key), `anInvalidDraftIsNeverSigned`, `draftProblemsCoverEveryField`, `anUpdateKeepsTheEventAndMovesTheVersionOn`, `anUpdateDraftStartsFromTheWarning`, `eachIssueIsANewEvent`, and the signer part of `aCancellationVerifiesAndCarriesTheWarningsArea`. Full suite: 78 passed.
+
 ## 2.9 Size budget — 2026-09-27
 - What: tests only, no code change.
 - Ported from: `AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift` (`maximalAlertFitsOneBLEFrame`).
