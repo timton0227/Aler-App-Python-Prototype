@@ -445,3 +445,48 @@ def test_sos_gets_the_extra_hop_in_a_middle_density_mesh():
         reports.ReportAuthor().sos("r7hg5x2", "", T0)))
     assert not mesh_sim.is_urgent(COMMUNITY_REPORT_TYPE, reports.encode(
         reports.ReportAuthor().safe("r7hg5x2", "", T0)))
+
+
+# --- Sync sends only what is missing (step 7.8)
+
+
+def test_sync_skips_what_the_other_phone_already_holds():
+    mesh, phones = chain(2)
+    alert = signed_warning(mesh)
+    mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    calls = []
+    original = phones[1].receive
+    phones[1].receive = lambda *args: calls.append(args) or original(*args)
+    assert mesh.sync_pair(phones[0], phones[1]) == 0
+    assert calls == []  # nothing offered: phone 1 already holds it
+
+
+def test_sync_still_delivers_what_is_missing_and_newer_versions():
+    mesh, phones = chain(2)
+    phones[1].bluetooth_on = False
+    mesh._grid = None
+    alert = signed_warning(mesh)
+    mesh.send(phones[0], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    draft = WarningDraft.updating(alert, mesh.now_ms)
+    draft.severity = Severity.EMERGENCY_WARNING
+    update = OfficialAlertSigner().sign(draft, alert.alert_id, mesh.now_ms + 1)
+    phones[0].receive(OFFICIAL_ALERT_TYPE, wire.encode(update))
+    phones[1].receive(OFFICIAL_ALERT_TYPE, wire.encode(alert))  # holds the old version only
+    assert mesh.sync_pair(phones[0], phones[1]) == 1
+    assert phones[1].alert_store.live_alerts()[0].severity is Severity.EMERGENCY_WARNING
+
+
+def test_sync_large_run_is_fast():
+    import random
+    import time
+
+    rng = random.Random(1)
+    mesh = Mesh(start_ms=T0)
+    for i in range(500):
+        mesh.add_phone(f"p{i}", *mesh_sim.offset_m(*KATHERINE, rng.uniform(-500, 500), rng.uniform(-500, 500)))
+    alert = signed_warning(mesh, Severity.EMERGENCY_WARNING)
+    mesh.send(mesh.phones["p0"], OFFICIAL_ALERT_TYPE, wire.encode(alert))
+    start = time.perf_counter()
+    mesh.run(3600)
+    assert time.perf_counter() - start < 6  # was 12 s before this step
+    assert sum(1 for p in mesh.phones.values() if p.first_heard_ms) == 461  # same result as before

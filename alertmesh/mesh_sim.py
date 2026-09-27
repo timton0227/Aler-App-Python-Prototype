@@ -419,17 +419,27 @@ class Mesh:
     def sync_pair(self, a: Phone, b: Phone) -> int:
         """Two neighbours swap what they hold, both ways. Sync replies go out with
         TTL 0 in the app (link-local), so nothing received here is relayed onward;
-        it spreads further at the next sync. Returns how many items were new."""
+        it spreads further at the next sync. Returns how many items were new.
+
+        Like the app, each side first says what it holds (the app sends a compact
+        filter of packet IDs), and the other sends only what is missing. That also
+        saves re-checking signatures on copies the phone already has.
+        """
         new = 0
         for giver, taker in ((a, b), (b, a)):
-            for payload in giver.alert_store.sync_candidates():
-                if taker.receive(OFFICIAL_ALERT_TYPE, payload) is IngestResult.ACCEPTED:
-                    new += 1
-                    self.log.append((self.now_ms, taker.id, "synced", giver.id))
-            for payload in giver.report_store.sync_candidates():
-                if taker.receive(COMMUNITY_REPORT_TYPE, payload) is IngestResult.ACCEPTED:
-                    new += 1
-                    self.log.append((self.now_ms, taker.id, "synced report", giver.id))
+            for msg_type, store_of in ((OFFICIAL_ALERT_TYPE, lambda p: p.alert_store),
+                                       (COMMUNITY_REPORT_TYPE, lambda p: p.report_store)):
+                offered = store_of(giver).sync_candidates()
+                if not offered:
+                    continue
+                held = set(store_of(taker).sync_candidates())
+                for payload in offered:
+                    if payload in held:
+                        continue
+                    if taker.receive(msg_type, payload) is IngestResult.ACCEPTED:
+                        new += 1
+                        what = "synced" if msg_type == OFFICIAL_ALERT_TYPE else "synced report"
+                        self.log.append((self.now_ms, taker.id, what, giver.id))
         return new
 
     def _sync(self) -> None:

@@ -24,6 +24,13 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 7.8 Sync sends only what the other phone lacks — 2026-09-27
+- What: `Mesh.sync_pair()` now checks what the other phone already holds and sends only what is missing. A newer version of a warning counts as missing.
+- Ported from: `AlertMesh/Sync/GossipSyncManager.swift` (each side sends a compact filter of the packet IDs it holds; the reply carries only what the filter lacks).
+- Differences from the app: the app's filter is a probabilistic summary (a Golomb-coded set) that now and then wrongly says "already held"; the simulation knows exactly what each phone holds, so it never misses an item that way.
+- Checklist change: step 7.8 was added to `PROGRESS.md` at the end of Phase 7, after a timing run showed the old sync was too slow for Phase 8. The total is now 58 steps.
+- Verified by: `python3 -m pytest tests/test_mesh_sim.py -k sync` — 6 passed (3 new, plus 3 carry tests whose names contain "sync"). Nothing is offered when the other phone already holds it. A missing newer version is still delivered. 500 phones in a 1 km square for 1 simulated hour: 461 phones warned, the same as before this change, in 1.9 s instead of 12 s (the test allows up to 6 s). Full suite: 252 passed.
+
 ## 7.7 SOS and reports through the same mesh — 2026-09-27
 - What: `Mesh.send_sos()`, `Mesh.send_safe()`, `Mesh.send_hazard()`; `ReportNotification` and `Phone.report_notifications`; `proximity.sos_urgency()` and `SOS_NEAR_PRECISION` (5). Reports flood, sync and are carried exactly like warnings, and an SOS gets the extra relay hop. Another person's SOS is loud when it is in the same or a neighbouring 5-character cell as this phone or a watched place, and quiet otherwise; it notifies once per level. "I'm safe" is told, quietly, only to phones that were told about that SOS. Hazard reports never notify. A phone is never told about its own reports.
 - Ported from: `AlertMesh/AlertMesh/Services/SOSNotificationsModel.swift` (`SOSProximity.urgency`, `handleArrival`, `evaluate`, `reevaluate`) and the send side of `CommunityReportManager` (via `ReportAuthor`, step 3.4).

@@ -20,12 +20,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 4 Proximity | 3 | 3 |
 | 5 Stores | 5 | 5 |
 | 6 Places | 3 | 3 |
-| 7 Mesh simulation | 7 | 7 |
+| 7 Mesh simulation | 8 | 8 |
 | 8 Metrics | 0 | 3 |
 | 9 Notebook | 0 | 8 |
 | 10 Streamlit | 0 | 4 |
 | 11 Final check | 0 | 3 |
-| **All** | **39** | **57** |
+| **All** | **40** | **58** |
 
 **Next step:** 8.1
 
@@ -187,6 +187,10 @@ Values from `AlertMesh/Services/TransportConfig.swift` (`messageTTLDefault = 7`)
       Verify: `python3 -m pytest tests/test_mesh_sim.py -k urgency`
 - [x] 7.7 SOS and reports travel through the same mesh
       Verify: `python3 -m pytest tests/test_mesh_sim.py`
+- [x] 7.8 Sync sends only what the other phone lacks
+      Swift: `GossipSyncManager` (a filter of held packet IDs; the reply holds only what is missing)
+      Done when: same results as before, much faster; 500 phones for 1 simulated hour well under the 12 s it took
+      Verify: `python3 -m pytest tests/test_mesh_sim.py -k sync`
 
 ## Phase 8 — Metrics (new)
 
