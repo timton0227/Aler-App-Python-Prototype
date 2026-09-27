@@ -76,3 +76,15 @@ def test_the_stylesheet_has_no_hard_coded_theme_colour():
     warning fill is fixed (white on red, black on orange and yellow, as on the iPhone)."""
     rules = style.CSS.split("@media")[1].split("}}", 1)[1]
     assert set(re.findall(r"#[0-9A-Fa-f]{3,6}\b", rules)) <= {"#fff", "#000"}
+
+
+def test_chat_runs_put_the_name_on_the_first_bubble_and_the_time_on_the_last():
+    minute = 60_000
+    messages = [("jun", 0), ("jun", minute), ("you", 2 * minute), ("jun", 3 * minute), ("jun", 20 * minute)]
+    assert style.runs(messages) == [(True, False), (False, True), (True, True), (True, True), (True, True)]
+
+
+def test_bubbles_yours_on_the_right_theirs_named():
+    html = style.bubbles([(False, "jun", "Jun", "Is the bridge open?", 0), (True, "you", "You", "Closed <b>", 1)])
+    assert '<div class="am-msg"><span class="am-from">Jun</span><span class="am-bub">Is the bridge open?</span>' in html
+    assert '<div class="am-msg am-out am-gap"><span class="am-bub">Closed &lt;b&gt;</span>' in html

@@ -285,12 +285,40 @@ def test_page_says_how_you_are_connected(me, app):
 
 def test_calling_for_help_from_the_page(me, app):
     button(app, "I need help").click().run()
+    assert "This is not 000" in page(app)  # the sheet is open, nothing sent yet
+    assert me.node.link.frames == []
     app.text_input(key="sos_note").input("Two of us, one hurt")
     button(app, "Send call for help").click().run()
     assert not app.exception
     assert me.my_call_for_help().note == "Two of us, one hurt"
-    assert any("Your call for help is out" in e.value for e in app.error)
+    assert not [t for t in app.text_input if t.key == "sos_note"]  # the sheet closed
+    assert "Your call for help is out" in page(app)
     button(app, "I'm safe now").click().run()
+    assert me.my_call_for_help() is None
+
+
+def test_cancel_closes_the_call_for_help_sheet_without_sending(me, app):
+    button(app, "I need help").click().run()
+    button(app, "Cancel").click().run()
+    assert not app.exception and me.node.link.frames == []
+    assert "This is not 000" not in page(app)
+
+
+def test_sheet_buttons_follow_the_system(monkeypatch):
+    from alertmesh import style
+
+    monkeypatch.setattr(style, "WINDOWS", False)
+    assert style.button_order("send", "cancel") == ["cancel", "send"]  # Mac: the main button last
+    monkeypatch.setattr(style, "WINDOWS", True)
+    assert style.button_order("send", "cancel") == ["send", "cancel"]  # Windows: the main button first
+
+
+def test_the_open_sheet_shows_your_call_for_help_when_it_is_out(me, app):
+    me.send_sos("")
+    app.run()
+    button(app, "I need help").click().run()
+    assert app.button(key="sos_safe") and app.button(key="sos_again")
+    app.button(key="sos_safe").click().run()
     assert me.my_call_for_help() is None
 
 
@@ -313,13 +341,23 @@ def test_a_call_for_help_from_someone_in_range_can_be_answered(me, app):
 def test_reporting_a_hazard(me, app):
     show(app, "Report")
     app.selectbox(key="r_hazard").set_value(HazardType.STORM)
-    app.radio(key="r_how_bad").set_value(ReportSeverity.HIGH)
-    app.text_input(key="r_note").input("Tree down on the highway")
+    app.button(key="how_bad_high").click().run()
+    assert app.button(key="how_bad_high").proto.type == "primary"
+    app.text_area(key="r_note").input("Tree down on the highway")
     button(app, "Send report").click().run()
     assert not app.exception
     (report,) = me.reports()
-    assert (report.kind, report.hazard, report.note) == (ReportKind.HAZARD, HazardType.STORM, "Tree down on the highway")
-    assert any("You" in m.value and "Storm" in m.value for m in app.markdown)
+    assert (report.kind, report.hazard, report.severity, report.note) == (
+        ReportKind.HAZARD, HazardType.STORM, ReportSeverity.HIGH, "Tree down on the highway")
+    assert "Storm · Dangerous" in page(app) and "You · Near Katherine" in page(app)
+    assert "am-help" not in page(app)  # a hazard report is grey
+
+
+def test_calls_for_help_are_red_and_hazard_reports_grey_in_the_report_list(me, app):
+    arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
+    show(app, "Report")
+    assert 'class="am-card am-rep am-help"' in page(app) and "Bob needs help" in page(app)
+    assert "Not official warnings. Nobody has checked them." in [c.value for c in app.caption]
 
 
 def test_typing_a_message_sends_it_to_nearby(me, app):
@@ -328,7 +366,7 @@ def test_typing_a_message_sends_it_to_nearby(me, app):
     assert not app.exception
     (frame,) = [f for f in me.node.link.frames if f.kind == FrameKind.CHAT]
     assert chat.decode_message(frame.body).text == "Is the bridge open?"
-    assert any(t.value == "Is the bridge open?" for t in app.text)
+    assert 'class="am-msg am-out"><span class="am-bub">Is the bridge open?</span>' in page(app)
 
 
 def test_incoming_message_is_counted_then_read(me, app):
@@ -340,7 +378,7 @@ def test_incoming_message_is_counted_then_read(me, app):
     show(app, "Chat")
     assert me.node.chats.unread == 0
     assert app.button(key="nav_chat").label == "Chat"
-    assert any(t.value == "Bridge is closed" for t in app.text)
+    assert '<span class="am-from">Bob</span><span class="am-bub">Bridge is closed</span>' in page(app)
 
 
 def test_private_conversation_with_someone_in_range(me, app):

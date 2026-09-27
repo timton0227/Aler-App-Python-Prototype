@@ -27,8 +27,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 11 Final check | 3 | 3 |
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
-| 14 Desktop look: the iPhone app's style, on Mac and Windows | 3 | 7 |
-| **All** | **73** | **79** |
+| 14 Desktop look: the iPhone app's style, on Mac and Windows | 4 | 7 |
+| **All** | **74** | **79** |
 
 **Next step:** 12.4
 
@@ -355,7 +355,7 @@ How each page looks is checked by eye against the mockup, in light and dark.
       Swift: `AlertMesh/AlertMesh/Views/NowView.swift` (status block, "What to do", other warnings, "How you're connected"), `NowReportsSections.swift` (calls for help)
       Done when: a solid colour block appears only when a warning covers your town; otherwise a grey "No current warnings" or "No warnings where you are" card; then "What to do", calls for help, other warnings with a colour bar and symbol, and "How you're connected"; on a wide window calls for help and the connection card sit in a side column
       Verify: `python3 -m pytest tests/test_phone_app.py`
-- [ ] 14.4 Report, Chat and the call-for-help sheet like the iPhone
+- [x] 14.4 Report, Chat and the call-for-help sheet like the iPhone
       Swift: `AlertMesh/AlertMesh/Views/CommunityReportsView.swift`, `CommunityReportStyle.swift`, `SOSView.swift`, `ChatBubbleRow.swift`
       Done when: hazard reports are grey and calls for help red; chat shows bubbles (yours blue on the right, others grey on the left, name above the first of a run, time under the last); "I need help" opens a sheet with the iPhone's wording, its main button last on a Mac and first on Windows
       Verify: `python3 -m pytest tests/test_phone_app.py`

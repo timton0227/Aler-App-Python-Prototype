@@ -161,34 +161,72 @@ def send_sos() -> None:
         state.sos_note = ""
 
 
-def call_for_help() -> None:
-    """Your own call for help, when one is out, and the call-for-help sheet when the
-    "I need help" bar was pressed."""
+def open_sos() -> None:
+    state.sos_open = True
+
+
+def close_sos() -> None:
+    state.sos_open = False
+
+
+def sheet_buttons(*buttons) -> None:
+    """A sheet's buttons in the system's order (Cancel, then the main button, on a Mac;
+    the main button first on Windows), right-aligned on a Mac."""
+    with st.container(horizontal=True, horizontal_alignment="left" if style.WINDOWS else "right"):
+        for draw in buttons:
+            draw()
+
+
+@st.dialog("Call for help", on_dismiss=close_sos)
+def sos_sheet() -> None:
+    """The iPhone's SOSView: send a call for help, or, when one is out, send it again or
+    say you are safe."""
     mine = p.my_call_for_help()
     if mine is not None:
-        st.error(f"**Your call for help is out.** It keeps travelling between laptops until "
-                 f"{labels.clock(mine.expires_at)}. It says you are {place_words(mine.geohash)}.")
-        with st.container(horizontal=True):
-            st.button("I'm safe now", type="primary", on_click=p.send_safe)
-            st.button("Send it again", on_click=p.send_sos, args=(mine.note,))
+        st.markdown(hub.one_line(f"""
+<div class="am-status-title am-t-e">Your call for help is out</div>
+<div class="am-muted">It keeps travelling between laptops until {labels.clock(mine.expires_at)}. """
+                                 """Send it again whenever new people come near.</div>"""), unsafe_allow_html=True)
+        st.button("Send it again", key="sos_again", on_click=p.send_sos, args=(mine.note,), width="stretch")
+        st.caption("Sends it again. Everyone sees the same call for help, not a second one.")
+        st.button("I'm safe now", key="sos_safe", type="primary", on_click=lambda: (p.send_safe(), close_sos()),
+                  width="stretch")
+        st.caption("Tells every laptop that got your call for help that you are okay, and stops it spreading.")
         return
-    if not state.get("sos_open") or p.geohash is None:
+    st.markdown(hub.one_line(f"""
+<p class="am-muted" style="font-size:14.5px">This tells every laptop near you that you need help, and they """
+                             f"""pass it on until it reaches someone with a signal.</p>
+<p class="am-warnline">This is not 000. If you have any phone signal at all, call emergency services first.</p>
+<p class="am-muted" style="font-size:14px">It says you are {style.esc(place_words(p.geohash))}, the town """
+                             """picked in Settings: a laptop has no GPS.</p>"""), unsafe_allow_html=True)
+    st.text_input("Note", placeholder="who is with you, what is wrong (optional)", max_chars=reports.NOTE_MAX_BYTES,
+                  key="sos_note")
+    sheet_buttons(*style.button_order(
+        lambda: st.button("Send call for help", key="sos_send", type="primary", on_click=send_sos),
+        lambda: st.button("Cancel", key="sos_cancel", on_click=close_sos)))
+
+
+def my_call_for_help() -> None:
+    """Your own call for help, while it is out, at the top of Now."""
+    mine = p.my_call_for_help()
+    if mine is None:
         return
-    with st.container(border=True):
-        st.markdown(f"**Call for help**, {place_words(p.geohash)}")
-        st.caption("This is not 000. If you have any phone signal at all, call emergency services first.")
-        st.text_input("Note", placeholder="who is with you, what is wrong (optional)",
-                      max_chars=reports.NOTE_MAX_BYTES, key="sos_note")
-        with st.container(horizontal=True):
-            st.button("Send call for help", type="primary", on_click=send_sos)
-            st.button("Cancel", on_click=lambda: state.update(sos_open=False))
+    st.markdown(hub.one_line(f"""
+<div class="am-card am-help"><div class="am-who">{style.HELP_ICON}Your call for help is out</div>
+<div class="am-muted">It keeps travelling between laptops until {labels.clock(mine.expires_at)}. """
+                             f"""It says you are {style.esc(place_words(mine.geohash))}.</div></div>"""),
+                unsafe_allow_html=True)
+    with st.container(horizontal=True):
+        st.button("I'm safe now", key="mine_safe", type="primary", on_click=p.send_safe)
+        st.button("Send it again", key="mine_again", on_click=p.send_sos, args=(mine.note,))
 
 
 def help_bar() -> None:
-    """The red "I need help" bar, pinned to the bottom of Now (EmergencyHelpBarModifier)."""
+    """The red "I need help" bar, pinned to the bottom of Now (EmergencyHelpBarModifier).
+    It opens the sheet; nothing is sent until "Send call for help"."""
     with st.container(key="am_helpbar"):
         st.button("I need help", key="need_help", icon=":material/sos:", type="primary", width="stretch",
-                  disabled=p.geohash is None, on_click=lambda: state.update(sos_open=True),
+                  disabled=p.geohash is None, on_click=open_sos,
                   help="Pick your town in Settings first, so people know where to come." if p.geohash is None
                   else "Opens the call for help. Nothing is sent until you press Send.")
 
@@ -319,7 +357,7 @@ def now_view() -> None:
     with st.container(key="am_now"):
         main, side = st.columns([3, 2], gap="large")
         with main:
-            call_for_help()
+            my_call_for_help()
             status_block(now)
             if now.others:
                 st.markdown('<div class="am-section">Other warnings</div>', unsafe_allow_html=True)
@@ -332,6 +370,8 @@ def now_view() -> None:
     opened = next((w for w in items if w.alert.alert_id == state.get("open_warning")), None)
     if opened is not None:
         warning_detail(opened)
+    elif state.get("sos_open") and p.geohash is not None:
+        sos_sheet()
     help_bar()
 
 
@@ -343,34 +383,72 @@ def send_hazard() -> None:
         state.r_note = ""
 
 
+# "How bad" as the iPhone's three buttons, with its symbols.
+HOW_BAD_ICONS = {ReportSeverity.LOW: ":material/info:",
+                 ReportSeverity.MODERATE: ":material/warning:",
+                 ReportSeverity.HIGH: ":material/priority_high:"}
+
+REPORT_ICONS = {
+    ReportKind.HAZARD: ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 3h16a2 2 0 0 1 2 2'
+                        'v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>'),
+    ReportKind.SAFE: ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="10"/>'
+                      '<path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="var(--am-card)" stroke-width="2.4"/></svg>'),
+    ReportKind.SOS: style.HELP_ICON,
+}
+
+
+def report_card(report) -> None:
+    """One report from people nearby. Calls for help are red; hazard reports and "I'm
+    safe" are grey, so a neighbour's report never borrows a warning's colours."""
+    own = p.is_own(report)
+    who = "You" if own else (report.author_nickname or "Someone")
+    if report.kind is ReportKind.SOS:
+        title = "You need help" if own else f"{who} needs help"
+    elif report.kind is ReportKind.SAFE:
+        title = "You are safe" if own else f"{who} is safe"
+    else:
+        title = f"{labels.hazard_name(report.hazard)} · {labels.REPORT_SEVERITY_NAMES.get(report.severity, '')}"
+    where = places.label(report.geohash) or report.geohash if report.geohash else ""
+    meta = " · ".join(x for x in (who if report.kind is ReportKind.HAZARD else "", where,
+                                  labels.clock(report.created_at)) if x)
+    note = f'<div class="am-note">{style.esc(report.note)}</div>' if report.note else ""
+    help_class = " am-help" if report.kind is ReportKind.SOS else ""
+    st.markdown(f'<div class="am-card am-rep{help_class}"><span class="am-ic">{REPORT_ICONS[report.kind]}</span>'
+                f'<div><div class="am-t">{style.esc(title)}</div><div class="am-muted">{style.esc(meta)}</div>'
+                f'{note}</div></div>', unsafe_allow_html=True)
+
+
 def report_view() -> None:
-    with st.container(border=True):
-        st.markdown("**Report a hazard**")
-        if p.geohash is None:
-            st.caption("A report needs a place. Pick your town first.")
-        else:
-            st.selectbox("Type", list(HazardType), format_func=labels.hazard_name, key="r_hazard")
-            st.radio("How bad", list(ReportSeverity), format_func=labels.REPORT_SEVERITY_NAMES.get,
-                     horizontal=True, key="r_how_bad")
-            st.text_input("What's happening here?", max_chars=reports.NOTE_MAX_BYTES, key="r_note")
-            st.button("Send report", on_click=send_hazard)
-    st.subheader("Community reports")
-    st.caption("What people nearby are reporting. These are not official warnings and nobody has checked them.")
-    items = p.reports()
-    if not items:
-        st.caption("No reports nearby.")
-    for report in items:
-        kind = labels.REPORT_KIND_NAMES[report.kind]
-        if report.kind is ReportKind.HAZARD:
-            kind += f" · {labels.hazard_name(report.hazard)} · {labels.REPORT_SEVERITY_NAMES.get(report.severity, '')}"
-        who = "You" if p.is_own(report) else (report.author_nickname or "Someone")
-        icon = {ReportKind.SOS: ":material/sos:", ReportKind.SAFE: ":material/check_circle:",
-                ReportKind.HAZARD: ":material/warning:"}[report.kind]
+    form, listed = st.columns([5, 6], gap="large")
+    with form:
+        st.markdown('<div class="am-section">Report a hazard</div>', unsafe_allow_html=True)
         with st.container(border=True):
-            st.markdown(f"{icon} **{kind}** — {html.escape(who)}, {place_words(report.geohash)}, "
-                        f"{labels.clock(report.created_at)}")
-            if report.note:
-                st.caption(report.note)
+            if p.geohash is None:
+                st.caption("A report needs a place. Pick your town in Settings first.")
+            else:
+                st.selectbox("Type", list(HazardType), format_func=labels.hazard_name, key="r_hazard")
+                # Three buttons, the chosen one blue (a segmented control's look; the
+                # control itself cannot be driven by Streamlit 1.51's test runner).
+                state.setdefault("r_how_bad", ReportSeverity.MODERATE)
+                st.markdown('<div class="am-fieldlabel">How bad</div>', unsafe_allow_html=True)
+                with st.container(horizontal=True, gap="small", key="am_how_bad"):
+                    for level in ReportSeverity:
+                        st.button(labels.REPORT_SEVERITY_NAMES[level], key=f"how_bad_{level.name.lower()}",
+                                  icon=HOW_BAD_ICONS[level], width="stretch",
+                                  type="primary" if state.r_how_bad is level else "secondary",
+                                  on_click=state.update, kwargs={"r_how_bad": level})
+                st.text_area("What's happening here?", max_chars=reports.NOTE_MAX_BYTES, key="r_note", height=80)
+                with st.container(horizontal=True, vertical_alignment="center"):
+                    st.button("Send report", type="primary", on_click=send_hazard)
+                    st.caption(f"Sent from {place_words(p.geohash)}")
+    with listed:
+        st.markdown('<div class="am-section">From people nearby</div>', unsafe_allow_html=True)
+        items = p.reports()
+        if not items:
+            st.caption("No reports nearby.")
+        for report in items:
+            report_card(report)
+        st.caption("Not official warnings. Nobody has checked them.")
 
 
 # --- Chat (ChatInboxView) ---------------------------------------------------------
@@ -401,40 +479,42 @@ def chat_view() -> None:
 
     left, right = st.columns([1, 2], gap="medium")
     with left:
-        st.markdown("**Chats**")
+        st.markdown('<div class="am-listhead">Chats</div>', unsafe_allow_html=True)
         for key in keys:
             unread = conversations[key].unread if key in conversations and key != state.chat_with else 0
-            st.button(conversation_name(key) + (f" · {unread} new" if unread else ""), key=f"chat_{key}",
-                      type="primary" if key == state.chat_with else "secondary", width="stretch",
+            st.button(conversation_name(key) + (f" :blue-badge[{unread}]" if unread else ""), key=f"chat_{key}",
+                      icon=":material/cell_tower:" if key == NEARBY else ":material/person:",
+                      type="primary" if key == state.chat_with else "tertiary", width="stretch",
                       on_click=open_conversation, args=(key,))
         people = [peer for peer in p.node.nearby_peers()]
-        st.markdown("**People in range**")
+        st.markdown('<div class="am-listhead">People nearby</div>', unsafe_allow_html=True)
         if not people:
             st.caption("Nobody yet. Other laptops running the phone app appear here when they are within "
                        "Bluetooth range, or in range of a laptop that is.")
         for peer in people:
             st.button(f"Message {peer.announce.nickname or 'Someone'}", key=f"msg_{peer.key}",
-                      on_click=open_conversation, args=(peer.key,))
+                      icon=":material/chat_bubble:", on_click=open_conversation, args=(peer.key,))
 
     with right:
         key = state.chat_with
         p.node.mark_read(key)
         if key == NEARBY:
-            st.caption("Everyone in Bluetooth range reads Nearby, including through other laptops. "
-                       "Messages are signed, so nobody can change them on the way.")
+            who_reads = ("Everyone in Bluetooth range reads this, including through other laptops. "
+                         "Messages are signed, so nobody can change them on the way.")
         else:
-            st.caption(f"Only {html.escape(conversation_name(key))} can read this conversation. "
-                       "Laptops in between pass it on without being able to open it.")
+            who_reads = (f"Only {conversation_name(key)} can read this. Laptops in between pass it on without "
+                         "being able to open it.")
+        st.markdown(f'<div class="am-convhead"><b>{style.esc(conversation_name(key))}</b>'
+                    f'<span>{style.esc(who_reads)}</span></div>', unsafe_allow_html=True)
         entries = conversations[key].entries if key in conversations else []
-        with st.container(height=380):
+        with st.container(height=400, border=False):
             if not entries:
                 st.caption("No messages yet.")
-            for entry in entries:
-                name = "You" if entry.outgoing else (entry.message.sender_nickname or "Someone")
-                with st.chat_message("user" if entry.outgoing else "assistant",
-                                     avatar=":material/person:" if entry.outgoing else ":material/podcasts:"):
-                    st.markdown(f"**{html.escape(name)}** · {labels.clock(entry.message.sent_at)}")
-                    st.text(entry.message.text)
+            else:
+                st.markdown(style.bubbles([
+                    (e.outgoing, "you" if e.outgoing else e.message.sender_key.hex(),
+                     "You" if e.outgoing else (e.message.sender_nickname or "Someone"),
+                     e.message.text, e.message.sent_at) for e in entries]), unsafe_allow_html=True)
         reachable = key == NEARBY or any(peer.key == key for peer in p.node.nearby_peers())
         text = st.chat_input(f"Message {conversation_name(key)}" if reachable else "Not in range right now",
                              key="chat_text", max_chars=TEXT_MAX_BYTES, disabled=not reachable)

@@ -209,6 +209,45 @@ CSS = f"""
 .am-note{{font-size:15px;margin:4px 0;}}
 .am-row{{display:flex;gap:10px;align-items:center;font-size:15px;margin:6px 0;}}
 .am-row svg{{width:20px;height:20px;flex:none;}}
+/* Reports from people nearby (CommunityReportStyle): hazard reports and "safe" are grey,
+   only calls for help are red. */
+.am-rep{{display:flex;gap:12px;align-items:flex-start;}}
+.am-rep .am-ic{{width:22px;height:22px;flex:none;color:var(--am-ink-2);}}
+.am-rep .am-ic svg{{width:22px;height:22px;}}
+.am-rep .am-t{{font-weight:600;font-size:15px;}}
+.am-rep.am-help .am-ic,.am-rep.am-help .am-t{{color:var(--am-red-text);}}
+
+.am-fieldlabel{{font-size:14px;margin-bottom:-6px;}}
+.st-key-am_how_bad button p{{font-size:13.5px;}}
+
+/* The call-for-help sheet. */
+.am-warnline{{font-size:14px;font-weight:600;color:var(--am-red-text);}}
+.st-key-sos_send button{{background:var(--am-red);border-color:var(--am-red);color:#fff;}}
+.st-key-sos_send button:hover{{background:var(--am-red);border-color:var(--am-red);color:#fff;filter:brightness(1.08);}}
+
+/* Chat: bubbles as in Messages (ChatBubbleStyle: radius 18, yours blue on the right,
+   theirs grey on the left; the name above the first of a run, the time under the last). */
+.am-convhead{{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0 10px;
+  border-bottom:1px solid var(--am-sep);text-align:center;}}
+.am-convhead b{{font-size:15px;font-weight:600;}}
+.am-convhead span{{font-size:12.5px;color:var(--am-ink-2);}}
+.am-msgs{{display:flex;flex-direction:column;gap:3px;padding:6px 4px;}}
+.am-msg{{display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding-right:56px;}}
+.am-msg.am-gap{{margin-top:10px;}}
+.am-msg .am-from{{font-size:12px;color:var(--am-ink-2);padding-left:12px;}}
+.am-msg .am-time{{font-size:11.5px;color:var(--am-ink-2);padding:0 12px;}}
+.am-msg .am-bub{{padding:7px 12px;border-radius:18px;background:var(--am-other);color:var(--am-ink);font-size:15px;
+  max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;}}
+.am-msg.am-out{{align-items:flex-end;padding-right:0;padding-left:56px;}}
+.am-msg.am-out .am-bub{{background:var(--am-own);color:#fff;}}
+.am-listhead{{font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--am-ink-2);
+  margin:10px 10px 2px;}}
+[class*="st-key-chat_"] button{{justify-content:flex-start;border-radius:10px;}}
+[class*="st-key-chat_"] button > div{{width:100%;justify-content:flex-start;}}
+[class*="st-key-chat_"] .stMarkdownBadge{{background-color:var(--am-blue)!important;color:#fff!important;
+  border-radius:10px;padding:0 6px;margin-left:6px;}}
+[data-testid="stChatInput"]{{border-radius:18px;}}
+
 /* Side columns move under the main column in a narrow window. */
 @media (max-width:1100px){{
   .st-key-am_now [data-testid="stHorizontalBlock"]{{flex-wrap:wrap;}}
@@ -295,6 +334,39 @@ def status_bar(items: list[tuple[bool, str]], end: str = "") -> None:
 
 def updated_text() -> str:
     return "Updated " + time.strftime("%H:%M:%S")
+
+
+def button_order(main, cancel) -> list:
+    """The two buttons of a sheet in the system's order: the main button last on a Mac
+    (and Linux), first on Windows. The main button is always the coloured one."""
+    return [main, cancel] if WINDOWS else [cancel, main]
+
+
+def runs(senders: list[tuple[str, int]], gap_ms: int = 5 * 60_000) -> list[tuple[bool, bool]]:
+    """For each message (sender, sent at), whether it starts a run and whether it ends
+    one. A run is messages from one sender with no more than `gap_ms` between them; the
+    name goes above the first, the time under the last."""
+    marks = []
+    for i, (sender, sent_at) in enumerate(senders):
+        first = i == 0 or senders[i - 1][0] != sender or sent_at - senders[i - 1][1] > gap_ms
+        last = (i == len(senders) - 1 or senders[i + 1][0] != sender
+                or senders[i + 1][1] - sent_at > gap_ms)
+        marks.append((first, last))
+    return marks
+
+
+def bubbles(messages: list[tuple[bool, str, str, str, int]]) -> str:
+    """Chat messages as bubbles. Each is (yours, sender key, name, text, sent at)."""
+    from alertmesh.labels import clock
+
+    rows = []
+    for (outgoing, sender, name, text, sent_at), (first, last) in zip(
+            messages, runs([(m[1], m[4]) for m in messages])):
+        classes = "am-msg" + (" am-out" if outgoing else "") + (" am-gap" if first and rows else "")
+        who = f'<span class="am-from">{esc(name)}</span>' if first and not outgoing else ""
+        when = f'<span class="am-time">{clock(sent_at)}</span>' if last else ""
+        rows.append(f'<div class="{classes}">{who}<span class="am-bub">{esc(text)}</span>{when}</div>')
+    return f'<div class="am-msgs">{"".join(rows)}</div>'
 
 
 def inject() -> None:

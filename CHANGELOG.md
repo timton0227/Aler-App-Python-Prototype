@@ -24,6 +24,44 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.4 Report, Chat and the call-for-help sheet like the iPhone — 2026-09-27
+- What:
+  - **Call for help**: "I need help" opens a sheet with the iPhone's wording:
+    - how a call for help travels;
+    - "This is not 000…" in red;
+    - that it says you are in the town picked in Settings, because a laptop has no GPS;
+    - an optional note.
+    The main button is red and sits last on a Mac and first on Windows (`style.button_order`). While your call for help is out, the sheet offers "Send it again" and "I'm safe now", each with what it does. Your own call for help also stays on Now, in the red call-for-help style.
+  - **Report**: the form is on the left:
+    - Type;
+    - How bad, as three buttons with symbols, the chosen one blue;
+    - the note;
+    - "Send report" with where it is sent from.
+
+    "From people nearby" is on the right. Calls for help are red; hazard reports and "I'm safe" are grey cards with their own symbol. The line underneath says these are not official warnings and nobody has checked them.
+  - **Chat**:
+    - The list has "Chats", Nearby first with unread counts in blue, and "People nearby".
+    - The conversation says who can read it.
+    - Messages are bubbles as in Messages, from `style.bubbles()`: yours blue on the right, theirs grey on the left, the name above the first of a run, the time under the last.
+    - The message box is rounded.
+- Ported from: `SOSView.swift` (English strings: `sos.body`, `sos.not_emergency_services`, `sos.active.*`, `sos.resend*`, `sos.safe*`), `CommunityReportsView.swift` and `CommunityReportStyle.swift`, `ChatBubbleRow.swift` (`ChatBubbleStyle`), as written down in `docs/desktop-design.md`.
+- Differences from Swift:
+  - "Phone" is "laptop" in the wording. `sos.location_note` (150 metres) is replaced by the town line, because a laptop has no GPS.
+  - A run of bubbles ends when the sender changes or after 5 minutes' silence. The Swift grouping was not checked for this step.
+  - "How bad" is three buttons, not a segmented control: Streamlit's segmented control cannot be driven by the 1.51 test runner.
+  - There is no live byte count while typing a message; `st.chat_input` does not report typing. The "at most 280 bytes" message after sending stays.
+  - The chat list shows names only, with no last-message preview.
+- Verified by:
+  - `python3 -m pytest tests/test_phone_app.py tests/test_style.py` — 43 passed (6 new). They cover:
+    - the sheet opens without sending, sends, closes, and Cancel sends nothing;
+    - button order on Mac and Windows;
+    - "I'm safe now" from the sheet;
+    - calls for help red and hazard reports grey;
+    - bubble runs and escaping.
+    - Report and Chat checks now read the drawn cards and bubbles.
+  - `python3 -m pytest -q` — 466 passed, 2 skipped. The page tests also pass with Streamlit 1.51.0.
+  - Checked by eye in headless Chromium: the sheet, Report and Chat in light and dark, against the mockup.
+
 ## 14.3 Now like the iPhone — 2026-09-27
 - What:
   - `alertmesh/phone.py`: `now_status()` decides what the top of Now shows:
