@@ -24,6 +24,26 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 14.2 Phone app sidebar, status bar and "I need help" bar — 2026-09-27
+- What:
+  - The three tabs are buttons in the sidebar instead of a row of radio buttons, with the app's icon and name above them. Calls for help and loud warnings count on Now, unread messages on Chat, as red badges like the iPhone tab bar's; the open tab shows none.
+  - Your nickname and town sit at the foot of the sidebar. Clicking them opens a Settings sheet (nickname, town, why a town, the place-name credit, Done). "Pick your town" on the page has an "Open Settings" button.
+  - A status bar along the bottom, on every tab: Bluetooth and how many laptops are nearby, the local network, and when the page last changed. When one is off it says so, with the reason.
+  - The red "I need help" bar is pinned to the bottom of Now. It opens the call for help; nothing is sent until "Send call for help". Without a town it is greyed out and says why.
+  - Each tab has its own title. The page uses the whole window.
+  - `alertmesh/style.py`: `nav()`, `page_title()`, `status_bar()` and the styles for them. The sidebar is 220 wide; below 1100 wide it is 76 wide, with icons over short labels and the badge on the icon.
+  - `desktop.py`: the phone app opens at 1200 × 760; both apps cannot be made smaller than 960 × 600 (was 700 × 600).
+- Ported from: `EmergencyRootView.swift` (the tabs and their badges, `EmergencyHelpBarModifier`), `NowView.connectionSection` (the connection in plain counts), as written down in `docs/desktop-design.md`.
+- Differences from Swift:
+  - The iPhone's bottom tab bar is a sidebar, which is how Mac and Windows apps show a few tabs.
+  - The help bar is 56 points tall, not 60, and the call for help still opens inside the page; step 14.4 makes it a sheet.
+  - Settings is a sheet here; on the iPhone it is a screen of its own.
+- Verified by:
+  - `python3 -m pytest tests/test_phone_app.py tests/test_desktop.py` — 36 passed (4 new: tabs in the sidebar and page titles, the status bar on every tab, the help bar on Now only, Settings from the foot of the sidebar; the town check now goes through Settings; the unread count is the Chat badge).
+  - `python3 -m pytest -q` — 452 passed, 2 skipped. The page tests also pass with Streamlit 1.51.0.
+  - Checked by eye in headless Chromium, at 1280 and 960 wide, light and dark, with Streamlit 1.51 and 1.64.
+  - Found and fixed on the way: a starting value put in Session State does not reach a field inside a sheet in the browser (the test runner shows it anyway), so the Settings fields take theirs as parameters.
+
 ## 14.1 Colours, system typeface and dark mode — 2026-09-27
 - What:
   - `alertmesh/style.py` (new) holds the shared look for both apps:

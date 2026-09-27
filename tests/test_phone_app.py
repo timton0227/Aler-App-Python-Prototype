@@ -160,14 +160,34 @@ def button(at: AppTest, label: str):
 
 
 def show(at: AppTest, view: str) -> None:
-    at.radio(key="view").set_value(view).run()
+    at.button(key=f"nav_{view.lower()}").click().run()
     assert not at.exception
+    assert at.session_state["view"] == view
 
 
-def test_page_opens_on_now_with_three_tabs(app):
-    assert app.title[0].value == "Alert Mesh"
-    assert any(m.value == "**No current warnings**" for m in app.markdown)
+def page(at: AppTest) -> str:
+    return " ".join(m.value for m in at.markdown)
+
+
+def test_page_opens_on_now_with_three_tabs_in_the_sidebar(app):
+    assert [b.key for b in app.sidebar.button if b.key.startswith("nav_")] == ["nav_now", "nav_report", "nav_chat"]
     assert app.session_state["view"] == "Now"
+    assert '<div class="am-pagetitle">Now</div>' in page(app)
+    assert "**No current warnings**" in [m.value for m in app.markdown]
+    show(app, "Report")
+    assert '<div class="am-pagetitle">Report</div>' in page(app)
+
+
+def test_status_bar_shows_bluetooth_and_the_local_network_on_every_tab(me, app):
+    for view in ("Now", "Report", "Chat"):
+        show(app, view)
+        assert "Bluetooth on · 1 laptop nearby" in page(app) and "Local network off" in page(app)
+
+
+def test_i_need_help_bar_is_on_now_only(app):
+    assert button(app, "I need help").key == "need_help"
+    show(app, "Chat")
+    assert not [b for b in app.button if b.key == "need_help"]
 
 
 def test_page_asks_for_a_town_first(me):
@@ -175,7 +195,21 @@ def test_page_asks_for_a_town_first(me):
     at = AppTest.from_file(APP, default_timeout=TIMEOUT)
     at.run()
     assert any("Pick your town" in i.value for i in at.info)
-    assert button(at, "Call for help").disabled
+    assert button(at, "I need help").disabled
+    button(at, "Open Settings").click().run()
+    at.selectbox(key="town").set_value("Katherine").run()
+    assert me.town.name == "Katherine"
+    button(at, "Done").click().run()
+    assert not at.exception and not [s for s in at.selectbox if s.key == "town"]
+    assert not button(at, "I need help").disabled
+
+
+def test_settings_open_from_the_foot_of_the_sidebar(me, app):
+    foot = app.button(key="open_settings")
+    assert foot.label == f"{me.nickname} · Katherine"
+    foot.click().run()
+    app.text_input(key="nickname").input("Aroha").run()
+    assert me.nickname == "Aroha"
 
 
 def test_warning_shows_on_now(me, app):
@@ -187,7 +221,7 @@ def test_warning_shows_on_now(me, app):
 
 
 def test_calling_for_help_from_the_page(me, app):
-    button(app, "Call for help").click().run()
+    button(app, "I need help").click().run()
     app.text_input(key="sos_note").input("Two of us, one hurt")
     button(app, "Send call for help").click().run()
     assert not app.exception
@@ -230,9 +264,10 @@ def test_incoming_message_is_counted_then_read(me, app):
     arrive(me, FrameKind.CHAT, chat.encode_message(bob.message("Bridge is closed", NOW)))
     app.run()
     assert me.node.chats.unread == 1
-    assert any(c.value == "Chat: 1 new" for c in app.caption)
+    assert app.button(key="nav_chat").label == "Chat :red-badge[1]"
     show(app, "Chat")
     assert me.node.chats.unread == 0
+    assert app.button(key="nav_chat").label == "Chat"
     assert any(t.value == "Bridge is closed" for t in app.text)
 
 

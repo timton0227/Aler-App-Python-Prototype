@@ -32,7 +32,7 @@ from alertmesh.proximity import Urgency, sos_urgency
 from alertmesh.reports import ReportKind, ReportSeverity
 from alertmesh.wire import HazardType
 
-st.set_page_config(page_title="Alert Mesh", page_icon="📡", layout="centered")
+st.set_page_config(page_title="Alert Mesh", page_icon="📡", layout="wide")
 
 state = st.session_state
 p = phone.shared()
@@ -85,16 +85,22 @@ def tell_about_new_things() -> None:
     seen.add(("first",))
 
 
-# --- Header and settings --------------------------------------------------------
+# --- Sidebar, settings and status bar ------------------------------------------------
 
 
-def status_line() -> str:
-    bluetooth = p.bluetooth_status.split(":")[0]  # the reason, if any, is shown below
+def bluetooth_words() -> tuple[bool, str]:
+    bluetooth, _, reason = p.bluetooth_status.partition(":")
+    if bluetooth != "on":
+        return False, "Bluetooth off" + (f": {reason.strip()}" if reason.strip() else "")
     count = p.node.link.neighbours()
-    if bluetooth == "on":
-        laptops = "laptop" if count == 1 else "laptops"
-        bluetooth = f"on, {count} {laptops} in range"
-    return f"Bluetooth: {bluetooth} · Local network: {p.wifi_status}"
+    return True, f"Bluetooth on · {count} {'laptop' if count == 1 else 'laptops'} nearby"
+
+
+def network_words() -> tuple[bool, str]:
+    network, _, reason = p.wifi_status.partition(":")
+    if network != "on":
+        return False, "Local network off" + (f": {reason.strip()}" if reason.strip() else "")
+    return True, "Local network on"
 
 
 def save_nickname() -> None:
@@ -105,23 +111,39 @@ def save_town() -> None:
     p.set_town(state.town)
 
 
-def sidebar() -> None:
-    st.sidebar.title("You")
-    state.setdefault("nickname", p.nickname)
-    st.sidebar.text_input("Nickname (people nearby see it; anyone can pick any name)", key="nickname",
-                          max_chars=reports.NICKNAME_MAX_BYTES, on_change=save_nickname)
+def open_settings() -> None:
+    state.settings_open = True
+
+
+def close_settings() -> None:
+    state.settings_open = False
+
+
+@st.dialog("Settings", on_dismiss=close_settings)
+def settings() -> None:
+    # Starting values as parameters: a value put in Session State before the sheet opens
+    # does not reach a field inside it in the browser.
     names = town_names()
-    state.setdefault("town", p.profile.town if p.profile.town in names else None)
-    st.sidebar.selectbox("Where you are", names, key="town", on_change=save_town, index=None,
-                         placeholder="Pick your town")
-    st.sidebar.caption("A laptop has no GPS, so your town stands in for your position. "
-                       "It decides which warnings are for you, and a call for help says you are there.")
-    st.sidebar.divider()
-    st.sidebar.caption(status_line())
-    if p.bluetooth_status.startswith("off"):
-        reason = p.bluetooth_status.partition(":")[2].strip()
-        st.sidebar.warning("Without Bluetooth, messages cannot reach other laptops. " + reason)
-    st.sidebar.caption(places.CREDIT)
+    st.text_input("Nickname (people nearby see it; anyone can pick any name)", p.nickname, key="nickname",
+                  max_chars=reports.NICKNAME_MAX_BYTES, on_change=save_nickname)
+    st.selectbox("Where you are", names, key="town", on_change=save_town, placeholder="Pick your town",
+                 index=names.index(p.profile.town) if p.profile.town in names else None)
+    st.caption("A laptop has no GPS, so your town stands in for your position. "
+               "It decides which warnings are for you, and a call for help says you are there.")
+    st.caption(places.CREDIT)
+    st.button("Done", type="primary", on_click=close_settings)
+
+
+def sidebar_foot() -> None:
+    """You and your town at the foot of the sidebar; clicking them opens Settings."""
+    with st.sidebar.container(key="am_foot"):
+        st.button(f"{p.nickname} · {p.profile.town or 'Pick your town'}", key="open_settings",
+                  icon=":material/settings:", width="stretch", on_click=open_settings,
+                  help="Settings: your nickname and town")
+
+
+def status_bar() -> None:
+    style.status_bar([bluetooth_words(), network_words()], style.updated_text())
 
 
 # --- Now (NowView, SOSView) -------------------------------------------------------
@@ -140,6 +162,8 @@ def send_sos() -> None:
 
 
 def call_for_help() -> None:
+    """Your own call for help, when one is out, and the call-for-help sheet when the
+    "I need help" bar was pressed."""
     mine = p.my_call_for_help()
     if mine is not None:
         st.error(f"**Your call for help is out.** It keeps travelling between laptops until "
@@ -148,13 +172,7 @@ def call_for_help() -> None:
             st.button("I'm safe now", type="primary", on_click=p.send_safe)
             st.button("Send it again", on_click=p.send_sos, args=(mine.note,))
         return
-    if p.geohash is None:
-        st.button("Call for help", type="primary", disabled=True, width="stretch",
-                  help="Pick your town first, so people know where to come.")
-        return
-    if not state.get("sos_open"):
-        st.button("Call for help", type="primary", width="stretch",
-                  on_click=lambda: state.update(sos_open=True))
+    if not state.get("sos_open") or p.geohash is None:
         return
     with st.container(border=True):
         st.markdown(f"**Call for help**, {place_words(p.geohash)}")
@@ -164,6 +182,15 @@ def call_for_help() -> None:
         with st.container(horizontal=True):
             st.button("Send call for help", type="primary", on_click=send_sos)
             st.button("Cancel", on_click=lambda: state.update(sos_open=False))
+
+
+def help_bar() -> None:
+    """The red "I need help" bar, pinned to the bottom of Now (EmergencyHelpBarModifier)."""
+    with st.container(key="am_helpbar"):
+        st.button("I need help", key="need_help", icon=":material/sos:", type="primary", width="stretch",
+                  disabled=p.geohash is None, on_click=lambda: state.update(sos_open=True),
+                  help="Pick your town in Settings first, so people know where to come." if p.geohash is None
+                  else "Opens the call for help. Nothing is sent until you press Send.")
 
 
 def warning_card(item: phone.WarningView) -> None:
@@ -202,6 +229,7 @@ def now_view() -> None:
                    "laptop in range that has it.")
     for item in items:
         warning_card(item)
+    help_bar()
 
 
 # --- Report (CommunityReportsView) ------------------------------------------------
@@ -316,28 +344,24 @@ def chat_view() -> None:
 # --- Page -----------------------------------------------------------------------
 
 style.inject()
-sidebar()
 state.news = news()  # what this run shows; the fragment reruns the page when it changes
 watch()
 tell_about_new_things()
 
-st.title("Alert Mesh")
-if p.geohash is None:
-    st.info("Pick your town in the sidebar, so the app knows which warnings are for you.")
-
-
-# A radio, not st.tabs: the page must know which tab is open, so that opening Chat marks
-# its messages read. Its labels stay fixed (a label that changes can reset the choice);
-# the counts go on the line below it.
-view = st.radio("Show", [NOW, REPORT, CHAT], key="view", horizontal=True, label_visibility="collapsed")
-counts = []
+# The page must know which tab is open, so that opening Chat marks its messages read.
 urgent = len(p.calls_for_help()) + sum(1 for w in p.warnings() if w.decision.urgency is Urgency.LOUD)
-if urgent and view != NOW:
-    counts.append(f"Now: {urgent} for you")
-if p.node.chats.unread and view != CHAT:
-    counts.append(f"Chat: {p.node.chats.unread} new")
-if counts:
-    st.caption(" · ".join(counts))
+view = style.nav([(NOW, ":material/home:"), (REPORT, ":material/campaign:"), (CHAT, ":material/chat:")],
+                 {NOW: urgent if state.get("view") != NOW else 0,
+                  CHAT: p.node.chats.unread if state.get("view") != CHAT else 0}, "Alert Mesh")
+sidebar_foot()
+status_bar()
+if state.get("settings_open"):
+    settings()
+
+style.page_title(view)
+if p.geohash is None:
+    st.info("Pick your town in Settings, so the app knows which warnings are for you.")
+    st.button("Open Settings", on_click=open_settings)
 if view == REPORT:
     report_view()
 elif view == CHAT:

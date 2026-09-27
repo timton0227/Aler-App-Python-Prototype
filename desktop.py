@@ -66,6 +66,9 @@ class Page:
     # Modules the page loads only when it starts its links, so its own imports do not
     # name them; the self-check imports them too.
     also_needs: tuple[str, ...] = ()
+    # Room for the sidebar, a chat list beside a conversation, and the status bar; still
+    # fits a 1366 x 768 Windows laptop at 125% scaling (1093 x 614 usable).
+    min_size: tuple[int, int] = (960, 600)
 
     @property
     def path(self) -> Path:
@@ -79,7 +82,7 @@ _RADIO = {
 }.get(sys.platform, ())
 
 PAGES = {
-    "phone": Page("phone", "phone_app.py", "Alert Mesh", (1000, 860),
+    "phone": Page("phone", "phone_app.py", "Alert Mesh", (1200, 760),
                   ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO)),
     "warning": Page("warning", "warning_app.py", "Alert Mesh Warnings", (1400, 900), ("alertmesh.lan",)),
 }
@@ -220,7 +223,7 @@ def main(page: Page) -> None:
         server = subprocess.Popen(server_command(port, page), stdout=log, stderr=subprocess.STDOUT, **extra)
     width, height = page.size
     window = webview.create_window(page.title, html=PAGE.format(message="Starting…"),
-                                   width=width, height=height, min_size=(700, 600))
+                                   width=width, height=height, min_size=page.min_size)
 
     def show_page():
         if wait_until_up(port, server):

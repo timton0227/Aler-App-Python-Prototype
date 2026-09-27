@@ -39,6 +39,13 @@ def test_two_apps_each_with_its_page_and_title():
     assert "bless" in PHONE.also_needs and "alertmesh.ble" in PHONE.also_needs
 
 
+def test_windows_open_big_enough_for_the_sidebar_and_cannot_shrink_below_960_by_600():
+    assert PHONE.size == (1200, 760)
+    for page in (PHONE, WARNING):
+        assert page.min_size == (960, 600)
+        assert page.size[0] >= page.min_size[0] and page.size[1] >= page.min_size[1]
+
+
 def test_streamlit_is_told_to_stay_on_this_computer_and_off_development_mode():
     args = desktop.streamlit_args(8765, WARNING)
     assert args[:3] == ["streamlit", "run", str(WARNING.path)]

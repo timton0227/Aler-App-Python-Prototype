@@ -14,8 +14,16 @@ setting as the iPhone app does.
 This is free and unencumbered software released into the public domain.
 """
 import html
+import sys
+import time
 
 from alertmesh.wire import Severity
+
+# Which system the window is on. The page server runs on the same computer as the window,
+# so the page can ask Python. Only what the system owns follows it: shortcut keys and the
+# order of buttons in a sheet.
+MAC = sys.platform == "darwin"
+WINDOWS = sys.platform == "win32"
 
 # The system typeface: SF Pro on a Mac, Segoe UI Variable on Windows. No bundled font.
 # Names without quotes, so the same text works in a Streamlit flag and in CSS.
@@ -74,6 +82,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "advice-text": ("#8A6200", "#FFD84D"),
     "clear": ("#1E7B34", "#30D158"),     # all clear
     "bar": ("rgba(255,255,255,.86)", "rgba(22,22,24,.86)"),
+    "badge": ("#FF3B30", "#FF453A"),     # system red, as on the iPhone tab bar's counts
 }
 
 # Short class suffix for each warning level: am-fill-e, am-t-w, am-bar-a, ...
@@ -119,6 +128,70 @@ CSS = f"""
 .am-other .am-colourbar{{width:6px;border-radius:3px;flex:none;}}
 .am-other .am-headline{{margin:3px 0 4px;}}
 
+/* The window: a 220-wide sidebar with the tabs, the page, and a status bar along the
+   bottom. Below 1100 wide the sidebar shows icons with short labels under them. */
+.stSidebar{{width:220px!important;min-width:220px!important;max-width:220px!important;}}
+[data-testid="stSidebarHeader"],[data-testid="stSidebarCollapseButton"],[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
+[data-testid="stSidebarContent"]{{padding:0!important;}}
+[data-testid="stSidebarUserContent"]{{padding:14px 10px 120px!important;}}
+.stMainBlockContainer{{padding-top:22px!important;padding-bottom:140px!important;max-width:1180px;}}
+.am-brand{{display:flex;align-items:center;gap:9px;padding:0 8px 6px;font-weight:600;font-size:18px;}}
+.am-appicon{{width:26px;height:26px;border-radius:7px;background:var(--am-red);color:#fff;display:grid;
+  place-items:center;flex:none;}}
+.am-appicon svg{{width:15px;height:15px;}}
+.stSidebar [class*="st-key-nav_"] button{{justify-content:flex-start;padding:6px 10px;min-height:36px;
+  border-radius:8px;border:0;}}
+.stSidebar [class*="st-key-nav_"] button > div{{width:100%;justify-content:flex-start;}}
+.st-key-am_nav{{gap:2px;}}
+/* Counts as on the iPhone tab bar: white on the system red. */
+.stSidebar [class*="st-key-nav_"] .stMarkdownBadge{{background-color:var(--am-badge)!important;color:#fff!important;
+  font-size:12px!important;font-weight:600;border-radius:10px;padding:0 6px;margin-left:6px;
+  font-variant-numeric:tabular-nums;}}
+.stSidebar [class*="st-key-nav_"] button p{{font-size:14.5px;font-weight:500;}}
+.stSidebar [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"],
+.stSidebar [class*="st-key-nav_"] button p{{text-align:left;}}
+.stSidebar [class*="st-key-nav_"] button[kind="primary"],
+.stSidebar [class*="st-key-nav_"] button[data-testid="stBaseButton-primary"]{{background:var(--am-blue-soft);
+  color:var(--am-blue);}}
+.am-pagetitle{{font-size:22px;font-weight:700;line-height:1.2;margin:0 0 6px;}}
+.st-key-am_foot{{position:fixed;bottom:34px;left:10px;width:200px;z-index:2;border-top:1px solid var(--am-sep);
+  padding-top:8px;}}
+.st-key-am_foot button{{justify-content:flex-start;border:0;background:transparent;text-align:left;}}
+.am-statusbar{{position:fixed;left:0;right:0;bottom:0;height:26px;z-index:1000000;display:flex;align-items:center;
+  gap:18px;padding:0 14px;font-size:12px;color:var(--am-ink-2);background:var(--am-sidebar);
+  border-top:1px solid var(--am-sep);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}}
+.am-statusbar .am-dot{{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;
+  background:var(--am-clear);}}
+.am-statusbar .am-dot.am-off{{background:var(--am-ink-2);}}
+.am-statusbar .am-end{{margin-left:auto;}}
+/* The "I need help" bar, pinned to the bottom of Now (EmergencyHelpBarModifier). */
+.st-key-am_helpbar{{position:fixed;left:220px;right:0;width:auto!important;bottom:26px;z-index:999;padding:10px 24px;
+  background:var(--am-bar);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--am-sep);}}
+.st-key-am_helpbar button{{height:56px;border-radius:16px;border:0;background:var(--am-red);color:#fff;}}
+.st-key-am_helpbar button:hover,.st-key-am_helpbar button:focus{{background:var(--am-red);color:#fff;
+  filter:brightness(1.08);}}
+.st-key-am_helpbar button p{{font-size:19px;font-weight:700;}}
+@media (max-width:1100px){{
+  .stSidebar{{width:76px!important;min-width:76px!important;max-width:76px!important;}}
+  [data-testid="stSidebarUserContent"]{{padding:12px 6px 120px!important;}}
+  .am-brand{{justify-content:center;padding:0 0 6px;}}
+  .am-brand span:last-child{{display:none;}}
+  .stSidebar [class*="st-key-nav_"] button{{padding:6px 2px;flex-direction:column;justify-content:center;gap:2px;}}
+  .stSidebar [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{{text-align:center;}}
+  .stSidebar [class*="st-key-nav_"] button{{position:relative;}}
+  .stSidebar [class*="st-key-nav_"] .stMarkdownBadge{{position:absolute;top:3px;right:8px;margin:0;font-size:11px!important;}}
+  .stSidebar [class*="st-key-nav_"] button > div,.stSidebar [class*="st-key-nav_"] button > div > span{{
+    flex-direction:column;justify-content:center;align-items:center;gap:2px;}}
+  .stSidebar [class*="st-key-nav_"] button p{{font-size:11px;text-align:center;}}
+  .stSidebar [class*="st-key-nav_"] [data-testid="stIconMaterial"]{{font-size:22px;}}
+  .st-key-am_foot{{left:6px;width:64px;}}
+  .st-key-am_foot button{{justify-content:center;}}
+  .st-key-am_foot button p,.st-key-am_foot .am-hide-compact{{display:none;}}
+  .st-key-am_helpbar{{left:76px;padding:10px 20px;}}
+}}
+
 /* The solid block, only when a warning covers you (NowView.affectedBlock). */
 .am-block{{border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}}
 .am-block svg{{width:34px;height:34px;}}
@@ -144,6 +217,56 @@ def symbol(severity: Severity, cut_out: str = "var(--am-bg)") -> str:
     of the "i" or "!" inside it: the background behind the symbol."""
     paths = _SYMBOL_PATHS[severity].replace("var(--am-bg)", cut_out)
     return f'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">{paths}</svg>'
+
+
+# The app's icon: an antenna sending, white on red, as on the iPhone app's icon.
+APP_ICON = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="11" r="2.5"/>'
+            '<path d="M11 13h2l1.5 9h-5z"/><path fill="none" stroke="currentColor" stroke-width="2" '
+            'stroke-linecap="round" d="M7.8 6.8a6 6 0 0 0 0 8.4M16.2 6.8a6 6 0 0 1 0 8.4M4.9 3.9a10 10 0 0 0 0 14.2'
+            'M19.1 3.9a10 10 0 0 1 0 14.2"/></svg>')
+
+
+def nav(pages: list[tuple[str, str]], badges: dict[str, int], brand: str) -> str:
+    """The tabs, as buttons in the sidebar (the iPhone's tab bar on a desktop). A count
+    is a red badge, as on the iPhone tab bar. Returns the open tab, kept in
+    `st.session_state.view`."""
+    import streamlit as st
+
+    state = st.session_state
+    state.setdefault("view", pages[0][0])
+    st.sidebar.markdown(f'<div class="am-brand"><span class="am-appicon">{APP_ICON}</span><span>{esc(brand)}</span>'
+                        f'</div>', unsafe_allow_html=True)
+    tabs = st.sidebar.container(key="am_nav")
+    for name, icon in pages:
+        count = badges.get(name, 0)
+        tabs.button(name + (f" :red-badge[{count}]" if count else ""), key=nav_key(name), icon=icon,
+                          type="primary" if state.view == name else "tertiary", width="stretch",
+                          on_click=state.update, kwargs={"view": name})
+    return state.view
+
+
+def nav_key(name: str) -> str:
+    return "nav_" + name.lower().replace(" ", "_")
+
+
+def page_title(title: str) -> None:
+    import streamlit as st
+
+    st.markdown(f'<div class="am-pagetitle">{esc(title)}</div>', unsafe_allow_html=True)
+
+
+def status_bar(items: list[tuple[bool, str]], end: str = "") -> None:
+    """The strip along the bottom of the window, on every tab: each item is (on, words)."""
+    import streamlit as st
+
+    parts = "".join(f'<span><span class="am-dot{"" if on else " am-off"}"></span>{esc(words)}</span>'
+                    for on, words in items)
+    st.markdown(f'<div class="am-statusbar">{parts}<span class="am-end">{esc(end)}</span></div>',
+                unsafe_allow_html=True)
+
+
+def updated_text() -> str:
+    return "Updated " + time.strftime("%H:%M:%S")
 
 
 def inject() -> None:
