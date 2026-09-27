@@ -24,6 +24,12 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 1.2 Geohash encode — 2026-09-27
+- What: `geohash.encode(latitude, longitude, precision)`.
+- Ported from: `AlertMesh/Protocols/Geohash.swift` (`encode`).
+- Differences from Swift: none. Same clamping and same empty result for precision ≤ 0.
+- Verified by: `python3 -m pytest tests/test_geohash.py -k encode` — 3 passed, including the standard example `u4pruydqqvj` and the Swift prefix test (`geohashEncoderPrecisionMapping`).
+
 ## 1.1 Geohash alphabet and is_valid — 2026-09-27
 - What: `alertmesh/geohash.py` with `BASE32` and `is_valid()`.
 - Ported from: `AlertMesh/Protocols/Geohash.swift` (`base32Chars`, `isValidGeohash`).
