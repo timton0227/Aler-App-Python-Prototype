@@ -136,7 +136,12 @@ class Probe:
             print(f"{head}\n    REPORT {r.kind.name if r else '?'} {r.note if r else ''!r}, "
                   f"author signature {'OK' if ok else 'NOT OK'}")
         elif p.type == MessageType.REQUEST_SYNC:
-            print(f"{head}\n    CATCH-UP REQUEST (the probe does not answer)")
+            # The iPhone addresses its first catch-up request to a peer whose announce it
+            # accepted; with no accepted peers it sends them to everyone.
+            to = ("to this laptop: it accepted our announce" if p.recipient_id == self.me.peer_id
+                  else "to everyone" if p.recipient_id in (None, bitchat.BROADCAST)
+                  else f"to {self.names.get(p.recipient_id, p.recipient_id.hex())}")
+            print(f"{head}\n    CATCH-UP REQUEST {to} (the probe does not answer)")
         else:
             name = MessageType(p.type).name if p.type in MessageType._value2member_map_ else hex(p.type)
             print(f"{head}\n    {name}, {len(p.payload)} bytes (not handled by the probe)")

@@ -145,7 +145,7 @@ simplified, left out, or behaves differently from the app.
   - The app uses whatever fix it last had, however old, and encodes it to 8 characters whatever its accuracy. The laptop drops a fix after an hour (it may have been carried elsewhere) and shortens the geohash to what the fix can honestly give.
 - Verified by: `python3 -m pytest tests/test_position.py` — 28 passed; `python3 -m pytest -q` — 714 passed (`packaging/.venv-mac`); 694 passed, 9 skipped (Anaconda 3.13).
 
-## 16.4 Early check with an iPhone — in progress — 2026-09-28
+## 16.4 Early check with an iPhone — 2026-09-28
 - What:
   - `tools/ble_probe.py` is rewritten for the iPhone app's format. It connects to devices advertising the iPhone app's service, as one iPhone connects to another, and subscribes to their notifications.
     - It sends a signed announce, then a short message and one over 100 bytes (compressed; cut into fragments when the link is too small).
@@ -165,7 +165,11 @@ simplified, left out, or behaves differently from the app.
     - The iPhone's announces arrived, and every signature checked. So did those of a second iPhone ("Thai Bui"), relayed through the first with TTL 6.
     - The laptop's announce, a short message and a long compressed message were each written and acknowledged.
     - The iPhone then sent the laptop catch-up requests, which it sends only to a peer it has accepted.
-  - Still to confirm on the iPhone's screen: the laptop in its list of people nearby, both messages in its public chat, and a message typed on the iPhone arriving at the laptop.
+  - A message typed on the iPhone ("Checking from iphone") reached the laptop, and its signature checked out.
+  - The probe now says who each catch-up request is addressed to. The iPhone addresses them to a peer only after it has accepted that peer's announce; they all came addressed to the laptop.
+  - Last run: "Laptop test 1" to "Laptop test 8" were sent every 15 s, with an announce between each. The user saw "Nothing-Mac-2" and its messages in the iPhone's Chat → Nearby.
+  - The earlier runs showed nothing on the iPhone, most likely because its app was not open in front. Its log could not be read from the Mac: `devicectl --console` shows only standard output, and the app logs to the system log.
+- Verified by: by hand with the user's iPhone (Debug build), both ways, as above.
 - Follow-up after a code review:
   - `bitchat.frame_length` returns None for an empty buffer instead of failing. Its only caller never passes one, so this changed no behaviour.
   - The probe reports a packet it cannot encode instead of stopping with an error.
