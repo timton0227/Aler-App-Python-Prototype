@@ -29,7 +29,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| **All** | **84** | **88** |
+| 16 One Bluetooth mesh with iPhones | 0 | 10 |
+| **All** | **84** | **98** |
 
 **Next step:** 12.4
 
@@ -420,6 +421,63 @@ switch in each app, **off** until turned on. The tests never use the real relays
 - [x] 15.9 README and wrap-up
       Done when: the README explains the switches, what goes to public servers, and the iPhone check; packaged apps rebuilt
       Verify: `python3 -m pytest -q`; `python3 desktop.py --check` and `--app warning --check`
+
+---
+
+## Phase 16 — One Bluetooth mesh with iPhones
+
+Added after Phase 15, at the user's request. The phone app's Bluetooth used its own
+format, so iPhones running Alert Mesh ignored laptops and laptops ignored iPhones. This
+phase makes the phone app speak the iPhone app's (bitchat's) Bluetooth format, so
+laptops and iPhones share one mesh with no internet: they see each other nearby, chat
+in public, and pass warnings, calls for help, "I'm safe" and hazard reports along.
+
+Only the unencrypted parts are matched. iPhones encrypt private messages with Noise,
+which the laptops do not speak: private chat stays **between laptops only** (the user's
+choice), under a packet type iPhones do not know and relay unread. Laptops with this
+phase and laptops without it do not see each other over Bluetooth (different service
+IDs); Wi-Fi and the internet are unaffected.
+
+The iPhone's rules are in `../alert-mesh/localPackages/BitFoundation/` (the packet) and
+`../alert-mesh/AlertMesh/Services/BLE/` (the link). Step 15.8, the check with an
+iPhone, is done with step 16.10.
+
+- [ ] 16.1 Packet codec (`alertmesh/bitchat.py`)
+      Swift: `localPackages/BitFoundation/Sources/BitFoundation/BinaryProtocol.swift`, `BitchatPacket.swift`, `MessagePadding.swift`, `CompressionUtil.swift`, `PeerID.swift`
+      Done when: packets are encoded and decoded as the iPhone app does (header, flags, sender and recipient, compression, padding); the signed bytes are built as the iPhone builds them (TTL 0, no signature, padded, compressed when due), and a received packet's signature is checked from its own bytes; peer ID = the first 8 bytes of SHA-256 of the X25519 key; the Swift test cases are ported
+      Verify: `python3 -m pytest tests/test_bitchat.py`
+- [ ] 16.2 Cross-check with Swift
+      Done when: a small Swift package built on the app's BitFoundation decodes and verifies packets made in Python, and Python decodes and verifies packets made in Swift; Python's compression is compared with Apple's, and the answer is kept as test data that the apps check when they start (if they differ, messages stay under 100 bytes, where nothing is compressed)
+      Verify: `python3 tools/cross_check_bitchat.py` (Mac with Swift)
+- [ ] 16.3 Announce, leave, catch-up request, fragments
+      Swift: `AlertMesh/Protocols/Packets.swift` (announce), `AlertMesh/Models/RequestSyncPacket.swift`, `AlertMesh/Services/BLE/BLEOutboundFragmentPlanner.swift`, `BLEFragmentAssemblyBuffer.swift`, `AlertMesh/Services/NotificationStreamAssembler.swift`
+      Done when: announces (nickname, X25519 key, Ed25519 key, and our "laptop" marker the iPhone skips), leave and catch-up requests are made and read; long packets are cut into fragments and put back together; a stream of notifications is cut back into packets
+      Verify: `python3 -m pytest tests/test_bitchat.py`
+- [ ] 16.4 Early check with an iPhone (`tools/ble_probe.py`)
+      Done when: the probe connects to an iPhone running Alert Mesh (Debug build), prints the iPhone's announce and messages, and the laptop's name and a long message show on the iPhone
+      Verify: by hand, with the user's iPhone
+- [ ] 16.5 The mesh node on the iPhone's packets
+      Swift: `AlertMesh/Services/BLE/BLEService.swift` (receive and relay), `BLEIngressPacketGuard.swift`, `BLEAnnounceHandlingPolicy.swift`, `BLEPublicMessagePolicy.swift`, `BLEReceivePipeline.swift`, `AlertMesh/Services/RelayController.swift`
+      Done when: `alertmesh/node.py` sends and takes the iPhone's packets: announces every 15 seconds or so and at once on a new link; public chat as plain text checked against the sender's announced key; warnings and reports as before; laptop-only private messages under their own type; leave; the iPhone's checks (clock within 2 minutes, duplicates, announce rules); relaying as the iPhone does
+      Verify: `python3 -m pytest tests/test_node.py tests/test_internet.py tests/test_phone_app.py`
+- [ ] 16.6 Phone app: iPhones and laptops in one list
+      Done when: Chat lists iPhones and laptops nearby by name; "Message" is offered only for laptops; the message limit follows step 16.2
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 16.7 Bluetooth link in both roles (`alertmesh/ble.py`)
+      Swift: `AlertMesh/Services/BLE/BLEService+LinkLayerPeripheralRole.swift`, `BLEService+LinkLayerCentralRole.swift`
+      Done when: the laptop uses the iPhone app's service and characteristic, sends to connected devices by writing and to subscribed devices by notifying, keeps its connections open and subscribes to them, and sends one whole packet per write or notification
+      Verify: `python3 -m pytest tests/test_ble.py`
+- [ ] 16.8 Fragments per link, and new links
+      Swift: `AlertMesh/Services/BLE/BLEOutboundLinkPlanner.swift`, `BLEOutboundPacketPolicy.swift`
+      Done when: the Bluetooth process cuts a packet into fragments when a link cannot carry it whole; the laptop count is the live links; a new link makes the node announce at once
+      Verify: `python3 -m pytest tests/test_ble.py tests/test_node.py`
+- [ ] 16.9 Catching up from iPhones
+      Swift: `AlertMesh/Sync/GossipSyncManager.swift`, `AlertMesh/Sync/RequestSyncManager.swift`
+      Done when: soon after a new link the laptop asks for the warnings and reports the other device holds, and takes the answers (which carry old times) only within 30 seconds of asking
+      Verify: `python3 -m pytest tests/test_node.py`
+- [ ] 16.10 Check with an iPhone, README, rebuild
+      Done when: with an iPhone running the Debug build: each lists the other; public chat both ways; a warning from the warning app reaches the iPhone through a laptop; a call for help goes both ways; a laptop that arrives late gets a warning the iPhone holds; private chat still works between laptops; the README explains it all; the packaged apps are rebuilt
+      Verify: by hand; `python3 desktop.py --check` and `--app warning --check`
 
 ---
 
