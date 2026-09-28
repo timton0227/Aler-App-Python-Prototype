@@ -92,10 +92,11 @@ could not cancel them.
 ### The phone app
 
 `streamlit run phone_app.py` (from VS Code's terminal, see below) opens the phone app.
-Pick your town in **Settings** first (click your name at the foot of the sidebar): a laptop has no GPS, so the town stands in for
-where you are. It decides which warnings are for you, and a call for help says you are
-there. Your nickname, town and keys are kept in `~/Library/Application Support/Alert Mesh/`
-(Mac) or `%APPDATA%\Alert Mesh` (Windows); messages are not kept.
+Open **Settings** first (click your name at the foot of the sidebar) and say where you
+are (see "Where you are" below). Your position decides which warnings are for you, and
+a call for help or a report says you are there. Your nickname, town, pin, last position
+and keys are kept in `~/Library/Application Support/Alert Mesh/` (Mac) or
+`%APPDATA%\Alert Mesh` (Windows); messages are not kept.
 
 | Tab | What it does |
 |---|---|
@@ -125,6 +126,25 @@ What travels how:
 
 Bluetooth reaches about 10 m indoors. One computer cannot talk to itself over
 Bluetooth, so trying the chat needs two laptops (see "Two-laptop check").
+
+#### Where you are
+
+The phone app uses the first of these it has:
+
+1. **A pin** you dropped: **Settings → Drop a pin**. Pick a town, click the square of
+   about 1 km you are in, then the square of about 150 m. Or type or paste coordinates,
+   such as `-14.465, 132.263` from a map app. The pin stays until **Clear pin**.
+2. **This Mac's own location** (**Use this Mac's location**, on by default). macOS asks
+   once. It works in the packaged **Alert Mesh** app only: macOS never asks a plain
+   `python` or `streamlit run`, and the switch's status says so. A position older than
+   an hour is not used, as the laptop may have moved. It needs Wi-Fi on.
+3. **Your town's centre**, as picked in Settings.
+
+As on the iPhone, only a rough area leaves the laptop: a call for help and "I'm safe"
+to about 150 m, a hazard report as exact as the position (at best about 40 m). The
+last position is kept as that area code only, never as coordinates. The status bar
+says which one is in use. The map comes from the internet; without it the squares and
+town names still show, and typed coordinates always work.
 
 ### Bluetooth and network permission (Mac)
 

@@ -83,10 +83,12 @@ _RADIO = {
 
 # The internet link loads these only when it starts, so the page's own imports do not show them.
 _INTERNET = ("alertmesh.relays", "alertmesh.internet", "websockets.sync.client", "certifi")
+# The pin map and the location process, loaded only when used.
+_WHERE = ("pydeck", *(("CoreLocation", "Foundation") if sys.platform == "darwin" else ()))
 
 PAGES = {
     "phone": Page("phone", "phone_app.py", "Alert Mesh", (1200, 760),
-                  ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO, *_INTERNET)),
+                  ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO, *_INTERNET, *_WHERE)),
     "warning": Page("warning", "warning_app.py", "Alert Mesh Warnings", (1400, 900),
                     ("alertmesh.lan", *_INTERNET)),
 }
@@ -255,6 +257,7 @@ def run(app: str | None = None) -> None:
     parser.add_argument("--serve", type=int, metavar="PORT", help="run the page on this port (internal)")
     parser.add_argument("--parent", type=int, help="stop when this process ends (internal)")
     parser.add_argument("--bluetooth", action="store_true", help="be the phone app's Bluetooth process (internal)")
+    parser.add_argument("--location", action="store_true", help="be the phone app's location process (internal)")
     parser.add_argument("--check", action="store_true", help="check the app has every part it needs, then exit")
     # Known arguments only: older macOS adds its own (-psn_…) when opening an app.
     options, _ = parser.parse_known_args()
@@ -263,6 +266,10 @@ def run(app: str | None = None) -> None:
         sys.exit(check(page))
     if options.bluetooth:
         from alertmesh.ble import child_main
+
+        child_main()
+    elif options.location:
+        from alertmesh.location import child_main
 
         child_main()
     elif options.serve:

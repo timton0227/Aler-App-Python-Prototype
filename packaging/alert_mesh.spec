@@ -69,11 +69,18 @@ def app(start, page, name, bundle_id, packages, plist, leave_out=()):
 
 # The phone app keeps the bundle ID of the Phase 12 app, so a Mac that already allowed
 # it keeps its permissions.
+# Location Services (the pin map works everywhere; this Mac's own position only on a Mac).
+LOCATION = ["CoreLocation"] if sys.platform == "darwin" else []
+WHERE_WORDS = ("Alert Mesh uses your location to tell which warnings cover you, and to show people who come "
+               "to help where you are. It is only ever sent as a rough area, to about 150 metres.")
 app("start_phone.py", "phone_app.py", "Alert Mesh", "au.alertmesh.prototype",
-    ["streamlit", "bleak", "bless", "websockets", "certifi"],
+    ["streamlit", "pydeck", "bleak", "bless", "websockets", "certifi", *LOCATION],
     # Without this, macOS stops the app the moment it touches Bluetooth.
     {"NSBluetoothAlwaysUsageDescription": "Alert Mesh finds laptops nearby and passes messages, "
-                                          "calls for help and warnings between them over Bluetooth."},
+                                          "calls for help and warnings between them over Bluetooth.",
+     # Without these, macOS never asks, and the app has no position of its own.
+     "NSLocationWhenInUseUsageDescription": WHERE_WORDS,
+     "NSLocationUsageDescription": WHERE_WORDS},
     # The simulated town and its maps belong to the warning app.
     leave_out=("alertmesh.viz", "alertmesh.world", "alertmesh.metrics", "plotly"))
 app("start_warning.py", "warning_app.py", "Alert Mesh Warnings", "au.alertmesh.warnings",

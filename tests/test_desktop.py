@@ -39,6 +39,16 @@ def test_two_apps_each_with_its_page_and_title():
     assert "bless" in PHONE.also_needs and "alertmesh.ble" in PHONE.also_needs
     for page in (PHONE, WARNING):  # the internet link's parts, loaded only when it starts
         assert "websockets.sync.client" in page.also_needs and "alertmesh.relays" in page.also_needs
+    assert "pydeck" in PHONE.also_needs  # the pin map
+    if sys.platform == "darwin":  # this Mac's own position
+        assert "CoreLocation" in PHONE.also_needs
+
+
+def test_the_location_process_is_a_second_copy_of_the_packaged_app(monkeypatch):
+    from alertmesh import location
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert location.location_command() == [sys.executable, "--location"]
 
 
 def test_windows_open_big_enough_for_the_sidebar_and_cannot_shrink_below_960_by_600():

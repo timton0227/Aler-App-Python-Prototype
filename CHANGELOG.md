@@ -24,6 +24,27 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.6 Packaging and README — 2026-09-28
+- What:
+  - `packaging/alert_mesh.spec`: the phone app's Info.plist gets `NSLocationWhenInUseUsageDescription` and `NSLocationUsageDescription`, the words macOS shows when it asks. Without them macOS never asks. The phone app also carries `pydeck` (the pin map) and, on a Mac, `CoreLocation`.
+  - `desktop.py`:
+    - `--location` makes the packaged app its own location process, as `--bluetooth` does for Bluetooth.
+    - The phone app's `--check` now also loads `pydeck`, and `CoreLocation` and `Foundation` on a Mac.
+  - `README.md`: a new "Where you are" section covering:
+    - the pin, this Mac's location and the town, in that order;
+    - that only the packaged app can ask macOS for a position;
+    - that only a rough area ever leaves the laptop.
+  - The phone app's introduction no longer says a laptop has no GPS.
+  - `tests/test_desktop.py`: the phone app needs the map and location libraries, and the packaged app's location process is a second copy of itself.
+  - Rebuilt both apps with `packaging/build_mac.sh`:
+    - `dist/Alert Mesh.app` is 269 MB (246 MB before, mostly pydeck); the warning app is unchanged at 288 MB.
+    - The location words are in its Info.plist, and `alertmesh.location`, `alertmesh.position`, `alertmesh.pinmap`, `CoreLocation` and `pydeck` are inside.
+- Ported from: new.
+- Differences from Swift: not applicable.
+- Verified by:
+  - `packaging/build_mac.sh`, whose `--check` passes on both finished apps (phone app: 38 imports; warning app: 33);
+  - `python3 -m pytest -q` — 764 passed (`packaging/.venv-mac`); 743 passed, 10 skipped (Anaconda 3.13).
+
 ## 17.5 Phone app: "Where you are" — 2026-09-28
 - What, in `phone_app.py`:
   - **Settings, "Where you are":**
