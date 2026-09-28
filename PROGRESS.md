@@ -453,7 +453,7 @@ iPhone, is done with step 16.10.
       Swift: `AlertMesh/Protocols/Packets.swift` (announce), `AlertMesh/Models/RequestSyncPacket.swift`, `AlertMesh/Services/BLE/BLEOutboundFragmentPlanner.swift`, `BLEFragmentAssemblyBuffer.swift`, `AlertMesh/Services/NotificationStreamAssembler.swift`
       Done when: announces (nickname, X25519 key, Ed25519 key, and our "laptop" marker the iPhone skips), leave and catch-up requests are made and read; long packets are cut into fragments and put back together; a stream of notifications is cut back into packets
       Verify: `python3 -m pytest tests/test_bitchat.py`
-- [ ] 16.4 Early check with an iPhone (`tools/ble_probe.py`)
+- [~] 16.4 Early check with an iPhone (`tools/ble_probe.py`)
       Done when: the probe connects to an iPhone running Alert Mesh (Debug build), prints the iPhone's announce and messages, and the laptop's name and a long message show on the iPhone
       Verify: by hand, with the user's iPhone
 - [ ] 16.5 The mesh node on the iPhone's packets

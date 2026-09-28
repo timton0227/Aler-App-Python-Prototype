@@ -24,6 +24,20 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.4 Early check with an iPhone — in progress — 2026-09-28
+- What:
+  - `tools/ble_probe.py` is rewritten for the iPhone app's format. It connects to devices advertising the iPhone app's service, as one iPhone connects to another, and subscribes to their notifications.
+    - It sends a signed announce, then a short message and one over 100 bytes (compressed; cut into fragments when the link is too small).
+    - With `--warning`, it also sends a TEST warning and cancels it 20 s later.
+    - It prints what the iPhone sends, checking every signature, and uses the phone app's saved nickname and keys.
+  - `alertmesh/bitchat.py`: the iPhone app's service and characteristic IDs. Debug ("testnet") is the default; `ALERTMESH_BLE_NETWORK=release` switches.
+- Not yet verified: this step is the checkpoint with a real iPhone, before the mesh node is rewritten.
+  - Claude tried to run the probe from a small signed wrapper app (Claude's own shell may not use Bluetooth). It sat waiting on a macOS permission prompt and was stopped.
+  - The check is for the user to run from VS Code's terminal, with the iPhone app open nearby.
+- Ported from: new (it follows `BLEService+LinkLayerCentralRole.swift`: connect, discover, subscribe, then announce).
+- Differences from Swift: not applicable.
+- Verified by: a dry run of its packet handling (it verifies its own announce and compressed message); `python3 -m pytest -q` — 685 passed (`packaging/.venv-mac`).
+
 ## 16.3 Announce, leave, catch-up request, fragments — 2026-09-28
 - What, in `alertmesh/bitchat.py`:
   - `Announcement`, `encode_announcement`, `decode_announcement`: nickname, X25519 ("Noise") key, Ed25519 key, and the optional neighbours, capabilities and bridge cell. TLVs with 1-byte lengths; unknown ones are skipped.

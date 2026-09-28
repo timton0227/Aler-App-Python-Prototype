@@ -43,6 +43,20 @@ from enum import IntEnum
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
+# The iPhone app's Bluetooth service and its one characteristic (BLEService.swift). A
+# Debug build uses the "testnet" service, a Release build the "mainnet" one; only a
+# Debug build trusts the development key the warning app signs with, so Debug is the
+# default. ALERTMESH_BLE_NETWORK=release switches.
+SERVICE_UUID_DEBUG = "f47b5e2d-4a9e-4c5a-9b3f-8e1d2c3a4b5a"
+SERVICE_UUID_RELEASE = "f47b5e2d-4a9e-4c5a-9b3f-8e1d2c3a4b5c"
+CHARACTERISTIC_UUID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+
+
+def service_uuid() -> str:
+    network = os.environ.get("ALERTMESH_BLE_NETWORK", "debug").strip().lower()
+    return SERVICE_UUID_RELEASE if network in ("release", "mainnet") else SERVICE_UUID_DEBUG
+
+
 V1_HEADER_SIZE = 14
 V2_HEADER_SIZE = 16
 SENDER_ID_SIZE = 8
