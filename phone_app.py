@@ -18,7 +18,9 @@ Like the iPhone app, three tabs, here in a sidebar, in the iPhone app's look
 
 Messages travel laptop to laptop over real Bluetooth, hopping through laptops in
 between. Official warnings arrive from the warning app over the local network, and
-are passed on over Bluetooth to laptops that have no network.
+are passed on over Bluetooth to laptops that have no network. With "Use the internet"
+on in Settings, warnings and calls for help also come and go over Nostr relays, as on
+the iPhone, so the phone app and iPhones running Alert Mesh see each other's.
 
 This is free and unencumbered software released into the public domain.
 """
@@ -52,7 +54,8 @@ def town_names() -> list[str]:
 def news() -> tuple:
     """What changes the page: anything new in the mesh, the links' state, and the minute
     (warnings and calls for help end on their own)."""
-    return (p.node.version, p.bluetooth_status, p.wifi_status, p.node.link.neighbours(), p.clock() // 60_000)
+    return (p.node.version, p.bluetooth_status, p.wifi_status, p.internet_status, p.node.link.neighbours(),
+            p.clock() // 60_000)
 
 
 @st.fragment(run_every=1)
@@ -104,12 +107,23 @@ def network_words() -> tuple[bool, str]:
     return True, "Local network on"
 
 
+def internet_words() -> tuple[bool, str]:
+    internet, _, detail = p.internet_status.partition(":")
+    if internet != "on":
+        return False, "Internet off" + (f": {detail.strip()}" if detail.strip() else "")
+    return not detail.strip().startswith("0 of"), f"Internet on · {detail.strip()} connected"
+
+
 def save_nickname() -> None:
     p.set_nickname(state.nickname)
 
 
 def save_town() -> None:
     p.set_town(state.town)
+
+
+def save_internet() -> None:
+    p.set_internet(state.internet)
 
 
 def open_settings() -> None:
@@ -131,6 +145,12 @@ def settings() -> None:
                  index=names.index(p.profile.town) if p.profile.town in names else None)
     st.caption("A laptop has no GPS, so your town stands in for your position. "
                "It decides which warnings are for you, and a call for help says you are there.")
+    st.toggle("Use the internet", p.profile.internet, key="internet", on_change=save_internet,
+              disabled=not p.internet_available)
+    st.caption("Warnings and calls for help also come and go over the internet, as on the iPhone. Your calls "
+               "for help, and ones you pass on, then go to public servers that anyone can read: your "
+               "nickname, your note and your place to about 150 m." if p.internet_available
+               else "Needs the websockets library: python3 -m pip install -r requirements.txt")
     st.caption(places.CREDIT)
     st.button("Done", type="primary", on_click=close_settings)
 
@@ -144,7 +164,7 @@ def sidebar_foot() -> None:
 
 
 def status_bar() -> None:
-    style.status_bar([bluetooth_words(), network_words()], style.updated_text())
+    style.status_bar([bluetooth_words(), network_words(), internet_words()], style.updated_text())
 
 
 # --- Now (NowView, SOSView) -------------------------------------------------------
@@ -344,10 +364,17 @@ def connection_section() -> None:
     network_on, _ = network_words()
     network = ("Official warnings arrive over the local network" if network_on
                else "Local network off: warnings arrive only from laptops nearby")
+    internet_on, _ = internet_words()
+    if p.profile.internet and p.internet_available:
+        internet = ("Warnings and calls for help also arrive over the internet" if internet_on
+                    else "Internet on, but no relay reached yet")
+    else:
+        internet = "Internet off (Settings): nothing goes to the internet"
     st.markdown(hub.one_line(f"""
 <div class="am-card"><div class="am-section">How you're connected</div>
 <div class="am-row">{style.APP_ICON}{bluetooth}</div>
 <div class="am-row">{style.APP_ICON}{network}</div>
+<div class="am-row">{style.APP_ICON}{internet}</div>
 <div class="am-muted">Warnings travel laptop to laptop over Bluetooth. They keep arriving with no internet.</div>
 </div>"""), unsafe_allow_html=True)
 

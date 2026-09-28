@@ -164,6 +164,9 @@ class Node:
         self.peers: dict[str, Peer] = {}
         # Goes up whenever something the page shows changes, so it knows to redraw.
         self.version = 0
+        # Told of every report the store takes (our own, heard, or from the internet), with
+        # its signed bytes: the internet link puts calls for help online from here.
+        self.on_report = None
         self._seen: OrderedDict[bytes, None] = OrderedDict()
         self._last_announce = None
         self._last_gossip = None
@@ -206,6 +209,7 @@ class Node:
                 return False
             self._broadcast(FrameKind.REPORT, payload)
             self.version += 1
+            self._report_arrived(payload)
             return True
 
     def take_official(self, payload: bytes) -> IngestResult:
@@ -217,6 +221,21 @@ class Node:
                 self._broadcast(FrameKind.OFFICIAL, payload)
                 self.version += 1
             return result
+
+    def take_report(self, payload: bytes) -> IngestResult:
+        """A signed call for help or "I'm safe" from outside the mesh (the internet link).
+        Passed on over the mesh only if new, so nearby laptops with no internet get it."""
+        with self._lock:
+            result = self.reports.ingest_payload(payload)
+            if result is IngestResult.ACCEPTED:
+                self._broadcast(FrameKind.REPORT, payload)
+                self.version += 1
+                self._report_arrived(payload)
+            return result
+
+    def _report_arrived(self, payload: bytes) -> None:
+        if self.on_report is not None:
+            self.on_report(payload)
 
     def set_nickname(self, nickname: str) -> None:
         with self._lock:
@@ -298,6 +317,8 @@ class Node:
             accepted = self.alerts.ingest_payload(frame.body) is IngestResult.ACCEPTED
         else:
             accepted = self.reports.ingest_payload(frame.body) is IngestResult.ACCEPTED
+            if accepted:
+                self._report_arrived(frame.body)
         if accepted:
             self.version += 1
         return accepted

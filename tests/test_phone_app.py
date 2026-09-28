@@ -212,6 +212,76 @@ def test_settings_open_from_the_foot_of_the_sidebar(me, app):
     assert me.nickname == "Aroha"
 
 
+class Pool:
+    """Stands in for the relay pool."""
+
+    available = True
+
+    def __init__(self):
+        self.subscriptions, self.published = {}, []
+
+    def subscribe(self, sub_id, subscription, urls, handler):
+        self.subscriptions[sub_id] = subscription
+
+    def unsubscribe(self, sub_id):
+        self.subscriptions.pop(sub_id, None)
+
+    def publish(self, event, urls):
+        self.published.append(event)
+
+    def status(self):
+        return 2, 5
+
+
+def with_internet(p: Phone) -> Pool:
+    from alertmesh import internet
+
+    pool = Pool()
+    p.start_internet(pool, internet.RelayChoice(["wss://built-in.example"], None))
+    return pool
+
+
+def test_the_internet_is_off_until_turned_on_and_the_choice_is_kept(me, tmp_path, clock):
+    pool = with_internet(me)
+    assert me.internet_status == "off" and pool.subscriptions == {}
+    me.set_internet(True)
+    assert me.internet_status == "on: 2 of 5 relays"
+    assert set(pool.subscriptions) == {"alertmesh-official-alerts", "alertmesh-community-reports"}
+    again = Phone(tmp_path, clock)
+    assert again.profile.internet is True
+    again_pool = with_internet(again)
+    assert set(again_pool.subscriptions) == {"alertmesh-official-alerts", "alertmesh-community-reports"}
+    me.set_internet(False)
+    assert me.internet_status == "off" and pool.subscriptions == {}
+
+
+def test_my_call_for_help_goes_online_only_with_the_internet_on(me):
+    pool = with_internet(me)
+    assert me.send_sos("Trapped")
+    assert pool.published == []
+    me.set_internet(True)  # what is still live goes out when it is turned on
+    assert [e.kind for e in pool.published] == [1402]
+
+
+def test_the_page_shows_the_internet_and_settings_turn_it_on(me):
+    with_internet(me)
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    assert "Internet off" in page(at) and "nothing goes to the internet" in page(at)
+    at.button(key="open_settings").click().run()
+    assert at.toggle(key="internet").value is False and not at.toggle(key="internet").disabled
+    at.toggle(key="internet").set_value(True).run()
+    assert me.profile.internet is True
+    button(at, "Done").click().run()
+    assert "Internet on · 2 of 5 relays connected" in page(at)
+    assert "Warnings and calls for help also arrive over the internet" in page(at)
+
+
+def test_without_the_link_the_switch_is_greyed_out(me, app):
+    app.button(key="open_settings").click().run()
+    assert app.toggle(key="internet").disabled
+
+
 def test_warning_shows_on_now(me, app):
     me.node.take_official(wire.encode(warning_for(me.geohash[:4], Severity.EMERGENCY_WARNING)))
     app.run()

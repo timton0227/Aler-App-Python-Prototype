@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 5 | 9 |
-| **All** | **81** | **88** |
+| 15 Internet link: warnings and calls for help reach iPhones | 6 | 9 |
+| **All** | **82** | **88** |
 
 **Next step:** 12.4
 
@@ -407,7 +407,7 @@ switch in each app, **off** until turned on. The tests never use the real relays
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (`publish`), `AlertMesh/App/AppRuntime.swift`
       Done when: with "Send over the internet" on, every warning, update and cancellation from the console is published to the built-in relays and the geo relays of its area, as the Mac console does; a cancellation carries its warning's area and expiry; the status bar says how many relays took it; off by default
       Verify: `python3 -m pytest tests/test_relays.py tests/test_warning_app.py`
-- [ ] 15.6 Phone app: warnings and calls for help from the internet
+- [x] 15.6 Phone app: warnings and calls for help from the internet
       Swift: `OfficialAlertBridge.swift` (`refreshSubscription`, `receive`), `CommunityReportBridge.swift` (`publishIfNew`, `refreshSubscription`, `receive`)
       Done when: with "Use the internet" on in Settings, the phone app takes every warning from the relays (checked against the development key), takes calls for help and "I'm safe" around its town from the geo relays there and passes them on over Bluetooth, and puts its own and heard calls for help online once each, on the geo relays of their cell; "How you're connected" shows the internet
       Verify: `python3 -m pytest tests/test_node.py tests/test_phone_app.py`

@@ -81,10 +81,14 @@ _RADIO = {
     "win32": ("bleak.backends.winrt.scanner", "bleak.backends.winrt.client"),
 }.get(sys.platform, ())
 
+# The internet link loads these only when it starts, so the page's own imports do not show them.
+_INTERNET = ("alertmesh.relays", "alertmesh.internet", "websockets.sync.client", "certifi")
+
 PAGES = {
     "phone": Page("phone", "phone_app.py", "Alert Mesh", (1200, 760),
-                  ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO)),
-    "warning": Page("warning", "warning_app.py", "Alert Mesh Warnings", (1400, 900), ("alertmesh.lan",)),
+                  ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO, *_INTERNET)),
+    "warning": Page("warning", "warning_app.py", "Alert Mesh Warnings", (1400, 900),
+                    ("alertmesh.lan", *_INTERNET)),
 }
 
 

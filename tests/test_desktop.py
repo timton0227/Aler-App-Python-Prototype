@@ -37,6 +37,8 @@ def test_two_apps_each_with_its_page_and_title():
     assert (WARNING.file, WARNING.title) == ("warning_app.py", "Alert Mesh Warnings")
     assert PHONE.path.exists() and WARNING.path.exists()
     assert "bless" in PHONE.also_needs and "alertmesh.ble" in PHONE.also_needs
+    for page in (PHONE, WARNING):  # the internet link's parts, loaded only when it starts
+        assert "websockets.sync.client" in page.also_needs and "alertmesh.relays" in page.also_needs
 
 
 def test_windows_open_big_enough_for_the_sidebar_and_cannot_shrink_below_960_by_600():
@@ -124,6 +126,7 @@ def alive(pid: int) -> bool:
 
 @pytest.mark.parametrize("app", ["phone", "warning"])
 def test_the_self_check_passes_here(app):
+    pytest.importorskip("websockets", reason="the check needs every library in requirements.txt")
     out = subprocess.run([sys.executable, str(desktop.HERE / "desktop.py"), "--app", app, "--check"],
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stdout + out.stderr
@@ -146,6 +149,7 @@ def test_the_self_check_fails_when_a_part_is_missing(tmp_path):
 def test_the_self_check_works_without_text_output():
     """A Windows window app has no text output (sys.stdout is None): the check must
     still finish and leave its result in a file for the build script."""
+    pytest.importorskip("websockets", reason="the check needs every library in requirements.txt")
     desktop.CHECK_RESULT.unlink(missing_ok=True)
     code = ("import sys; sys.stdout = None; sys.path.insert(0, %r); import desktop; sys.exit(desktop.check(desktop.PAGES['phone']))"
             % str(desktop.HERE))

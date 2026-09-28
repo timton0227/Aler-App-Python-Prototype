@@ -1,15 +1,21 @@
-"""Tests for alertmesh.internet, against a relay run inside the tests (fake_relay.py).
+"""Tests for alertmesh.internet, with stand-ins for the relays, and end to end against a
+relay run inside the tests (fake_relay.py).
 
 Ported from: ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
-             (aWarningIsPublishedWithItsAreaTagsAndExpiry, aCancellationIsTaggedWithTheWarningsArea,
-             withNoRelaysNothingIsPublished).
+             and CommunityReportBridgeTests.swift (each test names its Swift case where
+             there is one).
 """
+import os
 import time
 
 import pytest
 
-from alertmesh import georelays, internet, nostr, wire
+from alertmesh import georelays, internet, nostr, reports, wire
+from alertmesh.chat import Identity
+from alertmesh.node import PACKET_ID_LENGTH, Frame, FrameKind, Node, decode_frame, encode_frame
+from alertmesh.reports import ReportAuthor, ReportSeverity
 from alertmesh.signer import OfficialAlertSigner, WarningDraft
+from alertmesh.wire import HazardType
 
 NOW_MS = int(time.time() * 1000)
 
@@ -135,4 +141,238 @@ def test_a_warning_reaches_a_relay_and_its_answer_counts():
     [stored] = relay.events
     assert wire.decode(nostr.payload_of(nostr.Event.from_dict(stored), 1403)) == alert
     pool.close()
+    relay.close()
+
+
+# --- The phone app's side (PhoneLink) ---
+# Ported from: CommunityReportBridgeTests.swift and OfficialAlertBridgeTests.swift
+# (aReceivedWarningGoesToTheMeshOnce, updatesAndCancellationsAreNewVersions,
+# aForgedCopyDoesNotBlockTheGenuineWarning, subscriptionAsksForEveryWarning,
+# anSOSIsPublishedOnceToItsCellsRelays, hazardReportsStayOffTheInternet,
+# aReceivedSOSGoesToTheMeshAndIsNotEchoed, otherEventKindsAreIgnored,
+# subscriptionCoversNearbyCellsOnTheirRelays, movingChangesTheSubscription,
+# noPlaceMeansNoSubscription).
+
+
+class SubscribingRecorder(Recorder):
+    def __init__(self):
+        super().__init__()
+        self.subscriptions = {}
+
+    def subscribe(self, sub_id, subscription, urls, handler):
+        self.subscriptions[sub_id] = (subscription, list(urls), handler)
+
+    def unsubscribe(self, sub_id):
+        self.subscriptions.pop(sub_id, None)
+
+
+class Air:
+    """Stands in for Bluetooth: keeps every frame sent."""
+
+    def __init__(self):
+        self.frames = []
+
+    def send(self, frame):
+        self.frames.append(decode_frame(frame))
+
+    def neighbours(self):
+        return 0
+
+    def kinds(self):
+        return [f.kind for f in self.frames if f.kind in (FrameKind.OFFICIAL, FrameKind.REPORT)]
+
+
+PLACE = ["r7hg2bc"]
+
+
+def phone_link(places=PLACE, on=True):
+    pool = SubscribingRecorder()
+    air = Air()
+    node = Node(Identity("Me", os.urandom(Identity.SEED_LENGTH)), air, clock=lambda: NOW_MS)
+    link = internet.PhoneLink(pool, internet.RelayChoice(["wss://built-in.example"], FakeDirectory()), node,
+                              lambda: list(places), lambda: NOW_MS)
+    node.on_report = link.report_arrived
+    if on:
+        link.set_enabled(True)
+    return link, pool, node, air
+
+
+def warning_event(alert, area=None):
+    return nostr.alert_event(wire.encode(alert), area or alert.area_cells, alert.expires_at)
+
+
+def test_the_warning_subscription_asks_for_every_warning_on_built_in_and_nearby_relays():
+    link, pool, _, _ = phone_link()
+    subscription, relays, _ = pool.subscriptions[link.ALERTS]
+    assert subscription["kinds"] == [1403] and "#g" not in subscription
+    assert subscription["since"] == NOW_MS // 1000 - wire.MAX_LIFETIME_MS // 1000
+    assert "wss://built-in.example" in relays and "wss://relay-r7hg.example" in relays
+    assert len(relays) == 1 + 9  # built-in, the town's cell and its 8 neighbours
+
+
+def test_a_phone_with_no_town_still_listens_for_warnings_but_not_calls_for_help():
+    link, pool, _, _ = phone_link(places=[None])
+    assert pool.subscriptions[link.ALERTS][1] == ["wss://built-in.example"]
+    assert link.REPORTS not in pool.subscriptions
+
+
+def test_a_received_warning_goes_to_the_mesh_once():
+    link, _, node, air = phone_link()
+    alert = warning()
+    link.take_alert(warning_event(alert))
+    link.take_alert(warning_event(alert))  # the same version from another relay
+    assert [a.alert_id for a in node.alerts.live_alerts()] == [alert.alert_id]
+    assert air.kinds() == [FrameKind.OFFICIAL]
+
+
+def test_updates_and_cancellations_are_new_versions():
+    link, _, node, air = phone_link()
+    alert = warning()
+    update = OfficialAlertSigner().sign(WarningDraft(headline="Flood rising", action_text="Leave now",
+                                                     area_cells=list(alert.area_cells)), alert.alert_id, NOW_MS + 1)
+    cancellation = OfficialAlertSigner().cancel(alert.alert_id, NOW_MS + 2)
+    for item in (alert, update):
+        link.take_alert(warning_event(item))
+    link.take_alert(nostr.alert_event(wire.encode(cancellation), alert.area_cells, alert.expires_at))
+    assert air.kinds() == [FrameKind.OFFICIAL] * 3
+    assert node.alerts.live_alerts() == []
+
+
+def test_a_forged_copy_does_not_block_the_genuine_warning():
+    link, _, node, _ = phone_link()
+    genuine = warning()
+    forged = OfficialAlertSigner(bytes(range(32))).sign(
+        WarningDraft(headline="Fake", action_text="x", area_cells=["r7hg"]), genuine.alert_id, genuine.issued_at)
+    link.take_alert(warning_event(forged))
+    assert node.alerts.live_alerts() == []
+    link.take_alert(warning_event(genuine))
+    assert [a.headline for a in node.alerts.live_alerts()] == ["Flood"]
+
+
+def test_other_kinds_and_broken_content_are_ignored():
+    link, _, node, air = phone_link()
+    link.take_alert(nostr.sign_event(1, [], warning_event(warning()).content))
+    link.take_alert(nostr.sign_event(1403, [], "not base64!"))
+    link.take_report(nostr.sign_event(1403, [], "AAAA"))
+    assert air.frames == [] and node.alerts.live_alerts() == []
+
+
+def sos(author=None, cell="r7hg2bc", note="Trapped on roof"):
+    return (author or ReportAuthor("Sam")).sos(cell, note, NOW_MS)
+
+
+def test_the_report_subscription_covers_nearby_cells_on_their_relays():
+    link, pool, _, _ = phone_link()
+    subscription, relays, _ = pool.subscriptions[link.REPORTS]
+    assert subscription["kinds"] == [1402] and "r7hg" in subscription["#g"] and len(subscription["#g"]) == 9
+    assert subscription["since"] == NOW_MS // 1000 - 6 * 60 * 60
+    assert relays == sorted(f"wss://relay-{cell}.example" for cell in subscription["#g"])
+    assert "wss://built-in.example" not in relays
+
+
+def test_moving_changes_the_subscription():
+    places = list(PLACE)
+    link, pool, _, _ = phone_link(places=places)
+    places[0] = "qd66hr2"  # another town
+    link.refresh()
+    assert "qd66" in pool.subscriptions[link.REPORTS][0]["#g"]
+    assert "r7hg" not in pool.subscriptions[link.REPORTS][0]["#g"]
+
+
+def test_our_own_sos_is_published_once_to_its_cells_relays():
+    link, pool, node, _ = phone_link()
+    report = sos(node.author)
+    assert node.send_report(report)
+    node.tick()  # gossip hands it to the store again: still published once
+    [(event, relays)] = pool.published
+    assert event.kind == 1402 and relays == ["wss://relay-r7hg.example"]
+    assert reports.decode(nostr.payload_of(event, 1402)) == report
+
+
+def test_a_heard_sos_is_published_too_but_hazard_reports_stay_off_the_internet():
+    link, pool, node, _ = phone_link()
+    hazard = ReportAuthor("Kim").hazard(HazardType.FLOOD, ReportSeverity.HIGH, "r7hg2bc", "Road under water",
+                                        NOW_MS)
+    node.receive(node_frame(FrameKind.REPORT, reports.encode(hazard)))
+    assert node.reports.live_reports() == [hazard]  # taken, but not put online
+    assert pool.published == []
+    heard = sos()
+    node.receive(node_frame(FrameKind.REPORT, reports.encode(heard)))
+    assert [reports.decode(nostr.payload_of(e, 1402)) for e, _ in pool.published] == [heard]
+
+
+def node_frame(kind, body):
+    return encode_frame(Frame(kind, 3, os.urandom(PACKET_ID_LENGTH), body))
+
+
+def test_a_received_sos_goes_to_the_mesh_and_is_not_echoed():
+    link, pool, node, air = phone_link()
+    report = sos()
+    link.take_report(nostr.report_event(report))
+    link.take_report(nostr.report_event(report))  # again, from another relay
+    assert node.reports.live_reports() == [report]
+    assert air.kinds() == [FrameKind.REPORT]
+    assert pool.published == []
+
+
+def test_a_safe_answer_replaces_the_sos():
+    link, _, node, _ = phone_link()
+    author = ReportAuthor("Sam")
+    first = sos(author)
+    link.take_report(nostr.report_event(first))
+    safe = author.safe(None, "", NOW_MS + 1)
+    link.take_report(nostr.report_event(safe))
+    assert [r.kind for r in node.reports.live_reports()] == [reports.ReportKind.SAFE]
+
+
+def test_off_nothing_is_published_and_turning_on_publishes_what_is_live():
+    link, pool, node, _ = phone_link(on=False)
+    assert pool.subscriptions == {}
+    report = sos(node.author)
+    node.send_report(report)
+    assert pool.published == []
+    link.set_enabled(True)
+    assert [reports.decode(nostr.payload_of(e, 1402)) for e, _ in pool.published] == [report]
+    assert set(pool.subscriptions) == {link.ALERTS, link.REPORTS}
+    link.set_enabled(False)
+    assert pool.subscriptions == {}
+
+
+def test_end_to_end_warning_app_to_phone_app_and_calls_for_help_between_phones():
+    """Through a relay inside the tests: a warning from the warning app's sender reaches
+    a phone app, and a call for help from one phone app reaches another."""
+    pytest.importorskip("websockets")
+    from alertmesh.relays import RelayPool
+    from fake_relay import FakeRelay
+
+    relay = FakeRelay()
+    choice = internet.RelayChoice([relay.url], None)
+    pools = [RelayPool() for _ in range(3)]
+    sender = internet.WarningSender(pools[0], choice)
+    sender.enabled = True
+    phones = []
+    for pool in pools[1:]:
+        air = Air()
+        node = Node(Identity("P", os.urandom(Identity.SEED_LENGTH)), air, clock=lambda: int(time.time() * 1000))
+        link = internet.PhoneLink(pool, choice, node, lambda: PLACE, lambda: int(time.time() * 1000))
+        node.on_report = link.report_arrived
+        link.set_enabled(True)
+        phones.append((node, air))
+
+    def wait(condition):
+        deadline = time.monotonic() + 5
+        while not condition() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return condition()
+
+    alert = OfficialAlertSigner().sign(WarningDraft(headline="Flood", action_text="Go", area_cells=["r7hg"]),
+                                       bytes(16), int(time.time() * 1000))
+    sender.send(wire.encode(alert))
+    assert wait(lambda: all(node.alerts.live_alerts() for node, _ in phones))
+    (first, _), (second, second_air) = phones
+    first.send_report(first.author.sos("r7hg2bc", "Help", int(time.time() * 1000)))
+    assert wait(lambda: second.reports.live_reports())
+    assert wait(lambda: FrameKind.REPORT in second_air.kinds())  # passed on over Bluetooth
+    for pool in pools:
+        pool.close()
     relay.close()

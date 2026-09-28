@@ -11,7 +11,9 @@ says they are.
 
 Saved between runs, in a folder of the person's own (`home_folder()`): the identity
 seed (so the same person keeps the same keys and conversations are not orphaned),
-nickname and town. Messages and warnings are not saved: they come back from the mesh.
+nickname, town, and whether to use the internet (off until the person turns it on:
+calls for help then go to public relays). Messages and warnings are not saved: they
+come back from the mesh.
 
 This is free and unencumbered software released into the public domain.
 """
@@ -58,6 +60,7 @@ class Profile:
     nickname: str
     town: str | None  # a town name from places.towns(), or None until picked
     seed: bytes
+    internet: bool = False  # use the internet link (alertmesh.internet)
 
     @classmethod
     def load(cls, folder: Path) -> "Profile":
@@ -67,7 +70,8 @@ class Profile:
             seed = bytes.fromhex(data["seed"])
             if len(seed) != Identity.SEED_LENGTH:
                 raise ValueError
-            return cls(str(data.get("nickname") or default_nickname()), data.get("town"), seed)
+            return cls(str(data.get("nickname") or default_nickname()), data.get("town"), seed,
+                       data.get("internet") is True)
         except (OSError, ValueError, KeyError, TypeError):
             profile = cls(default_nickname(), None, os.urandom(Identity.SEED_LENGTH))
             profile.save(folder)
@@ -76,8 +80,8 @@ class Profile:
     def save(self, folder: Path) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / PROFILE_FILE
-        path.write_text(json.dumps({"nickname": self.nickname, "town": self.town, "seed": self.seed.hex()}),
-                        encoding="utf-8")
+        path.write_text(json.dumps({"nickname": self.nickname, "town": self.town, "seed": self.seed.hex(),
+                                    "internet": self.internet}), encoding="utf-8")
         if sys.platform != "win32":
             path.chmod(0o600)  # it holds the private keys
 
@@ -140,12 +144,50 @@ class Phone:
         self.clock = clock
         self.node = Node(Identity(self.profile.nickname, self.profile.seed), NoLink(), clock)
         self.wifi_status = "off"
+        self.internet = None  # alertmesh.internet.PhoneLink, made by start_internet()
         self._listener = None
         self._stop = threading.Event()
 
     # --- Links ---
 
-    def start(self, bluetooth: bool = True, wifi: bool = True) -> "Phone":
+    def start_internet(self, pool=None, choice=None) -> None:
+        """Make the internet link, switched on if the profile says so. The tests pass
+        their own pool and relays."""
+        from alertmesh import internet
+
+        if pool is None:
+            from alertmesh.relays import RelayPool
+
+            pool = RelayPool()
+        self.internet = internet.PhoneLink(pool, choice or internet.RelayChoice.from_environment(), self.node,
+                                           lambda: [self.geohash], self.clock)
+        self.node.on_report = self.internet.report_arrived
+        if self.profile.internet and pool.available:
+            self.internet.set_enabled(True)
+
+    @property
+    def internet_available(self) -> bool:
+        return self.internet is not None and self.internet.pool.available
+
+    def set_internet(self, on: bool) -> None:
+        self.profile.internet = on
+        self.profile.save(self.folder)
+        if self.internet_available:
+            self.internet.set_enabled(on)
+
+    @property
+    def internet_status(self) -> str:
+        """ "on: 3 of 9 relays", "off", or "off: why"."""
+        if self.internet is None:
+            return "off"
+        if not self.internet.pool.available:
+            return "off: needs the websockets library"
+        if not self.internet.enabled:
+            return "off"
+        connected, total = self.internet.pool.status()
+        return f"on: {connected} of {total} relays"
+
+    def start(self, bluetooth: bool = True, wifi: bool = True, internet: bool = True) -> "Phone":
         if bluetooth:
             from alertmesh.ble import BluetoothProcess
 
@@ -158,6 +200,8 @@ class Phone:
                 self.wifi_status = "on"
             except OSError as error:
                 self.wifi_status = f"off: {error}"
+        if internet:
+            self.start_internet()
         threading.Thread(target=self._tick, name="phone-tick", daemon=True).start()
         return self
 
@@ -171,6 +215,8 @@ class Phone:
             self._listener.close()
         if hasattr(self.node.link, "stop"):
             self.node.link.stop()
+        if self.internet is not None:
+            self.internet.pool.close()
 
     @property
     def bluetooth_status(self) -> str:
@@ -196,6 +242,8 @@ class Phone:
     def set_town(self, name: str | None) -> None:
         self.profile.town = name
         self.profile.save(self.folder)
+        if self.internet is not None:
+            self.internet.refresh()  # calls for help are asked for around the town
 
     @property
     def geohash(self) -> str | None:

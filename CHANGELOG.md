@@ -24,6 +24,27 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.6 Phone app: warnings and calls for help from the internet — 2026-09-28
+- What:
+  - `alertmesh/internet.py`, `PhoneLink`, the phone app's side of the link while switched on:
+    - it listens for every warning on the built-in relays and the geo relays around the town (the town's 4-character cell and its 8 neighbours). Each warning is checked against the development key before it is remembered, then taken by the node, which passes it on over Bluetooth;
+    - it listens for calls for help and "I'm safe" in those 9 cells, on their geo relays, and hands each to the node the same way;
+    - it puts every call for help or "I'm safe" the node takes online once, on the geo relays of its cell: this laptop's own, and ones heard over Bluetooth. What came from the internet is not sent back. Hazard reports stay off the internet;
+    - switching it on also puts the calls for help still live online; switching it off ends the subscriptions; a new town changes them.
+  - `alertmesh/node.py`: `take_report` (a report from the internet, passed on over Bluetooth if new) and `on_report`, told of every report the node takes.
+  - `alertmesh/phone.py`: the profile keeps "use the internet" (off at first); `start_internet`, `set_internet` and `internet_status`.
+  - `phone_app.py`: a "Use the internet" switch in Settings, which says what then goes to public servers (nickname, note and place to about 150 m); the internet in the status bar and in "How you're connected".
+  - The packaged apps include `websockets` and `certifi`, and `desktop.py --check` looks for them. The self-check tests are skipped where websockets is not installed.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (`refreshSubscription`, `receive`), `CommunityReportBridge.swift` (`publishIfNew`, `publishPending`, `refreshSubscription`, `receive`), `AlertMesh/App/AppRuntime.swift` (which relays each uses); tests from `OfficialAlertBridgeTests.swift` and `CommunityReportBridgeTests.swift`.
+- Differences from Swift:
+  - The iPhone uses GPS and watched places; the phone app uses the town picked in Settings.
+  - The iPhone refreshes its subscriptions when relays reconnect or the relay list changes. Here the relay pool asks again after every reconnect on its own, and the subscriptions are refreshed after the relay list is downloaded.
+  - A switch, off at first: the iPhone app uses the internet whenever it has it.
+- Verified by:
+  - `python3 -m pytest tests/test_internet.py tests/test_phone_app.py tests/test_desktop.py` — passed. Among them, end to end through a relay inside the tests: a warning from the warning app's sender reaches two phone apps, and a call for help from one phone app reaches the other and is passed on over Bluetooth.
+  - `python3 desktop.py --check` and `--app warning --check` — ok, 31 and 33 imports.
+  - `python3 -m pytest -q` — 588 passed with `packaging/.venv-mac`; 568 passed and 9 skipped with Streamlit 1.51 and no websockets.
+
 ## 15.5 Warning app sends warnings over the internet — 2026-09-28
 - What:
   - `alertmesh/internet.py`:

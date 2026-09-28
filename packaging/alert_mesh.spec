@@ -70,11 +70,11 @@ def app(start, page, name, bundle_id, packages, plist, leave_out=()):
 # The phone app keeps the bundle ID of the Phase 12 app, so a Mac that already allowed
 # it keeps its permissions.
 app("start_phone.py", "phone_app.py", "Alert Mesh", "au.alertmesh.prototype",
-    ["streamlit", "bleak", "bless"],
+    ["streamlit", "bleak", "bless", "websockets", "certifi"],
     # Without this, macOS stops the app the moment it touches Bluetooth.
     {"NSBluetoothAlwaysUsageDescription": "Alert Mesh finds laptops nearby and passes messages, "
                                           "calls for help and warnings between them over Bluetooth."},
     # The simulated town and its maps belong to the warning app.
     leave_out=("alertmesh.viz", "alertmesh.world", "alertmesh.metrics", "plotly"))
 app("start_warning.py", "warning_app.py", "Alert Mesh Warnings", "au.alertmesh.warnings",
-    ["streamlit", "plotly"], {})
+    ["streamlit", "plotly", "websockets", "certifi"], {})
