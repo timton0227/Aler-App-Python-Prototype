@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 0 | 8 |
-| **All** | **76** | **87** |
+| 15 Internet link: warnings and calls for help reach iPhones | 1 | 8 |
+| **All** | **77** | **87** |
 
 **Next step:** 12.4
 
@@ -387,7 +387,7 @@ anywhere; phone apps and iPhones see each other's calls for help.
 Anything sent this way goes to public servers that anyone can read, so the link is a
 switch in each app, **off** until turned on. The tests never use the real relays.
 
-- [ ] 15.1 Nostr events: BIP-340 signatures and event IDs (`alertmesh/nostr.py`)
+- [x] 15.1 Nostr events: BIP-340 signatures and event IDs (`alertmesh/nostr.py`)
       Swift: `AlertMesh/Nostr/NostrProtocol.swift` (`NostrEvent.sign`, `calculateEventId`, `isValidSignature`), `AlertMesh/Nostr/NostrIdentity.swift`
       Done when: an event is made, given its ID and signed with a fresh key each time, and checked, the way the Swift app does; BIP-340 signing matches the published test vector; no new library is needed for it
       Verify: `python3 -m pytest tests/test_nostr.py`

@@ -24,6 +24,19 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.1 Nostr events: BIP-340 signatures and event IDs — 2026-09-28
+- What: `alertmesh/nostr.py`, the envelope the internet link sends and receives.
+  - `schnorr_sign`, `schnorr_verify` and `public_key`: BIP-340 signatures on the secp256k1 curve, written out in plain Python after the BIP's reference code, so no new library is needed.
+  - `Event`, `sign_event` and `event_hash`: a Nostr event, its ID (the SHA-256 of the fields written the NIP-01 way) and its signature, made with a fresh key for every event.
+  - `Event.from_dict` reads an event from a relay and refuses one with too many or too long tags, or fields of the wrong type.
+- Ported from: `AlertMesh/Nostr/NostrProtocol.swift` (`NostrEvent.sign`, `calculateEventId`, `isValidSignature`, `isWithinInboundTagLimits`), `AlertMesh/Nostr/NostrIdentity.swift` (`generate`); tests from `AlertMeshTests/NostrProtocolTests.swift`.
+- Differences from Swift:
+  - The Swift app uses the secp256k1 C library (through P256K). Plain Python is slower (about 30 ms to sign) and not constant-time. Neither matters here: the app signs a few events, and each key signs one event and is thrown away.
+  - `from_dict` also refuses fields of the wrong type; Swift's decoder does that on its own.
+- Verified by:
+  - `python3 -m pytest tests/test_nostr.py` — 21 passed. They include BIP-340's test vector 0 (the exact signature) and two events signed by other apps, frozen in the Swift tests: one by the Android app and one by an older iPhone release. Both verify here.
+  - `python3 -m pytest -q` — 494 passed.
+
 ## 14.7 Check on Windows — blocked — 2026-09-27
 - What: not done; it needs a Windows PC, as step 12.4 does. Marked `[!]` in `PROGRESS.md`.
 - Also in this commit, to close the rest of Phase 14:
