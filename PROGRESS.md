@@ -30,7 +30,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 3 | 10 |
-| **All** | **87** | **98** |
+| 17 Where you are: a real position for the phone app | 0 | 7 |
+| **All** | **87** | **105** |
 
 **Next step:** 12.4
 
@@ -478,6 +479,49 @@ iPhone, is done with step 16.10.
 - [ ] 16.10 Check with an iPhone, README, rebuild
       Done when: with an iPhone running the Debug build: each lists the other; public chat both ways; a warning from the warning app reaches the iPhone through a laptop; a call for help goes both ways; a laptop that arrives late gets a warning the iPhone holds; private chat still works between laptops; the README explains it all; the packaged apps are rebuilt
       Verify: by hand; `python3 desktop.py --check` and `--app warning --check`
+
+---
+
+## Phase 17 — Where you are: a real position for the phone app
+
+Added at the user's request, while Phase 16 waits for its check with an iPhone. Until
+now the phone app knew only the town picked in Settings, and the town's centre stood in
+for the person's position: for calls for help, reports, "I'm safe", which warnings cover
+them, and which relays to use. A town centre can be kilometres off.
+
+The phone app now takes its position from, in order:
+1. a pin the person dropped on a map (it stays until they clear it);
+2. this Mac's own location (Location Services), if the fix is under an hour old;
+3. the town's centre, as before.
+
+As on the iPhone, only a geohash leaves the laptop: calls for help and "I'm safe" to about
+150 m, hazard reports as exact as the fix allows (at most 8 characters). The iPhone app
+has no pin; here it covers laptops without Location Services (Windows, Wi-Fi off, or
+permission refused).
+
+- [ ] 17.1 Choosing the position (`alertmesh/position.py`)
+      Swift: `AlertMesh/Services/LocationStateManager.swift` (accuracy, the geohash lengths), `AlertMesh/Services/CommunityReportManager.swift` (calls for help to 7 characters)
+      Done when: the pin, the Mac's fix and the town are chosen in that order; a fix over an hour old is not used; the geohash is only as exact as the fix; the words say where the position came from
+      Verify: `python3 -m pytest tests/test_position.py`
+- [ ] 17.2 This Mac's location (`alertmesh/location.py`)
+      Swift: `AlertMesh/Services/LocationStateManager.swift` (`requestLocation`, permission)
+      Done when: a separate process asks macOS for the position (permission once, then a fix at start, every 5 minutes and on request) and passes fixes and status words to the app, as the Bluetooth process does; it has been tried by hand from VS Code and from a packaged-style app
+      Verify: `python3 -m pytest tests/test_location.py`; by hand on a Mac
+- [ ] 17.3 The phone uses the position (`alertmesh/phone.py`)
+      Done when: the profile keeps the pin, the location switch and the last fix (as a geohash, not coordinates); warnings, calls for help, reports, "I'm safe" and the internet relays follow the chosen position; opening the call for help asks for a fresh fix without waiting for it
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 17.4 Pin map helpers (`alertmesh/pinmap.py`)
+      Done when: the clickable cells around a place (about 1 km, then about 150 m), their outlines, the clicked cell from Streamlit's selection, nearby town names, and typed or pasted coordinates are worked out and tested
+      Verify: `python3 -m pytest tests/test_pinmap.py`
+- [ ] 17.5 Phone app: "Where you are"
+      Done when: Settings says where the position comes from and how exact it is, has the location switch with its status, "Drop a pin" (a map in two clicks, or pasted coordinates) and "Clear pin", and the town as the last fallback; the call for help, reports and the status bar say where the position came from
+      Verify: `python3 -m pytest tests/test_phone_app.py`
+- [ ] 17.6 Packaging and README
+      Done when: the packaged phone app asks for location with its own words, carries the location process and the map, and passes `--check`; the README explains where the position comes from
+      Verify: `packaging/build_mac.sh`; `python3 desktop.py --check`
+- [ ] 17.7 Check by hand
+      Done when: the permission question shows once; Settings shows this Mac's location and how exact it is; a call for help carries a cell near the real spot; a pin moves it and clearing the pin goes back; with Location Services off the pin, then the town, is used
+      Verify: by hand, with the packaged phone app
 
 ---
 
