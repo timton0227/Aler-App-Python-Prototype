@@ -24,6 +24,49 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.8 Fragments per link, and new links — 2026-09-28
+- What:
+  - `alertmesh/ble.py`: every packet is cut into fragments sized to each link separately, when it does not fit whole.
+    - A connection's limit is its `mtu_size` − 3.
+    - A notification is assumed to carry 182 bytes, since bless does not say.
+    - Fragments are never cut below 64 bytes, the iPhone's rule; a write that is answered may be longer than the link.
+  - The link says when a new device links up: a new connection, or a new subscriber to our notifications.
+    - The Bluetooth process passes that to the app as a new pipe message, `L`.
+    - `Phone.start` wires it to `node.link_up()`, which announces at once (at most once a second), so the new device lists this laptop and takes its messages straight away.
+  - `neighbours()` counts the live links: connections, plus devices subscribed to us.
+- Ported from: `AlertMesh/Services/BLE/BLEOutboundLinkPlanner.swift` and `BLEOutboundPacketPolicy.swift` (fragments per link, the 64-byte minimum); `BLEAnnounceHandler.swift` (announce on a new link).
+- Differences from Swift: a notification's size is assumed, not asked (bless does not expose it).
+- Verified by: `python3 -m pytest tests/test_ble.py tests/test_node.py` (fragments for links of 104, 185 and 517 bytes and the smallest link, notifications in pieces, a greeting at most once a second); `python3 -m pytest -q` — 792 passed (`packaging/.venv-mac`); 771 passed, 10 skipped (Anaconda 3.13).
+
+## 16.7 Bluetooth link in both roles — 2026-09-28
+- What: `alertmesh/ble.py` now uses the iPhone app's service (Debug by default) and characteristic, so laptops and iPhones find each other.
+  - **As a central (bleak):**
+    - It connects to up to 6 devices, several at a time, subscribes to their notifications, and reads them as one stream of packets. Each packet is written whole, with a reply (flow control).
+    - Devices that advertise the service come first. Then come Apple devices closer than −60 dBm: an iPhone app in the background hides its service from Macs, but has it once connected.
+    - A device without the characteristic, or an Apple device that does not answer, is left alone for 5 minutes. A device that advertises the service and fails is tried again after 15 s.
+  - **As a peripheral (bless):** it offers the characteristic with notify, write, write-without-response and read. Writes to it are whole packets. It notifies subscribers, retrying every 25 ms up to 80 times when the radio's queue is full.
+  - Scanning and connecting start at once. Offering the service starts alongside, since it can take a while.
+  - `events` keeps the last 50 things the link did, for a look by hand.
+  - The laptops' own service, their 6-byte-labelled pieces and the reassembler are gone. So this build and older laptop builds no longer see each other over Bluetooth; Wi-Fi and the internet are unaffected.
+- Checked by hand, with a small packaged test app running the new node and link next to the user's iPhone ("9vision") and another iPhone nearby ("Thai Bui"):
+  - First try: offering the service held up scanning for 80 s, and devices were tried one by one. Fixed by the two changes above: scan first, and try several at once.
+  - Then both iPhones linked within 5 s (writes of 512 bytes) and were listed as iPhones.
+  - "Link test 1" to "Link test 4" were sent over 80 s, and the user saw them in the iPhone's Chat → Nearby.
+  - In the last run the laptop took in 36 announces and 30 catch-up requests from the iPhones, and its own message came back relayed by one of them.
+  - No chat message typed on the iPhone arrived during these runs. It is not yet known whether one was typed while the link was up. The earlier probe did receive one ("Checking from iphone"); this is to be checked again with the packaged app.
+- Ported from: `AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift` (connect, subscribe, write), `BLEService+LinkLayerPeripheralRole.swift` (the characteristic, taking writes, notifying and retrying), `AlertMesh/Services/NotificationStreamAssembler.swift` (via `bitchat.NotificationStream`).
+- Differences from Swift:
+  - Checking close Apple devices by connecting is the laptop's own: the iPhone reads other iPhones' overflow adverts, which a Mac cannot.
+  - A central keeps at most 6 connections.
+- Verified by: `python3 -m pytest tests/test_ble.py` — 27 passed. Stand-in devices and a stand-in server cover:
+  - which devices are kept and connected to, and in what order;
+  - 6 at most, several at a time;
+  - failures, lost connections, and devices without the app;
+  - writing whole or in fragments;
+  - notifications as a stream, and notifying in pieces while waiting for room;
+  - subscribers and the process's `L` message.
+  Also by hand, as above.
+
 ## 16.6 Phone app: iPhones and laptops in one list — 2026-09-28
 - What, in `phone_app.py`:
   - **Chat → People nearby** lists iPhones and laptops together. A laptop has a "Message" button; an iPhone shows as "name · iPhone, Nearby only", with a note that private chat is laptop to laptop.

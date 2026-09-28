@@ -65,6 +65,8 @@ MESSAGE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 ANNOUNCE_INTERVAL_MS = 15_000
 ANNOUNCE_JITTER_MS = 4_000
 PEER_GONE_MS = 60_000
+# A new link is greeted with an announce at once, but no more than once a second.
+LINK_ANNOUNCE_GAP_MS = 1_000
 # Every 60 s neighbours are sent every warning and report held, so a device that comes
 # into range later still gets them (GossipSyncManager).
 GOSSIP_INTERVAL_MS = 60_000
@@ -190,6 +192,7 @@ class Node:
         self._seen: OrderedDict[str, None] = OrderedDict()
         self._fragments = bitchat.FragmentAssembler(lambda: self.clock() / 1000)
         self._next_announce = None
+        self._last_link_announce = None
         self._last_gossip = None
         self._last_sent_at = 0
         self._rng = rng or random.Random()
@@ -221,6 +224,16 @@ class Node:
             payload = bitchat.encode_announcement(bitchat.Announcement(
                 self._nickname(), self.identity.chat_key, self.identity.signing_key, laptop=True))
             self._send(MessageType.ANNOUNCE, payload)
+
+    def link_up(self) -> None:
+        """A device has just linked up: announce at once, so it lists this laptop and takes
+        its messages (the iPhone takes a message only from someone it has an announce
+        from)."""
+        with self._lock:
+            now = self.clock()
+            if self._last_link_announce is None or now - self._last_link_announce >= LINK_ANNOUNCE_GAP_MS:
+                self._last_link_announce = now
+                self.announce()
 
     def leave(self) -> None:
         """Say "I'm going", so devices nearby take this laptop off their lists at once."""

@@ -253,7 +253,7 @@ class Phone:
         if bluetooth:
             from alertmesh.ble import BluetoothProcess
 
-            self.node.link = BluetoothProcess(self.node.receive)
+            self.node.link = BluetoothProcess(self.node.receive, on_link=self.node.link_up)
         if wifi:
             from alertmesh.lan import Listener
 

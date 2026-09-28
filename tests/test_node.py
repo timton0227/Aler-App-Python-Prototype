@@ -444,3 +444,12 @@ def test_a_message_too_long_for_one_packet_is_refused(radio, clock):
     (a,) = line(radio, clock, "A")
     assert a.say("x" * (node.TEXT_MAX_BYTES + 1)) is None
     assert a.say("x" * node.TEXT_MAX_BYTES) is not None
+
+
+def test_a_new_link_is_greeted_with_an_announce_at_most_once_a_second(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.link_up()
+    a.link_up()
+    clock.now_ms += node.LINK_ANNOUNCE_GAP_MS
+    a.link_up()
+    assert radio.kinds("A") == [MessageType.ANNOUNCE] * 2

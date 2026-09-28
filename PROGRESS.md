@@ -29,9 +29,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| 16 One Bluetooth mesh with iPhones | 6 | 10 |
+| 16 One Bluetooth mesh with iPhones | 8 | 10 |
 | 17 Where you are: a real position for the phone app | 6 | 7 |
-| **All** | **96** | **105** |
+| **All** | **98** | **105** |
 
 **Next step:** 12.4
 
@@ -464,11 +464,11 @@ iPhone, is done with step 16.10.
 - [x] 16.6 Phone app: iPhones and laptops in one list
       Done when: Chat lists iPhones and laptops nearby by name; "Message" is offered only for laptops; the message limit follows step 16.2
       Verify: `python3 -m pytest tests/test_phone_app.py`
-- [ ] 16.7 Bluetooth link in both roles (`alertmesh/ble.py`)
+- [x] 16.7 Bluetooth link in both roles (`alertmesh/ble.py`)
       Swift: `AlertMesh/Services/BLE/BLEService+LinkLayerPeripheralRole.swift`, `BLEService+LinkLayerCentralRole.swift`
       Done when: the laptop uses the iPhone app's service and characteristic, sends to connected devices by writing and to subscribed devices by notifying, keeps its connections open and subscribes to them, and sends one whole packet per write or notification
       Verify: `python3 -m pytest tests/test_ble.py`
-- [ ] 16.8 Fragments per link, and new links
+- [x] 16.8 Fragments per link, and new links
       Swift: `AlertMesh/Services/BLE/BLEOutboundLinkPlanner.swift`, `BLEOutboundPacketPolicy.swift`
       Done when: the Bluetooth process cuts a packet into fragments when a link cannot carry it whole; the laptop count is the live links; a new link makes the node announce at once
       Verify: `python3 -m pytest tests/test_ble.py tests/test_node.py`
