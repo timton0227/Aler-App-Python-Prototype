@@ -30,8 +30,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 3 | 10 |
-| 17 Where you are: a real position for the phone app | 0 | 7 |
-| **All** | **87** | **105** |
+| 17 Where you are: a real position for the phone app | 1 | 7 |
+| **All** | **88** | **105** |
 
 **Next step:** 12.4
 
@@ -499,7 +499,7 @@ As on the iPhone, only a geohash leaves the laptop: calls for help and "I'm safe
 has no pin; here it covers laptops without Location Services (Windows, Wi-Fi off, or
 permission refused).
 
-- [ ] 17.1 Choosing the position (`alertmesh/position.py`)
+- [x] 17.1 Choosing the position (`alertmesh/position.py`)
       Swift: `AlertMesh/Services/LocationStateManager.swift` (accuracy, the geohash lengths), `AlertMesh/Services/CommunityReportManager.swift` (calls for help to 7 characters)
       Done when: the pin, the Mac's fix and the town are chosen in that order; a fix over an hour old is not used; the geohash is only as exact as the fix; the words say where the position came from
       Verify: `python3 -m pytest tests/test_position.py`

@@ -24,6 +24,23 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.1 Choosing the position — 2026-09-28
+- What: `alertmesh/position.py`.
+  - `choose(pin, fix, town, now)` gives the position in use, as a `Where` (geohash, source, detail):
+    - the pin, while it is set;
+    - else this Mac's fix, while it is under an hour old;
+    - else the town's centre, as before.
+  - `Fix.from_point` turns a Location Services reading into a geohash straight away, so raw coordinates are never kept. A reading with a negative accuracy (macOS's "invalid") gives no fix.
+  - `precision_for(accuracy)`: 8 characters when the fix is good to 40 m, 7 to 150 m, 6 to 1.2 km, else 5.
+    - A pin and a town's centre stay at 7 characters.
+    - Calls for help and "I'm safe" are still cut to 7 by `reports.py`.
+  - `words(where)`: "at this Mac's location (about 60 m)", "at the pin you dropped", "at the centre of Katherine, the town in Settings".
+- Ported from: `AlertMesh/Services/LocationStateManager.swift` (one coarse fix at a time, turned into geohashes) and `AlertMesh/Services/CommunityReportManager.swift` (calls for help to 7 characters).
+- Differences from Swift:
+  - The app always has GPS and has no pin and no town fallback. Those are the laptop's.
+  - The app uses whatever fix it last had, however old, and encodes it to 8 characters whatever its accuracy. The laptop drops a fix after an hour (it may have been carried elsewhere) and shortens the geohash to what the fix can honestly give.
+- Verified by: `python3 -m pytest tests/test_position.py` — 28 passed; `python3 -m pytest -q` — 714 passed (`packaging/.venv-mac`); 694 passed, 9 skipped (Anaconda 3.13).
+
 ## 16.4 Early check with an iPhone — in progress — 2026-09-28
 - What:
   - `tools/ble_probe.py` is rewritten for the iPhone app's format. It connects to devices advertising the iPhone app's service, as one iPhone connects to another, and subscribes to their notifications.
