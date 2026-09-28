@@ -24,6 +24,20 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.4 Pin map helpers — 2026-09-28
+- What: `alertmesh/pinmap.py`, the logic behind the "Drop a pin" map, kept apart from the page so it can be tested.
+  - Streamlit's map reports which shape was clicked, not which spot. So the map is covered in clickable geohash cells, picked in two steps:
+    1. `coarse_cells(guess)`: 288 cells of about 1.2 × 0.6 km, covering some 15 km round the current guess.
+    2. `fine_cells(cell)`: 288 cells of about 150 m in and round the one clicked. This is a call for help's precision.
+  - `outline`, `rows`, `bounds` and `view` (the middle and zoom that fit the cells) for the map layer.
+  - `nearby_towns`: name labels, so the map still reads when its background, which comes from the internet, does not load.
+  - `picked(selection, layer)`: the clicked cell from Streamlit's selection. It is None for another layer or a broken row.
+  - `parse_coordinates`: typed or pasted coordinates, such as "-14.465, 132.263" (a map app's "copy coordinates"), "-14.465 132.263" or "14.465° S, 132.263° E". This works fully offline.
+  - `cell_at`: the 7-character pin for a point.
+- Ported from: new (the iPhone app has no pin).
+- Differences from Swift: not applicable.
+- Verified by: `python3 -m pytest tests/test_pinmap.py` — 24 passed; `python3 -m pytest -q` — 756 passed (`packaging/.venv-mac`); 736 passed, 9 skipped (Anaconda 3.13).
+
 ## 17.3 The phone uses the position — 2026-09-28
 - What, in `alertmesh/phone.py`:
   - `Profile` keeps three new settings:
