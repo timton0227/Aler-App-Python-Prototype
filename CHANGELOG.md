@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.3 The phone uses the position — 2026-09-28
+- What, in `alertmesh/phone.py`:
+  - `Profile` keeps three new settings:
+    - `use_location` (on unless turned off);
+    - `pin` (a geohash);
+    - `last_fix` (geohash, accuracy and time only; no coordinates are saved).
+    - Profiles saved before this step still load. A broken pin or fix in the file is dropped.
+  - `Phone.where` is `position.choose(pin, last_fix, town, now)`. `Phone.geohash` now comes from it, so the following all follow the chosen position with no change of their own:
+    - the warnings that cover the person;
+    - calls for help, "I'm safe" and hazard reports;
+    - the internet link's relays.
+  - `start_location()` starts the location process when the setting is on and this is a Mac. `fix_arrived` saves each fix.
+  - `set_pin(cell | None)`, `set_use_location(on)`, `location_status`, and `refresh_location()`, which asks for a fresh fix and never waits for it.
+    - Turning location off stops the process and forgets the last fix, so "off" means this Mac's position is not used at all.
+  - The relays are asked again only when the 4-character area actually changes: a new fix, a pin, or the town. Before this, every town change asked again.
+- Ported from: new (the iPhone app always has GPS). Modelled on `AlertMesh/App/LocationChannelsModel.swift` (one current cell that everything reads).
+- Differences from Swift: the pin, the town fallback, and the one-hour limit on a fix (step 17.1).
+- Verified by: `python3 -m pytest tests/test_phone_app.py` — 50 passed (12 new); `python3 -m pytest -q` — 732 passed (`packaging/.venv-mac`); 712 passed, 9 skipped (Anaconda 3.13).
+
 ## 17.2 This Mac's location — 2026-09-28
 - What: `alertmesh/location.py`, which gets this Mac's own position from Location Services in a process of its own, like the Bluetooth one.
   - The process asks macOS for permission, then for one fix at start, every 5 minutes, and whenever the app sends "take a fix now". Accuracy is set to 100 m, as the iPhone app does.

@@ -30,8 +30,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 3 | 10 |
-| 17 Where you are: a real position for the phone app | 2 | 7 |
-| **All** | **89** | **105** |
+| 17 Where you are: a real position for the phone app | 3 | 7 |
+| **All** | **90** | **105** |
 
 **Next step:** 12.4
 
@@ -507,7 +507,7 @@ permission refused).
       Swift: `AlertMesh/Services/LocationStateManager.swift` (`requestLocation`, permission)
       Done when: a separate process asks macOS for the position (permission once, then a fix at start, every 5 minutes and on request) and passes fixes and status words to the app, as the Bluetooth process does; it has been tried by hand from VS Code and from a packaged-style app
       Verify: `python3 -m pytest tests/test_location.py`; by hand on a Mac
-- [ ] 17.3 The phone uses the position (`alertmesh/phone.py`)
+- [x] 17.3 The phone uses the position (`alertmesh/phone.py`)
       Done when: the profile keeps the pin, the location switch and the last fix (as a geohash, not coordinates); warnings, calls for help, reports, "I'm safe" and the internet relays follow the chosen position; opening the call for help asks for a fresh fix without waiting for it
       Verify: `python3 -m pytest tests/test_phone_app.py`
 - [ ] 17.4 Pin map helpers (`alertmesh/pinmap.py`)

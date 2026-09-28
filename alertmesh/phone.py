@@ -5,15 +5,17 @@ Modelled on the iPhone app's AppChromeModel, CommunityReportManager and
 AlertNotificationsModel: who you are, where you are, what to show and how loud.
 
 Where you are: the iPhone app uses GPS and will not open without location. A laptop
-has no GPS, so the person picks their town; the town's centre stands in for their
-position when deciding whether a warning covers them, and is where a call for help
-says they are.
+may have no position of its own, so the phone app takes a pin the person dropped, else
+this Mac's fix from Location Services (alertmesh/location.py), else the centre of the
+town they picked (alertmesh/position.py). That position decides which warnings cover
+them, is where a call for help or a report says they are, and picks the relays.
 
 Saved between runs, in a folder of the person's own (`home_folder()`): the identity
 seed (so the same person keeps the same keys and conversations are not orphaned),
-nickname, town, and whether to use the internet (off until the person turns it on:
-calls for help then go to public relays). Messages and warnings are not saved: they
-come back from the mesh.
+nickname, town, whether to use the internet (off until the person turns it on: calls
+for help then go to public relays), whether to use this Mac's location, the pin, and
+the last fix (as a geohash only). Messages and warnings are not saved: they come back
+from the mesh.
 
 This is free and unencumbered software released into the public domain.
 """
@@ -22,11 +24,12 @@ import os
 import platform
 import sys
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from alertmesh import places, proximity
+from alertmesh import geohash, location, places, position, proximity
 from alertmesh.alert_store import _system_clock_ms
 from alertmesh.chat import Identity
 from alertmesh.node import Node
@@ -61,6 +64,9 @@ class Profile:
     town: str | None  # a town name from places.towns(), or None until picked
     seed: bytes
     internet: bool = False  # use the internet link (alertmesh.internet)
+    use_location: bool = True  # use this Mac's Location Services (alertmesh.location)
+    pin: str | None = None  # a geohash the person dropped a pin on (alertmesh.position)
+    last_fix: position.Fix | None = None  # this Mac's last fix, already a geohash
 
     @classmethod
     def load(cls, folder: Path) -> "Profile":
@@ -70,8 +76,11 @@ class Profile:
             seed = bytes.fromhex(data["seed"])
             if len(seed) != Identity.SEED_LENGTH:
                 raise ValueError
+            pin = data.get("pin")
             return cls(str(data.get("nickname") or default_nickname()), data.get("town"), seed,
-                       data.get("internet") is True)
+                       data.get("internet") is True, data.get("use_location") is not False,
+                       pin if isinstance(pin, str) and geohash.is_valid(pin) else None,
+                       _fix_from(data.get("last_fix")))
         except (OSError, ValueError, KeyError, TypeError):
             profile = cls(default_nickname(), None, os.urandom(Identity.SEED_LENGTH))
             profile.save(folder)
@@ -80,10 +89,24 @@ class Profile:
     def save(self, folder: Path) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / PROFILE_FILE
-        path.write_text(json.dumps({"nickname": self.nickname, "town": self.town, "seed": self.seed.hex(),
-                                    "internet": self.internet}), encoding="utf-8")
+        fix = self.last_fix
+        path.write_text(json.dumps({
+            "nickname": self.nickname, "town": self.town, "seed": self.seed.hex(), "internet": self.internet,
+            "use_location": self.use_location, "pin": self.pin,
+            "last_fix": fix and {"cell": fix.cell, "accuracy": fix.accuracy_m, "at": fix.at_ms},
+        }), encoding="utf-8")
         if sys.platform != "win32":
             path.chmod(0o600)  # it holds the private keys
+
+
+def _fix_from(data) -> position.Fix | None:
+    """A saved fix, or None when there is none or it is broken."""
+    try:
+        if geohash.is_valid(data["cell"]):
+            return position.Fix(data["cell"], float(data["accuracy"]), int(data["at"]))
+    except (KeyError, TypeError, ValueError):
+        pass
+    return None
 
 
 class NoLink:
@@ -145,6 +168,7 @@ class Phone:
         self.node = Node(Identity(self.profile.nickname, self.profile.seed), NoLink(), clock)
         self.wifi_status = "off"
         self.internet = None  # alertmesh.internet.PhoneLink, made by start_internet()
+        self.location = None  # alertmesh.location.LocationProcess, made by start_location()
         self._listener = None
         self._stop = threading.Event()
 
@@ -187,7 +211,45 @@ class Phone:
         connected, total = self.internet.pool.status()
         return f"on: {connected} of {total} relays"
 
-    def start(self, bluetooth: bool = True, wifi: bool = True, internet: bool = True) -> "Phone":
+    def start_location(self, process=None) -> None:
+        """Start the location process if the person wants it and this is a Mac. The
+        tests pass their own process."""
+        if self.location is None and self.profile.use_location and (process or location.available()):
+            self.location = process or location.LocationProcess()
+            self.location.on_fix = self.fix_arrived
+
+    def fix_arrived(self, fix: position.Fix) -> None:
+        with self._where_changes():
+            self.profile.last_fix = fix
+            self.profile.save(self.folder)
+
+    def refresh_location(self) -> None:
+        """Ask for a fresh fix, without waiting for it (the call for help does, as it opens)."""
+        if self.location is not None:
+            self.location.refresh()
+
+    def set_use_location(self, on: bool) -> None:
+        with self._where_changes():
+            self.profile.use_location = on
+            if not on:
+                self.profile.last_fix = None  # "off" means this Mac's position is not used at all
+                if self.location is not None:
+                    self.location.stop()
+                    self.location = None
+            self.profile.save(self.folder)
+        if on:
+            self.start_location()
+
+    @property
+    def location_status(self) -> str:
+        if not self.profile.use_location:
+            return "off"
+        if self.location is None:
+            return location.NOT_HERE if not location.available() else "off"
+        return self.location.status
+
+    def start(self, bluetooth: bool = True, wifi: bool = True, internet: bool = True,
+              locate: bool = True) -> "Phone":
         if bluetooth:
             from alertmesh.ble import BluetoothProcess
 
@@ -202,6 +264,8 @@ class Phone:
                 self.wifi_status = f"off: {error}"
         if internet:
             self.start_internet()
+        if locate:
+            self.start_location()
         threading.Thread(target=self._tick, name="phone-tick", daemon=True).start()
         return self
 
@@ -217,6 +281,8 @@ class Phone:
             self.node.link.stop()
         if self.internet is not None:
             self.internet.pool.close()
+        if self.location is not None:
+            self.location.stop()
 
     @property
     def bluetooth_status(self) -> str:
@@ -240,16 +306,40 @@ class Phone:
         return places.find(self.profile.town) if self.profile.town else None
 
     def set_town(self, name: str | None) -> None:
-        self.profile.town = name
-        self.profile.save(self.folder)
-        if self.internet is not None:
-            self.internet.refresh()  # calls for help are asked for around the town
+        with self._where_changes():
+            self.profile.town = name
+            self.profile.save(self.folder)
+
+    def set_pin(self, cell: str | None) -> bool:
+        """Drop a pin on a geohash, or clear it with None. False for a broken geohash."""
+        if cell is not None and not geohash.is_valid(cell):
+            return False
+        with self._where_changes():
+            self.profile.pin = cell.lower()[:position.PIN_PRECISION] if cell else None
+            self.profile.save(self.folder)
+        return True
+
+    @property
+    def where(self) -> position.Where | None:
+        """The position in use: the pin, else a fresh fix, else the town's centre."""
+        return position.choose(self.profile.pin, self.profile.last_fix, self.town, self.clock())
 
     @property
     def geohash(self) -> str | None:
-        """Where this person is, at the call-for-help precision (about 150 m)."""
-        town = self.town
-        return places.geohash_of(town) if town else None
+        """Where this person is, as exact as the position allows (reports cut it to about
+        150 m for a call for help)."""
+        where = self.where
+        return where.geohash if where else None
+
+    @contextmanager
+    def _where_changes(self):
+        """Around anything that may move the person: calls for help are asked for from
+        the relays around them, so a new area means asking again."""
+        before = self.geohash
+        yield
+        after = self.geohash
+        if self.internet is not None and (before or "")[:4] != (after or "")[:4]:
+            self.internet.refresh()
 
     # --- What to show ---
 

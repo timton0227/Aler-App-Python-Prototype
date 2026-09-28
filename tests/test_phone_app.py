@@ -9,7 +9,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from streamlit.testing.v1 import AppTest
 
-from alertmesh import chat, node, phone, places, reports, signer, wire
+from alertmesh import chat, geohash, node, phone, places, position, reports, signer, wire
 from alertmesh.chat import Identity
 from alertmesh.node import NEARBY, Frame, FrameKind
 from alertmesh.phone import Phone, Profile
@@ -143,6 +143,129 @@ def test_nickname_change_is_saved_and_signed(me):
     assert Profile.load(me.folder).nickname == "Aroha"
     assert me.node.author.nickname == "Aroha"
 
+
+
+# --- Where you are ---
+
+DARWIN_STREET = (-12.4630, 130.8440)
+
+
+class FakeLocation:
+    """Stands in for the location process."""
+
+    def __init__(self):
+        self.on_fix, self.status, self.asked, self.stopped = None, "on", 0, False
+
+    def refresh(self):
+        self.asked += 1
+
+    def stop(self):
+        self.stopped = True
+
+
+def located(p: Phone) -> FakeLocation:
+    fake = FakeLocation()
+    p.start_location(fake)
+    return fake
+
+
+def test_the_town_stands_in_until_there_is_a_fix(me):
+    assert me.where == position.Where(places.geohash_of(KATHERINE), position.TOWN, "Katherine")
+
+
+def test_this_macs_fix_is_used_and_kept_as_a_geohash_only(me, tmp_path, clock):
+    fake = located(me)
+    fake.on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    assert me.where.source == position.MAC
+    assert me.geohash == geohash.encode(*DARWIN_STREET, 8)
+    saved = (tmp_path / phone.PROFILE_FILE).read_text()
+    assert "130.8" not in saved and "-12.4" not in saved  # no raw coordinates on disk
+    assert Phone(tmp_path, clock).where.source == position.MAC  # kept for a restart
+
+
+def test_warnings_and_calls_for_help_follow_the_fix(me):
+    located(me).on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    darwin = warning_for(geohash.encode(*DARWIN_STREET, 4))
+    katherine = warning_for(places.geohash_of(KATHERINE)[:4])
+    me.node.take_official(wire.encode(darwin))
+    me.node.take_official(wire.encode(katherine))
+    loud = {w.alert.alert_id: w.decision.urgency.name for w in me.warnings()}
+    assert loud == {darwin.alert_id: "LOUD", katherine.alert_id: "QUIET"}
+    assert me.send_sos("Trapped")
+    assert me.my_call_for_help().geohash == geohash.encode(*DARWIN_STREET, 7)  # cut to about 150 m
+
+
+def test_an_old_fix_gives_way_to_the_town(me, clock):
+    located(me).on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    clock.now_ms += position.FIX_FRESH_MS + 1
+    assert me.where.source == position.TOWN
+
+
+def test_a_pin_comes_first_and_clearing_it_goes_back(me, tmp_path, clock):
+    located(me).on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    assert me.set_pin("QVQJ0CZX")
+    assert me.where == position.Where("qvqj0cz", position.PIN)
+    assert Phone(tmp_path, clock).profile.pin == "qvqj0cz"
+    assert not me.set_pin("no!")
+    assert me.set_pin(None)
+    assert me.where.source == position.MAC
+
+
+def test_a_pin_is_enough_to_call_for_help_without_a_town(me):
+    me.set_town(None)
+    assert not me.send_sos("help")
+    me.set_pin("qvqj0cz")
+    assert me.send_sos("help")
+    assert me.my_call_for_help().geohash == "qvqj0cz"
+
+
+def test_turning_location_off_forgets_the_fix_and_stops_the_process(me, tmp_path, clock):
+    fake = located(me)
+    fake.on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    me.set_use_location(False)
+    assert fake.stopped and me.location is None
+    assert me.where.source == position.TOWN and me.location_status == "off"
+    again = Phone(tmp_path, clock)
+    assert again.profile.use_location is False and again.profile.last_fix is None
+    again.start_location(FakeLocation())
+    assert again.location is None  # off stays off
+
+
+def test_the_location_status_comes_from_the_process(me):
+    fake = located(me)
+    fake.status = "asking macOS for permission"
+    assert me.location_status == "asking macOS for permission"
+
+
+def test_a_fresh_fix_is_asked_for_without_waiting(me):
+    fake = located(me)
+    me.refresh_location()
+    assert fake.asked == 1
+
+
+def test_relays_are_asked_again_only_when_the_area_changes(me):
+    with_internet(me)
+    asked = []
+    me.internet.refresh = lambda: asked.append(me.geohash)
+    fake = located(me)
+    fake.on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))  # Katherine to Darwin
+    fake.on_fix(position.Fix.from_point(DARWIN_STREET[0], DARWIN_STREET[1] + 0.001, 35, NOW))  # next door
+    me.set_town("Darwin")  # the fix is in use, so the town changes nothing
+    assert len(asked) == 1
+
+
+def test_an_old_profile_without_the_new_settings_still_loads(tmp_path):
+    (tmp_path / phone.PROFILE_FILE).write_text(
+        '{"nickname": "Aroha", "town": "Katherine", "seed": "%s", "internet": false}' % ("11" * 32))
+    profile = Profile.load(tmp_path)
+    assert (profile.use_location, profile.pin, profile.last_fix) == (True, None, None)
+
+
+def test_a_broken_pin_or_fix_in_the_profile_is_dropped(tmp_path):
+    (tmp_path / phone.PROFILE_FILE).write_text(
+        '{"seed": "%s", "pin": "no!", "last_fix": {"cell": "qvqj", "accuracy": "x"}}' % ("11" * 32))
+    profile = Profile.load(tmp_path)
+    assert (profile.pin, profile.last_fix) == (None, None)
 
 # --- Page ---
 
