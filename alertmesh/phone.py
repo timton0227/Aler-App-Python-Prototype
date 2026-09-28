@@ -275,6 +275,7 @@ class Phone:
 
     def stop(self) -> None:
         self._stop.set()
+        self.node.leave()  # devices nearby take this laptop off their lists at once
         if self._listener:
             self._listener.close()
         if hasattr(self.node.link, "stop"):

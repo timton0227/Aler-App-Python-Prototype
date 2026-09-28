@@ -9,9 +9,10 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from streamlit.testing.v1 import AppTest
 
-from alertmesh import chat, geohash, node, phone, places, position, reports, signer, wire
+from alertmesh import bitchat, geohash, phone, places, position, reports, signer, wire
 from alertmesh.chat import Identity
-from alertmesh.node import NEARBY, Frame, FrameKind
+from alertmesh.bitchat import MessageType, Packet
+from alertmesh.node import NEARBY
 from alertmesh.phone import Phone, Profile
 from alertmesh.reports import ReportKind, ReportSeverity
 from alertmesh.wire import HazardType, Severity
@@ -37,16 +38,16 @@ class Air:
     status = "on"
 
     def __init__(self):
-        self.frames = []
+        self.packets = []
 
-    def send(self, frame):
-        self.frames.append(node.decode_frame(frame))
+    def send(self, raw):
+        self.packets.append(bitchat.decode(raw))
 
     def neighbours(self):
         return 1
 
     def kinds(self):
-        return [f.kind for f in self.frames]
+        return [p.type for p in self.packets if p.type != MessageType.ANNOUNCE]
 
 
 @pytest.fixture
@@ -64,8 +65,19 @@ def me(tmp_path, clock):
     phone.set_shared(None)
 
 
-def arrive(p: Phone, kind: FrameKind, body: bytes) -> None:
-    p.node.receive(node.encode_frame(Frame(kind, 7, os.urandom(16), body)))
+SOMEONE = Identity("Someone")
+_sent = iter(range(1, 10**6))
+
+
+def arrive(p: Phone, kind: MessageType, body: bytes, sender: Identity = SOMEONE) -> None:
+    """A packet from a device nearby, a millisecond after the last one."""
+    packet = Packet(kind, sender.peer_id, p.clock() + next(_sent), body, 7)
+    p.node.receive(bitchat.encode(sender.sign_packet(packet)))
+
+
+def announce(p: Phone, who: Identity, laptop: bool = True) -> None:
+    arrive(p, MessageType.ANNOUNCE, bitchat.encode_announcement(
+        bitchat.Announcement(who.nickname, who.chat_key, who.signing_key, laptop=laptop)), who)
 
 
 def warning_for(cell: str, severity=Severity.WATCH_AND_ACT, now_ms=NOW):
@@ -119,7 +131,7 @@ def test_call_for_help_is_sent_from_my_town_and_answered(me):
     assert me.send_sos("Trapped on the roof")
     mine = me.my_call_for_help()
     assert mine.geohash == places.geohash_of(KATHERINE) and mine.note == "Trapped on the roof"
-    assert me.node.link.kinds() == [FrameKind.REPORT]
+    assert me.node.link.kinds() == [MessageType.COMMUNITY_REPORT]
     assert me.send_safe()
     assert me.my_call_for_help() is None
 
@@ -128,12 +140,12 @@ def test_no_call_for_help_without_a_town(me):
     me.set_town(None)
     assert not me.send_sos("help")
     assert not me.send_hazard(HazardType.FLOOD, ReportSeverity.HIGH, "")
-    assert me.node.link.frames == []
+    assert me.node.link.kinds() == []
 
 
 def test_other_peoples_calls_for_help_are_listed_mine_are_not(me):
     other = reports.ReportAuthor("Bob")
-    arrive(me, FrameKind.REPORT, reports.encode(other.sos(me.geohash, "help", NOW)))
+    arrive(me, MessageType.COMMUNITY_REPORT, reports.encode(other.sos(me.geohash, "help", NOW)))
     me.send_sos("me too")
     assert [r.author_nickname for r in me.calls_for_help()] == ["Bob"]
 
@@ -551,7 +563,7 @@ def test_page_says_how_you_are_connected(me, app):
 def test_calling_for_help_from_the_page(me, app):
     button(app, "I need help").click().run()
     assert "This is not 000" in page(app)  # the sheet is open, nothing sent yet
-    assert me.node.link.frames == []
+    assert me.node.link.kinds() == []
     app.text_input(key="sos_note").input("Two of us, one hurt")
     button(app, "Send call for help").click().run()
     assert not app.exception
@@ -565,7 +577,7 @@ def test_calling_for_help_from_the_page(me, app):
 def test_cancel_closes_the_call_for_help_sheet_without_sending(me, app):
     button(app, "I need help").click().run()
     button(app, "Cancel").click().run()
-    assert not app.exception and me.node.link.frames == []
+    assert not app.exception and me.node.link.kinds() == []
     assert "This is not 000" not in page(app)
 
 
@@ -588,7 +600,7 @@ def test_the_open_sheet_shows_your_call_for_help_when_it_is_out(me, app):
 
 
 def test_someone_elses_call_for_help_shows_first(me, app):
-    arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
+    arrive(me, MessageType.COMMUNITY_REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
     app.run()
     assert "Calls for help" in page(app) and "Bob needs help" in page(app) and "leg broken" in page(app)
     assert not [b for b in app.button if b.label == "Message Bob"]  # Bob's laptop is not in range
@@ -596,8 +608,8 @@ def test_someone_elses_call_for_help_shows_first(me, app):
 
 def test_a_call_for_help_from_someone_in_range_can_be_answered(me, app):
     bob = Identity("Bob")  # one key signs Bob's chat and his reports, as on his phone
-    arrive(me, FrameKind.ANNOUNCE, chat.encode_announce(bob.announce(NOW)))
-    arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob", bob.signing_seed).sos(me.geohash, "", NOW)))
+    announce(me, bob)
+    arrive(me, MessageType.COMMUNITY_REPORT, reports.encode(reports.ReportAuthor("Bob", bob.signing_seed).sos(me.geohash, "", NOW)), bob)
     app.run()
     button(app, "Message Bob").click().run()
     assert app.session_state["view"] == "Chat" and app.session_state["chat_with"] == bob.signing_key.hex()
@@ -619,7 +631,7 @@ def test_reporting_a_hazard(me, app):
 
 
 def test_calls_for_help_are_red_and_hazard_reports_grey_in_the_report_list(me, app):
-    arrive(me, FrameKind.REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
+    arrive(me, MessageType.COMMUNITY_REPORT, reports.encode(reports.ReportAuthor("Bob").sos(me.geohash, "leg broken", NOW)))
     show(app, "Report")
     assert 'class="am-card am-rep am-help"' in page(app) and "Bob needs help" in page(app)
     assert "Not official warnings. Nobody has checked them." in [c.value for c in app.caption]
@@ -629,14 +641,15 @@ def test_typing_a_message_sends_it_to_nearby(me, app):
     show(app, "Chat")
     app.chat_input(key="chat_text").set_value("Is the bridge open?").run()
     assert not app.exception
-    (frame,) = [f for f in me.node.link.frames if f.kind == FrameKind.CHAT]
-    assert chat.decode_message(frame.body).text == "Is the bridge open?"
+    (packet,) = [f for f in me.node.link.packets if f.type == MessageType.MESSAGE]
+    assert packet.payload == "Is the bridge open?".encode()
     assert 'class="am-msg am-out"><span class="am-bub">Is the bridge open?</span>' in page(app)
 
 
 def test_incoming_message_is_counted_then_read(me, app):
     bob = Identity("Bob")
-    arrive(me, FrameKind.CHAT, chat.encode_message(bob.message("Bridge is closed", NOW)))
+    announce(me, bob, laptop=False)  # an iPhone
+    arrive(me, MessageType.MESSAGE, "Bridge is closed".encode(), bob)
     app.run()
     assert me.node.chats.unread == 1
     assert app.button(key="nav_chat").label == "Chat :red-badge[1]"
@@ -648,17 +661,17 @@ def test_incoming_message_is_counted_then_read(me, app):
 
 def test_private_conversation_with_someone_in_range(me, app):
     bob = Identity("Bob")
-    arrive(me, FrameKind.ANNOUNCE, chat.encode_announce(bob.announce(NOW)))
+    announce(me, bob)
     show(app, "Chat")
     button(app, "Message Bob").click().run()
     app.chat_input(key="chat_text").set_value("just to you").run()
     assert not app.exception
-    (frame,) = [f for f in me.node.link.frames if f.kind == FrameKind.PRIVATE]
-    assert bob.open(frame.body).text == "just to you"
+    (packet,) = [f for f in me.node.link.packets if f.type == MessageType.LAPTOP_PRIVATE]
+    assert bob.open(packet.payload).text == "just to you"
 
 
 def test_too_long_message_is_refused_with_a_reason(me, app):
     show(app, "Chat")
     app.chat_input(key="chat_text").set_value("😀" * 100).run()
     assert any("at most 280 bytes" in w.value for w in app.warning)
-    assert not [f for f in me.node.link.frames if f.kind == FrameKind.CHAT]
+    assert not [f for f in me.node.link.packets if f.type == MessageType.MESSAGE]

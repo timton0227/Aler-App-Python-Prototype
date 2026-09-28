@@ -1,17 +1,21 @@
 """Tests for alertmesh.node, with a fake radio instead of Bluetooth.
 
-No Swift tests to port directly: the rules follow BLEService (relay, TTL, announces) and
-MessageDeduplicationService (each packet once), as the module docstring says.
+The node follows the iPhone app's receive rules (BLEIngressPacketGuard,
+BLEAnnounceHandlingPolicy, BLEPublicMessagePolicy, RelayController); the cases below
+port the ones that matter to a laptop: clock skew, duplicates, own echoes, announce
+checks and key pinning, and signed Nearby messages from announced people only.
 """
 import os
+import random
 from collections import deque
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from alertmesh import chat, node, reports, wire
+from alertmesh import bitchat, node, reports, wire
+from alertmesh.bitchat import MessageType, Packet
 from alertmesh.chat import Identity
-from alertmesh.node import NEARBY, Frame, FrameKind, Node
+from alertmesh.node import NEARBY, Node
 from alertmesh.wire import HazardType, OfficialAlert, Severity
 
 PUBLISHER = Ed25519PrivateKey.generate()
@@ -28,7 +32,7 @@ class Clock:
 
 
 class Radio:
-    """Laptops and who is in range of whom. Frames are delivered in order until quiet."""
+    """Laptops and who is in range of whom. Packets are delivered in order until quiet."""
 
     def __init__(self):
         self.nodes: dict[str, Node] = {}
@@ -42,18 +46,21 @@ class Radio:
 
     def run(self):
         while self.queue:
-            sender, frame = self.queue.popleft()
+            sender, raw = self.queue.popleft()
             for other in sorted(self.links[sender]):
-                self.nodes[other].receive(frame)
+                self.nodes[other].receive(raw)
+
+    def kinds(self, name=None):
+        return [bitchat.decode(raw).type for who, raw in self.sent if name in (None, who)]
 
 
 class FakeLink:
     def __init__(self, radio: Radio, name: str):
         self.radio, self.name = radio, name
 
-    def send(self, frame: bytes):
-        self.radio.sent.append((self.name, frame))
-        self.radio.queue.append((self.name, frame))
+    def send(self, raw: bytes):
+        self.radio.sent.append((self.name, raw))
+        self.radio.queue.append((self.name, raw))
 
     def neighbours(self) -> int:
         return len(self.radio.links[self.name])
@@ -72,7 +79,7 @@ def radio():
 def add(radio, clock, name):
     radio.links[name] = set()
     radio.nodes[name] = Node(Identity(name), FakeLink(radio, name), clock,
-                             publisher_key=PUBLISHER.public_key().public_bytes_raw())
+                             publisher_key=PUBLISHER.public_key().public_bytes_raw(), rng=random.Random(1))
     return radio.nodes[name]
 
 
@@ -86,7 +93,7 @@ def line(radio, clock, *names):
 
 def announce_all(radio):
     for n in radio.nodes.values():
-        n.tick()
+        n.announce()
     radio.run()
 
 
@@ -103,25 +110,41 @@ def texts(n: Node, conversation=NEARBY):
     return [e.message.text for e in n.chats.conversations.get(conversation, node.Conversation(conversation)).entries]
 
 
-# --- Frames
+def packet_from(who: Identity, kind, payload: bytes, timestamp=NOW, ttl=7, sign=True) -> bytes:
+    """A packet as another device (an iPhone, say) would send it."""
+    p = Packet(kind, who.peer_id, timestamp, payload, ttl)
+    return bitchat.encode(who.sign_packet(p) if sign else p)
 
 
-def test_frame_round_trips():
-    frame = Frame(FrameKind.CHAT, 7, os.urandom(16), b"body")
-    assert node.decode_frame(node.encode_frame(frame)) == frame
+def announce_of(who: Identity, timestamp=NOW, laptop=False, signing_key=None) -> bytes:
+    payload = bitchat.encode_announcement(bitchat.Announcement(
+        who.nickname, who.chat_key, signing_key or who.signing_key, laptop=laptop))
+    return packet_from(who, MessageType.ANNOUNCE, payload, timestamp)
 
 
-def test_bad_frames_are_ignored():
-    good = node.encode_frame(Frame(FrameKind.CHAT, 7, os.urandom(16), b"body"))
-    assert node.decode_frame(b"\x02" + good[1:]) is None        # unknown version
-    assert node.decode_frame(good[:1] + b"\x99" + good[2:]) is None  # unknown kind
-    assert node.decode_frame(good[:node.HEADER_LENGTH]) is None  # no body
-    assert node.decode_frame(good + bytes(node.MAX_FRAME_BYTES)) is None  # too big
+# --- Packets
 
 
-def test_kinds_use_the_iphone_numbers():
-    assert (FrameKind.ANNOUNCE, FrameKind.CHAT, FrameKind.PRIVATE, FrameKind.OFFICIAL, FrameKind.REPORT) == \
-        (0x01, 0x02, 0x11, 0x2D, 0x2E)
+def test_our_packets_are_the_iphones():
+    radio, clock = Radio(), Clock()
+    (a,) = line(radio, clock, "A")
+    a.announce()
+    a.say("hello")
+    announce, message = (bitchat.decode(raw) for _, raw in radio.sent)
+    assert (announce.type, announce.ttl, announce.sender_id) == (MessageType.ANNOUNCE, 7, a.identity.peer_id)
+    parsed = bitchat.decode_announcement(announce.payload)
+    assert (parsed.nickname, parsed.signing_key, parsed.laptop) == ("A", a.identity.signing_key, True)
+    assert bitchat.verify(announce, a.identity.signing_key)
+    assert (message.type, message.payload, message.recipient_id) == (MessageType.MESSAGE, b"hello", None)
+    assert bitchat.verify(message, a.identity.signing_key)
+    assert message.timestamp > announce.timestamp  # never two packets in one millisecond
+
+
+def test_bad_packets_are_ignored(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(b"not a packet")
+    a.receive(b"")
+    assert a.version == 0 and radio.sent == []
 
 
 # --- Chat across the mesh
@@ -129,6 +152,7 @@ def test_kinds_use_the_iphone_numbers():
 
 def test_nearby_message_reaches_c_through_b(radio, clock):
     a, b, c = line(radio, clock, "A", "B", "C")
+    announce_all(radio)
     a.say("Bridge is under water")
     radio.run()
     assert texts(b) == texts(c) == ["Bridge is under water"]
@@ -139,6 +163,8 @@ def test_nearby_message_reaches_c_through_b(radio, clock):
 def test_message_in_a_ring_is_handled_once(radio, clock):
     a, b, c = line(radio, clock, "A", "B", "C")
     radio.link("C", "A")
+    announce_all(radio)
+    radio.sent.clear()
     a.say("hello")
     radio.run()
     assert texts(b) == texts(c) == ["hello"]
@@ -149,6 +175,7 @@ def test_message_in_a_ring_is_handled_once(radio, clock):
 def test_ttl_stops_a_message(radio, clock):
     names = [f"N{i}" for i in range(12)]
     nodes = line(radio, clock, *names)
+    announce_all(radio)
     nodes[0].say("far")
     radio.run()
     reached = [name for name, x in zip(names, nodes) if texts(x) == ["far"]]
@@ -158,11 +185,12 @@ def test_ttl_stops_a_message(radio, clock):
 
 def test_forged_nearby_message_is_not_shown_or_passed_on(radio, clock):
     a, b, c = line(radio, clock, "A", "B", "C")
-    message = a.identity.message("real", NOW)
-    forged = chat.encode_message(message).replace(b"real", b"fake")
-    b.receive(node.encode_frame(Frame(FrameKind.CHAT, 7, os.urandom(16), forged)))
+    announce_all(radio)
+    radio.sent.clear()
+    real = a.identity.sign_packet(Packet(MessageType.MESSAGE, a.peer_id, NOW + 5, b"real", 7))
+    b.receive(bitchat.encode(Packet(MessageType.MESSAGE, a.peer_id, NOW + 5, b"fake", 7, signature=real.signature)))
     radio.run()
-    assert texts(b) == [] and texts(c) == []
+    assert texts(b) == [] and texts(c) == [] and radio.sent == []
 
 
 def test_announces_fill_the_people_nearby_list(radio, clock):
@@ -195,6 +223,7 @@ def test_private_message_to_someone_never_announced_is_not_sent(radio, clock):
 
 def test_reading_a_conversation_clears_its_unread_count(radio, clock):
     a, b = line(radio, clock, "A", "B")
+    announce_all(radio)
     a.say("one")
     a.say("two")
     radio.run()
@@ -237,7 +266,7 @@ def test_repeated_warning_is_not_sent_again(radio, clock):
 def test_forged_warning_stops_at_the_first_laptop(radio, clock):
     a, b, c = line(radio, clock, "A", "B", "C")
     forged = wire.encode(make_alert(key=Ed25519PrivateKey.generate()))
-    b.receive(node.encode_frame(Frame(FrameKind.OFFICIAL, 7, os.urandom(16), forged)))
+    b.receive(packet_from(Identity("Forger"), MessageType.OFFICIAL_ALERT, forged))
     radio.run()
     assert b.alerts.live_alerts() == [] and c.alerts.live_alerts() == []
     assert radio.sent == []
@@ -270,6 +299,7 @@ def test_gossip_brings_a_late_arrival_up_to_date(radio, clock):
 
 def test_version_goes_up_when_something_to_show_arrives(radio, clock):
     a, b = line(radio, clock, "A", "B")
+    announce_all(radio)
     before = b.version
     a.say("hi")
     radio.run()
@@ -278,6 +308,139 @@ def test_version_goes_up_when_something_to_show_arrives(radio, clock):
 
 def test_seen_list_is_bounded(radio, clock):
     (a,) = line(radio, clock, "A")
-    for _ in range(node.SEEN_CAPACITY + 50):
-        a.receive(node.encode_frame(Frame(FrameKind.CHAT, 7, os.urandom(16), b"x")))
+    stranger = Identity("Stranger")
+    for i in range(node.SEEN_CAPACITY + 50):
+        a.receive(packet_from(stranger, MessageType.MESSAGE, b"x", NOW + i))
     assert len(a._seen) == node.SEEN_CAPACITY
+
+
+# --- The iPhone's receive rules (BLEIngressPacketGuard, BLEAnnounceHandlingPolicy,
+#     BLEPublicMessagePolicy)
+
+IPHONE = Identity("9vision")
+
+
+def test_an_iphone_is_listed_and_its_nearby_message_shown(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE))
+    a.receive(packet_from(IPHONE, MessageType.MESSAGE, "Checking from iphone".encode(), NOW + 1))
+    (peer,) = a.nearby_peers()
+    assert (peer.nickname, peer.is_laptop, peer.peer_id) == ("9vision", False, IPHONE.peer_id)
+    assert texts(a) == ["Checking from iphone"]
+    (entry,) = a.chats.conversations[NEARBY].entries
+    assert entry.message.sender_nickname == "9vision" and not entry.outgoing
+
+
+def test_a_message_from_someone_never_announced_is_dropped(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(packet_from(IPHONE, MessageType.MESSAGE, b"who am I", NOW))
+    assert texts(a) == []
+
+
+def test_an_unsigned_message_is_dropped(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE))
+    a.receive(packet_from(IPHONE, MessageType.MESSAGE, b"unsigned", NOW + 1, sign=False))
+    assert texts(a) == []
+
+
+@pytest.mark.parametrize("skew", [-node.MAX_CLOCK_SKEW_MS - 1, node.MAX_CLOCK_SKEW_MS + 1])
+def test_a_packet_more_than_2_minutes_off_our_clock_is_dropped(radio, clock, skew):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE, NOW + skew))
+    assert a.peers == {}
+    a.receive(announce_of(IPHONE, NOW + node.MAX_CLOCK_SKEW_MS))
+    assert len(a.peers) == 1
+
+
+def test_an_announce_whose_sender_is_not_its_key_is_dropped(radio, clock):
+    (a,) = line(radio, clock, "A")
+    other = Identity("Other")
+    payload = bitchat.encode_announcement(bitchat.Announcement("9vision", other.chat_key, IPHONE.signing_key))
+    a.receive(packet_from(IPHONE, MessageType.ANNOUNCE, payload))
+    assert a.peers == {}
+
+
+def test_an_announce_signed_by_another_key_is_dropped(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE, signing_key=Identity().signing_key))
+    assert a.peers == {}
+
+
+def test_the_first_signing_key_for_a_sender_is_kept(radio, clock):
+    """Key pinning: someone else cannot take over a sender ID with their own key."""
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE))
+    thief = Identity("thief", os.urandom(32) + IPHONE.seed[32:])  # same X25519 key, other Ed25519
+    a.receive(announce_of(thief, NOW + 10))
+    assert [p.signing_key for p in a.peers.values()] == [IPHONE.signing_key]
+    a.receive(packet_from(thief, MessageType.MESSAGE, b"it's me", NOW + 11))
+    assert texts(a) == []
+
+
+def test_our_own_packets_coming_back_are_dropped(radio, clock):
+    a, b = line(radio, clock, "A", "B")
+    a.announce()
+    radio.run()
+    assert b.peers and not a.peers
+
+
+def test_an_iphone_is_offered_no_private_chat(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE))
+    assert a.say("psst", to=IPHONE.signing_key.hex()) is None
+
+
+def test_a_leave_takes_someone_off_the_list(radio, clock):
+    a, b = line(radio, clock, "A", "B")
+    announce_all(radio)
+    assert [p.nickname for p in b.nearby_peers()] == ["A"]
+    a.leave()
+    radio.run()
+    assert b.nearby_peers() == [] and len(b.peers) == 1
+
+
+def test_a_forged_leave_is_ignored(radio, clock):
+    (a,) = line(radio, clock, "A")
+    a.receive(announce_of(IPHONE))
+    a.receive(packet_from(IPHONE, MessageType.LEAVE, b"", NOW + 1, sign=False))
+    assert len(a.nearby_peers()) == 1
+
+
+def test_relaying_changes_only_the_ttl(radio, clock):
+    a, b, c = line(radio, clock, "A", "B", "C")
+    b.receive(announce_of(IPHONE))
+    raw = packet_from(IPHONE, MessageType.MESSAGE, b"pass me on", NOW + 1)
+    b.receive(raw)
+    (relayed,) = [r for who, r in radio.sent if who == "B"][1:]
+    assert relayed == raw[:2] + bytes([6]) + raw[3:]
+
+
+def test_types_the_laptop_does_not_read_are_passed_on_unread(radio, clock):
+    a, b, c = line(radio, clock, "A", "B", "C")
+    noise = packet_from(IPHONE, MessageType.NOISE_ENCRYPTED, os.urandom(120), NOW)
+    b.receive(noise)
+    assert radio.kinds("B") == [MessageType.NOISE_ENCRYPTED]
+
+
+def test_catch_up_requests_are_not_passed_on(radio, clock):
+    a, b, c = line(radio, clock, "A", "B", "C")
+    b.receive(packet_from(IPHONE, MessageType.REQUEST_SYNC,
+                          bitchat.encode_request_sync(bitchat.catch_up_request()), NOW, ttl=0))
+    assert radio.sent == []
+
+
+def test_a_warning_cut_into_fragments_is_put_back_together(radio, clock):
+    a, b, c = line(radio, clock, "A", "B", "C")
+    whole = IPHONE.sign_packet(Packet(MessageType.OFFICIAL_ALERT, IPHONE.peer_id, NOW, wire.encode(make_alert()), 7))
+    for piece in bitchat.split(whole, 64):
+        b.receive(bitchat.encode(piece))
+    radio.run()
+    assert len(b.alerts.live_alerts()) == len(c.alerts.live_alerts()) == 1
+    assert set(radio.kinds("B")) == {MessageType.FRAGMENT}  # the pieces were passed on, not the whole
+
+
+def test_a_message_too_long_for_one_packet_is_refused(radio, clock):
+    (a,) = line(radio, clock, "A")
+    assert a.say("x" * (node.TEXT_MAX_BYTES + 1)) is None
+    assert a.say("x" * node.TEXT_MAX_BYTES) is not None

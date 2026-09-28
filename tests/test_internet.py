@@ -12,7 +12,9 @@ import pytest
 
 from alertmesh import georelays, internet, nostr, reports, wire
 from alertmesh.chat import Identity
-from alertmesh.node import PACKET_ID_LENGTH, Frame, FrameKind, Node, decode_frame, encode_frame
+from alertmesh import bitchat
+from alertmesh.bitchat import MessageType, Packet
+from alertmesh.node import Node
 from alertmesh.reports import ReportAuthor, ReportSeverity
 from alertmesh.signer import OfficialAlertSigner, WarningDraft
 from alertmesh.wire import HazardType
@@ -167,19 +169,19 @@ class SubscribingRecorder(Recorder):
 
 
 class Air:
-    """Stands in for Bluetooth: keeps every frame sent."""
+    """Stands in for Bluetooth: keeps every packet sent."""
 
     def __init__(self):
-        self.frames = []
+        self.packets = []
 
-    def send(self, frame):
-        self.frames.append(decode_frame(frame))
+    def send(self, raw):
+        self.packets.append(bitchat.decode(raw))
 
     def neighbours(self):
         return 0
 
     def kinds(self):
-        return [f.kind for f in self.frames if f.kind in (FrameKind.OFFICIAL, FrameKind.REPORT)]
+        return [p.type for p in self.packets if p.type in (MessageType.OFFICIAL_ALERT, MessageType.COMMUNITY_REPORT)]
 
 
 PLACE = ["r7hg2bc"]
@@ -222,7 +224,7 @@ def test_a_received_warning_goes_to_the_mesh_once():
     link.take_alert(warning_event(alert))
     link.take_alert(warning_event(alert))  # the same version from another relay
     assert [a.alert_id for a in node.alerts.live_alerts()] == [alert.alert_id]
-    assert air.kinds() == [FrameKind.OFFICIAL]
+    assert air.kinds() == [MessageType.OFFICIAL_ALERT]
 
 
 def test_updates_and_cancellations_are_new_versions():
@@ -234,7 +236,7 @@ def test_updates_and_cancellations_are_new_versions():
     for item in (alert, update):
         link.take_alert(warning_event(item))
     link.take_alert(nostr.alert_event(wire.encode(cancellation), alert.area_cells, alert.expires_at))
-    assert air.kinds() == [FrameKind.OFFICIAL] * 3
+    assert air.kinds() == [MessageType.OFFICIAL_ALERT] * 3
     assert node.alerts.live_alerts() == []
 
 
@@ -254,7 +256,7 @@ def test_other_kinds_and_broken_content_are_ignored():
     link.take_alert(nostr.sign_event(1, [], warning_event(warning()).content))
     link.take_alert(nostr.sign_event(1403, [], "not base64!"))
     link.take_report(nostr.sign_event(1403, [], "AAAA"))
-    assert air.frames == [] and node.alerts.live_alerts() == []
+    assert air.packets == [] and node.alerts.live_alerts() == []
 
 
 def sos(author=None, cell="r7hg2bc", note="Trapped on roof"):
@@ -293,16 +295,20 @@ def test_a_heard_sos_is_published_too_but_hazard_reports_stay_off_the_internet()
     link, pool, node, _ = phone_link()
     hazard = ReportAuthor("Kim").hazard(HazardType.FLOOD, ReportSeverity.HIGH, "r7hg2bc", "Road under water",
                                         NOW_MS)
-    node.receive(node_frame(FrameKind.REPORT, reports.encode(hazard)))
+    node.receive(node_frame(MessageType.COMMUNITY_REPORT, reports.encode(hazard)))
     assert node.reports.live_reports() == [hazard]  # taken, but not put online
     assert pool.published == []
     heard = sos()
-    node.receive(node_frame(FrameKind.REPORT, reports.encode(heard)))
+    node.receive(node_frame(MessageType.COMMUNITY_REPORT, reports.encode(heard)))
     assert [reports.decode(nostr.payload_of(e, 1402)) for e, _ in pool.published] == [heard]
 
 
+NEIGHBOUR = Identity("Neighbour")
+
+
 def node_frame(kind, body):
-    return encode_frame(Frame(kind, 3, os.urandom(PACKET_ID_LENGTH), body))
+    """A packet from a device nearby."""
+    return bitchat.encode(NEIGHBOUR.sign_packet(Packet(kind, NEIGHBOUR.peer_id, NOW_MS, body, 3)))
 
 
 def test_a_received_sos_goes_to_the_mesh_and_is_not_echoed():
@@ -311,7 +317,7 @@ def test_a_received_sos_goes_to_the_mesh_and_is_not_echoed():
     link.take_report(nostr.report_event(report))
     link.take_report(nostr.report_event(report))  # again, from another relay
     assert node.reports.live_reports() == [report]
-    assert air.kinds() == [FrameKind.REPORT]
+    assert air.kinds() == [MessageType.COMMUNITY_REPORT]
     assert pool.published == []
 
 
@@ -372,7 +378,7 @@ def test_end_to_end_warning_app_to_phone_app_and_calls_for_help_between_phones()
     (first, _), (second, second_air) = phones
     first.send_report(first.author.sos("r7hg2bc", "Help", int(time.time() * 1000)))
     assert wait(lambda: second.reports.live_reports())
-    assert wait(lambda: FrameKind.REPORT in second_air.kinds())  # passed on over Bluetooth
+    assert wait(lambda: MessageType.COMMUNITY_REPORT in second_air.kinds())  # passed on over Bluetooth
     for pool in pools:
         pool.close()
     relay.close()

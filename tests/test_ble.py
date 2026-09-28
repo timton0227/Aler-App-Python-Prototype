@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from alertmesh import ble, chat, node
+from alertmesh import ble, node
 
 
 class Clock:
@@ -27,7 +27,7 @@ class Clock:
 
 @pytest.mark.parametrize("write_size", [20, 23, 180, 512])
 def test_largest_frame_survives_being_cut_into_pieces(write_size):
-    frame = os.urandom(node.MAX_FRAME_BYTES)
+    frame = os.urandom(node.MAX_PACKET_BYTES)
     pieces = ble.split(frame, write_size)
     assert all(len(p) <= write_size for p in pieces)
     r = ble.Reassembler()
@@ -206,5 +206,4 @@ def test_bluetooth_command():
 
 
 def test_frames_fit_well_within_the_piece_limit():
-    assert len(ble.split(os.urandom(node.MAX_FRAME_BYTES), ble.MIN_WRITE)) <= 255
-    assert node.MAX_FRAME_BYTES == node.HEADER_LENGTH + chat.SEALED_MAX_BYTES
+    assert len(ble.split(os.urandom(node.MAX_PACKET_BYTES), ble.MIN_WRITE)) <= 255

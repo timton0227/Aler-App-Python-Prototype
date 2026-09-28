@@ -24,6 +24,37 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.5 The mesh node on the iPhone's packets — 2026-09-28
+- What: `alertmesh/node.py` now sends and takes the iPhone app's packets (`alertmesh/bitchat.py`) instead of the laptops' own frames.
+  - **Sending:**
+    - Announces carry the nickname, the X25519 ("Noise") and Ed25519 keys, and the laptop marker. They go out every 15 ± 4 s; iPhones forget a peer not heard for 45-60 s. A changed nickname is announced at the next tick.
+    - Nearby messages are plain UTF-8, as on the iPhone. The limit is 280 bytes, or 99 if this computer's compression does not match Apple's.
+    - Warnings and reports go in their own packet types. Every packet is signed, and none shares a millisecond with the one before.
+    - `leave()`, sent by `Phone.stop()`.
+    - Laptop-only private messages: the existing sealed message in type 0x70, offered only to peers whose announce carries the laptop marker.
+    - Every 60 s, gossip with TTL 1, as before.
+  - **Receiving, in the iPhone's order:**
+    - A packet is dropped if it is broken, already seen (sender, time, type and the start of the payload's SHA-256; 1000 remembered), our own come back, a catch-up answer nobody asked for, or more than 2 minutes off this laptop's clock.
+    - An announce is taken only if its sender ID comes from its X25519 key, it is signed by the Ed25519 key it carries, and it is under 15 minutes old. The first signing key seen for a sender ID is kept.
+    - A Nearby message is taken only from someone whose announce was taken, signed by them, and under 6 hours old.
+    - A leave is taken only if signed.
+    - Warnings and reports are taken, and passed on, only if their stores accept them.
+    - Fragments are passed on and put back together. A packet rebuilt from them is taken in but not passed on.
+    - Types the laptop does not read (the iPhone's encrypted messages, files) are passed on unread. Catch-up requests are not.
+  - **Relaying:** only the TTL byte is rewritten (it is not signed), by the RelayController rule as before.
+  - `Peer` holds the announce and the sender ID; peers are still listed by signing key, so the page and private conversations are unchanged. `peer_by_signing_key` finds the person behind a call for help.
+  - `MAX_PACKET_BYTES` replaces the old frame limit.
+  - `alertmesh/chat.py` keeps each person's keys and the sealed private messages. Its docstring says what moved.
+- Ported from: `AlertMesh/Services/BLE/BLEIngressPacketGuard.swift` (clock, duplicates, own echoes, unsolicited RSR), `BLEAnnounceHandlingPolicy.swift` and `BLEAnnounceHandler.swift` (sender ID from the key, signature, age, key pinning), `BLEPublicMessagePolicy.swift` and `BLEPublicMessageHandler.swift` (signed by an announced peer, 6 hours, UTF-8 text, the stable message ID), `BLEService.swift` (relaying unknown types), `RelayController.swift` (`mesh_sim.relay_ttl`).
+- Differences from Swift:
+  - No Noise sessions: an iPhone's private messages to the laptop are passed on unread, and "Message" works laptop to laptop only.
+  - Incoming catch-up requests are not answered; our 60 s gossip reaches iPhones anyway. Asking iPhones for what they hold comes in step 16.9.
+  - Until step 16.7 the Bluetooth link still uses the laptops' own service, so this build still talks laptop to laptop only; the packets it carries are already the iPhone's.
+- Verified by:
+  - `python3 -m pytest tests/test_node.py` — 35 passed. The old frame tests became packet tests, and 17 cases are new: an iPhone's announce and message, a message from someone never announced, an unsigned message, clock skew both ways, a wrong sender ID, a wrong signing key, key pinning, own echoes, no private chat to an iPhone, a signed leave and a forged one, relaying rewrites only the TTL, unknown types passed on, catch-up requests not passed on, a warning in fragments, and the message limit.
+  - `tests/test_internet.py` and `tests/test_phone_app.py` moved to the packets.
+  - `python3 -m pytest -q` — 780 passed (`packaging/.venv-mac`); 759 passed, 10 skipped (Anaconda 3.13).
+
 ## 17.6 Packaging and README — 2026-09-28
 - What:
   - `packaging/alert_mesh.spec`: the phone app's Info.plist gets `NSLocationWhenInUseUsageDescription` and `NSLocationUsageDescription`, the words macOS shows when it asks. Without them macOS never asks. The phone app also carries `pydeck` (the pin map) and, on a Mac, `CoreLocation`.

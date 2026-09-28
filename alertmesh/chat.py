@@ -1,10 +1,15 @@
-"""Chat: "I'm here" announces, Nearby messages and private messages.
+"""Chat: each person's keys, and laptop-to-laptop private messages.
 
 Modelled on: ../alert-mesh/localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift
              (`announce`, `message`, `noiseEncrypted`) and
              ../alert-mesh/AlertMesh/Services/PrivateChatManager.swift
-Not wire-compatible with the iPhone app: laptops running the Python phone app talk to
-each other, not to iPhones.
+Since Phase 16 announces and Nearby messages go in the iPhone app's own packets
+(alertmesh/bitchat.py, alertmesh/node.py), so iPhones and laptops chat in public.
+Private messages stay between laptops: iPhones encrypt theirs with Noise, which laptops
+do not speak. A laptop sends its sealed messages in a packet type iPhones do not know
+(0x70), which they pass on unread. The announce and message formats below (TLVs signed
+on their own) were the laptops' own wire format before; a sealed private message still
+carries a signed message inside.
 
 Each person has two keys, like the iPhone app:
 - a signing key (Ed25519), which says who wrote a message. It is the person's identity;
