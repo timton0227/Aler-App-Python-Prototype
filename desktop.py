@@ -172,7 +172,7 @@ def stop(server: subprocess.Popen) -> None:
 
 
 def check(page: Page) -> int:
-    """Import everything the page imports and read the town list, without a window.
+    """Import everything the page imports and read the town and relay lists, without a window.
     The build runs this on the finished app, so an app with a missing part fails
     the build instead of showing an error page to whoever opens it."""
     import ast
@@ -193,9 +193,13 @@ def check(page: Page) -> int:
             parent, _, attribute = name.rpartition(".")
             if not (parent and error.name == name and hasattr(importlib.import_module(parent), attribute)):
                 return _report(f"missing: {name} ({error})", 1)
-    from alertmesh import places
+    from alertmesh import georelays, places
 
-    return _report(f"ok: {len(set(names))} imports of {page.file} load; {len(places.towns())} towns from {places.DATA_FILE}", 0)
+    relays = georelays.Directory().entries
+    if not relays:
+        return _report(f"missing: the relay list ({georelays.CSV_NAME})", 1)
+    return _report(f"ok: {len(set(names))} imports of {page.file} load; {len(places.towns())} towns from "
+                   f"{places.DATA_FILE}; {len(relays)} relays", 0)
 
 
 def _report(message: str, code: int) -> int:

@@ -14,6 +14,8 @@ SWIFT_ICONS = ROOT.parent / "alert-mesh" / "AlertMesh" / "Assets.xcassets" / "Ap
 # The town list, copied into each app where alertmesh/places.py looks for it
 # (DATA_FILE_CANDIDATES): the Swift folder does not travel with the apps.
 SWIFT_PLACES = ROOT.parent / "alert-mesh" / "AlertMesh" / "AlertMesh" / "Utils" / "AustralianPlacesData.swift"
+# The relay list, copied where alertmesh/georelays.py looks for it (CSV_CANDIDATES).
+SWIFT_RELAYS = ROOT.parent / "alert-mesh" / "relays" / "online_relays_gps.csv"
 
 if sys.platform == "darwin":
     icon = ROOT / "build" / "icon" / "AlertMesh.icns"  # made by build_mac.sh
@@ -44,7 +46,7 @@ def collected(packages):
 def app(start, page, name, bundle_id, packages, plist, leave_out=()):
     """One app: its start file, its page, what it needs, and what it does not."""
     datas, binaries, imports = collected(packages)
-    datas += [(str(ROOT / page), "."), (str(SWIFT_PLACES), "alertmesh/data")]
+    datas += [(str(ROOT / page), "."), (str(SWIFT_PLACES), "alertmesh/data"), (str(SWIFT_RELAYS), "alertmesh/data")]
     datas += copy_metadata("streamlit")  # Streamlit reads its own version at start
     a = Analysis([str(ROOT / "packaging" / start)], pathex=[str(ROOT)], datas=datas, binaries=binaries,
                  hiddenimports=[m for m in ALERTMESH if m not in leave_out] + imports,

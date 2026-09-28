@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 2 | 9 |
-| **All** | **78** | **88** |
+| 15 Internet link: warnings and calls for help reach iPhones | 3 | 9 |
+| **All** | **79** | **88** |
 
 **Next step:** 12.4
 
@@ -395,7 +395,7 @@ switch in each app, **off** until turned on. The tests never use the real relays
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift`, `CommunityReportBridge.swift` (`tagCells`, `makeEvent`, `payload`, `versionKey`); `AlertMesh/Nostr/NostrRelayManager.swift` (`NostrFilter.officialAlerts`, `communityReports`, built-in relays)
       Done when: a warning or cancellation becomes a kind 1403 event tagged with every 2- to 4-character prefix of its area and its expiry; an SOS or "I'm safe" becomes a kind 1402 event tagged with its 4-character cell; hazard reports are never sent; the Swift bridge tests are ported
       Verify: `python3 -m pytest tests/test_nostr.py`
-- [ ] 15.3 Geo relays: the relays nearest a place (`alertmesh/georelays.py`)
+- [x] 15.3 Geo relays: the relays nearest a place (`alertmesh/georelays.py`)
       Swift: `AlertMesh/Nostr/GeoRelayDirectory.swift` (`validatedEntries`, `validatedDirectoryAddress`, `closestRelays`), `AlertMesh/AlertMesh/Utils/AustralianAreas.swift`, `relays/online_relays_gps.csv`
       Done when: the relay list is read from the Swift app's copy (or the one packed into the app) and, with the internet on, from the same address the iPhone app downloads it from, with the same all-or-nothing checks; the 5 relays nearest a cell come out as the iPhone app picks them, because calls for help go to those relays, not to the built-in ones
       Verify: `python3 -m pytest tests/test_georelays.py`

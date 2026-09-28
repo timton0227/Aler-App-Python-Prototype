@@ -24,6 +24,22 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.3 Geo relays: the relays nearest a place — 2026-09-28
+- What: `alertmesh/georelays.py`, which relays a call for help goes to.
+  - `validated_entries` reads the relay list (a relay's address and where it is) with the Swift app's all-or-nothing checks: the header, only secure public addresses, plain numbers in range, no relay in two places, size limits, and, for a download, at least half of the relays already known.
+  - `closest` and `closest_to_cell`: the 5 relays nearest a cell's centre, ties broken by address, so every device with the same list picks the same relays. The Australia-wide and state rooms use their anchors (the country's centre, each capital).
+  - `Directory` starts from the Swift app's copy of the list (`../alert-mesh/relays/online_relays_gps.csv`), or the copy inside a packaged app, and `refresh_if_due()` downloads the list from the same address the iPhone app uses: once a day, or after a failed try again after 1, 2, 4 ... minutes, up to an hour apart.
+  - The packaged apps carry the list (`packaging/alert_mesh.spec`), and `desktop.py --check` fails if it is missing (it now also reports the number of relays).
+- Ported from: `AlertMesh/Nostr/GeoRelayDirectory.swift` (`validatedEntries`, `validatedDirectoryAddress`, `closestRelays`, `haversineKm`, `loadLocalEntries`, `prefetchIfNeeded`, `scheduleRetry`), `AlertMesh/AlertMesh/Utils/AustralianAreas.swift`; tests from `GeoRelayDirectoryTests.swift` and `AustralianAreasTests.swift`.
+- Differences from Swift:
+  - The Swift app saves a downloaded list and starts from it next time. Here the download is kept in memory only, so each start begins from the list that came with the app and downloads again.
+  - The Swift app downloads over Tor when Tor is on. The Python apps have no Tor and download directly.
+  - Numbers must be plain decimals in ASCII digits. Swift's `Double()` also takes a few rarer forms (for example hexadecimal); a list with those would be refused here. The real list has none.
+- Verified by:
+  - `python3 -m pytest tests/test_georelays.py` — 37 passed; the Swift app's list passes the strict checks with 326 relays.
+  - `python3 desktop.py --check` — "... 996 towns ...; 326 relays".
+  - `python3 -m pytest -q` — 545 passed.
+
 ## 15.2 Warning and report events — 2026-09-28
 - What: in `alertmesh/nostr.py`, how warnings and calls for help travel as Nostr events.
   - `alert_event`: a warning or cancellation, its signed bytes in base64, as a kind 1403 event. It is tagged with every 2- to 4-character prefix of its area cells and with its expiry (a cancellation carries its warning's area and expiry).
