@@ -12,3 +12,4 @@ ipykernel>=6.31       # lets VS Code run demo.ipynb
 nbconvert>=7.16       # runs the notebook top to bottom as a check
 bleak>=3.0            # phone app: finds nearby laptops over Bluetooth and sends to them
 bless>=0.3            # phone app: lets nearby laptops find this one and send to it
+websockets>=16        # internet link: talks to Nostr relays, as the iPhone app does

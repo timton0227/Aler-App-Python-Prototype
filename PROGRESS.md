@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 3 | 9 |
-| **All** | **79** | **88** |
+| 15 Internet link: warnings and calls for help reach iPhones | 4 | 9 |
+| **All** | **80** | **88** |
 
 **Next step:** 12.4
 
@@ -399,7 +399,7 @@ switch in each app, **off** until turned on. The tests never use the real relays
       Swift: `AlertMesh/Nostr/GeoRelayDirectory.swift` (`validatedEntries`, `validatedDirectoryAddress`, `closestRelays`), `AlertMesh/AlertMesh/Utils/AustralianAreas.swift`, `relays/online_relays_gps.csv`
       Done when: the relay list is read from the Swift app's copy (or the one packed into the app) and, with the internet on, from the same address the iPhone app downloads it from, with the same all-or-nothing checks; the 5 relays nearest a cell come out as the iPhone app picks them, because calls for help go to those relays, not to the built-in ones
       Verify: `python3 -m pytest tests/test_georelays.py`
-- [ ] 15.4 Relay link (`alertmesh/relays.py`)
+- [x] 15.4 Relay link (`alertmesh/relays.py`)
       Swift: `AlertMesh/Nostr/NostrRelayManager.swift` (connect, publish, subscribe, reconnect)
       Done when: the link connects to each relay, publishes, subscribes, hands every event to a handler, reconnects after a drop, and reports how many relays are connected; tested against a relay run inside the tests
       Verify: `python3 -m pytest tests/test_relays.py`

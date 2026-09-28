@@ -24,6 +24,21 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.4 Relay link — 2026-09-28
+- What: `alertmesh/relays.py`, `RelayPool`: connections to Nostr relays over WebSockets.
+  - `publish(event, urls)` sends an event to those relays, now or once each can be reached, and keeps each relay's answer (`results`: accepted or not, and why).
+  - `subscribe(id, filter, urls, handler)` asks those relays for matching events, stored and new; `unsubscribe` ends it. Changing a subscription's filter or relays sends a new request and closes it where no longer wanted.
+  - Each event from a relay is checked (tags, ID, signature) before its handler sees it, and handed on once even when several relays send it. A forged copy with a genuine event's ID does not block the genuine one.
+  - One thread per relay. After a drop it reconnects after 1, 2, 4 ... seconds (up to 5 minutes, ±20%), then asks for its subscriptions and sends waiting events again.
+  - `tests/fake_relay.py`: a small relay on 127.0.0.1 for the tests, so they never reach the real relays.
+  - `requirements.txt` adds `websockets` (16.1 tested). Without it the pool does nothing and says so; its tests are skipped.
+- Ported from: `AlertMesh/Nostr/NostrRelayManager.swift` (`sendEvent`, `subscribe`, `unsubscribe`, the inbound pipeline's checks and duplicate handling, the reconnect backoff).
+- Differences from Swift:
+  - Swift stops retrying a relay after 10 failed attempts, or at once when the name cannot be found, and tries again after a 10-minute cooldown. Here a relay is retried forever, at most 5 minutes apart: simpler, and the apps use few relays.
+  - No Tor, no proof of work, and none of the private-message parts (gift wraps, courier drops), which these apps do not use.
+  - Swift closes connections when the app goes to the background. The desktop apps have no background state.
+- Verified by: `python3 -m pytest tests/test_relays.py` — 12 passed (with `packaging/.venv-mac`, which has websockets; skipped without it); `python3 -m pytest -q` — 557 passed.
+
 ## 15.3 Geo relays: the relays nearest a place — 2026-09-28
 - What: `alertmesh/georelays.py`, which relays a call for help goes to.
   - `validated_entries` reads the relay list (a relay's address and where it is) with the Swift app's all-or-nothing checks: the header, only secure public addresses, plain numbers in range, no relay in two places, size limits, and, for a download, at least half of the relays already known.
