@@ -29,8 +29,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| 16 One Bluetooth mesh with iPhones | 1 | 10 |
-| **All** | **85** | **98** |
+| 16 One Bluetooth mesh with iPhones | 2 | 10 |
+| **All** | **86** | **98** |
 
 **Next step:** 12.4
 
@@ -446,7 +446,7 @@ iPhone, is done with step 16.10.
       Swift: `localPackages/BitFoundation/Sources/BitFoundation/BinaryProtocol.swift`, `BitchatPacket.swift`, `MessagePadding.swift`, `CompressionUtil.swift`, `PeerID.swift`
       Done when: packets are encoded and decoded as the iPhone app does (header, flags, sender and recipient, compression, padding); the signed bytes are built as the iPhone builds them (TTL 0, no signature, padded, compressed when due), and a received packet's signature is checked from its own bytes; peer ID = the first 8 bytes of SHA-256 of the X25519 key; the Swift test cases are ported
       Verify: `python3 -m pytest tests/test_bitchat.py`
-- [ ] 16.2 Cross-check with Swift
+- [x] 16.2 Cross-check with Swift
       Done when: a small Swift package built on the app's BitFoundation decodes and verifies packets made in Python, and Python decodes and verifies packets made in Swift; Python's compression is compared with Apple's, and the answer is kept as test data that the apps check when they start (if they differ, messages stay under 100 bytes, where nothing is compressed)
       Verify: `python3 tools/cross_check_bitchat.py` (Mac with Swift)
 - [ ] 16.3 Announce, leave, catch-up request, fragments

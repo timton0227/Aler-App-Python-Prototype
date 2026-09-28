@@ -158,6 +158,16 @@ def compress(data: bytes) -> bytes | None:
     return out if 0 < len(out) < len(data) else None
 
 
+# Apple's own bytes for one text (from tools/cross_check_bitchat.py). A laptop must
+# compress exactly as the iPhone does, or iPhones reject its long messages: the signed
+# bytes they rebuild would differ. zlib at level 5 matched Apple on every text tried,
+# but another zlib (zlib-ng, say, in some Windows builds) may not, so each start checks.
+_APPLE_SAMPLE = (b"at is east rope phone power to closed go fire boat east rope , we dog bridge in 5pm in "
+                 b"roof out oval nort",
+                 bytes.fromhex("4dcab111c3201005d156b600a52e08cc093123f399e324da979d39d9976c0adac4d20c5cc31887fab7"
+                               "5ae684789f9a56a8626f6e64a5f89b37965154c9de4a355ae7353e3f5cdad115e84e275d1e0f"))
+
+
 def decompress(data: bytes, original_size: int) -> bytes | None:
     """At most `original_size` bytes back, as Apple's decoder writes into a buffer of
     that size; None if nothing comes out."""
@@ -368,3 +378,13 @@ def dedup_key(packet: Packet) -> str:
     (BLEReceivePipeline), so packets sent in the same millisecond stay apart."""
     digest = hashlib.sha256(packet.payload).digest()[:4].hex()
     return f"{packet.sender_id.hex()}-{packet.timestamp}-{packet.type}-{digest}"
+
+
+# True when this computer compresses as Apple does. When it does not, the phone app
+# keeps what it signs under the compression threshold (MESSAGE_MAX_BYTES), so nothing
+# it signs is ever compressed.
+APPLE_COMPRESSION_OK = compress(_APPLE_SAMPLE[0]) == _APPLE_SAMPLE[1]
+# Chat text and nickname limits that keep a signed payload uncompressed (an announce is
+# 70 bytes plus the nickname).
+SAFE_MESSAGE_BYTES = COMPRESSION_THRESHOLD - 1
+SAFE_NICKNAME_BYTES = COMPRESSION_THRESHOLD - 1 - 70

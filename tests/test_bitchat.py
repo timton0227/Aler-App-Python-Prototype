@@ -7,8 +7,10 @@ Ported from: ../alert-mesh/localPackages/BitFoundation/Tests/BitFoundationTests/
              Swift code itself come in step 16.2.
 """
 import hashlib
+import json
 import os
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -309,3 +311,39 @@ def test_dedup_key_tells_same_millisecond_packets_apart():
     assert bitchat.dedup_key(a) != bitchat.dedup_key(b)
     assert bitchat.dedup_key(a) == bitchat.dedup_key(replace(a, ttl=1))  # relayed copies are the same packet
     assert bitchat.dedup_key(a).startswith(SENDER.hex() + f"-{NOW}-1-")
+
+
+# --- Made by the iPhone's own code (tests/data/bitchat_vectors.json) --------------------
+# Written by tools/cross_check_bitchat.py from the app's BitFoundation package and
+# CryptoKit, so these run everywhere, also where Swift is missing.
+
+VECTORS = json.loads((Path(__file__).resolve().parent / "data" / "bitchat_vectors.json").read_text())
+
+
+def vector_packet(v: dict) -> Packet:
+    s = v["packet"]
+    return Packet(s["type"], bytes.fromhex(s["sender"]), s["timestamp"], bytes.fromhex(s["payload"]), s["ttl"],
+                  bytes.fromhex(s["recipient"]) if "recipient" in s else None, None, s["version"],
+                  tuple(bytes.fromhex(h) for h in s.get("route", [])), s["is_rsr"])
+
+
+@pytest.mark.parametrize("v", VECTORS["packets"], ids=[v["name"] for v in VECTORS["packets"]])
+def test_the_same_bytes_as_the_iphone(v):
+    p = vector_packet(v)
+    assert bitchat.encode(p).hex() == v["wire"]
+    assert bitchat.signing_bytes(p).hex() == v["signed_view"]
+    received = bitchat.decode(bytes.fromhex(v["frame"]))
+    assert received.payload == p.payload and received.type == p.type
+    assert bitchat.verify(received, bytes.fromhex(VECTORS["public_key"]))
+
+
+def test_compression_matches_apple_when_the_self_check_says_so():
+    if not bitchat.APPLE_COMPRESSION_OK:
+        pytest.skip("this computer's zlib compresses differently from Apple's: messages stay short")
+    for sample in VECTORS["compression"]:
+        assert bitchat.compress(bytes.fromhex(sample["text"])).hex() == sample["apple"]
+
+
+def test_what_the_phone_app_signs_stays_uncompressed_under_the_safe_limits():
+    assert not bitchat.should_compress(b"x" * bitchat.SAFE_MESSAGE_BYTES)
+    assert bitchat.SAFE_MESSAGE_BYTES == 99

@@ -24,6 +24,22 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.2 Cross-check with Swift — 2026-09-28
+- What:
+  - `tools/bitchat_check/`: a small Swift program built on the iPhone app's own BitFoundation package (by path; it builds in its own `.build/`, never inside `../alert-mesh`) and Apple's CryptoKit. It encodes, signs, decodes and verifies packets on request.
+  - `tools/cross_check_bitchat.py` checks 12 kinds of packet both ways: announce, short, long (compressed), 280-byte and emoji messages, a message to one peer, a warning, a call for help, leave, a catch-up reply (RSR), v2 with a route, and a laptop private message.
+    - Python makes them, and the iPhone's code reads them back and checks their signatures its own way (rebuilding the signed bytes with Apple's compressor).
+    - The iPhone's code makes them, and Python must give the same bytes on the air, the same signed bytes, and verify the signatures.
+    - Compression: 300 chat-like texts of 100 to 600 bytes, Apple's bytes against Python's.
+  - It writes `tests/data/bitchat_vectors.json` (the 12 packets as the iPhone's code made them, and 40 of Apple's compressions), which `tests/test_bitchat.py` checks on every run, also where Swift is missing.
+  - `bitchat.APPLE_COMPRESSION_OK`: each start compresses one text and compares it with Apple's bytes. If they differ (another zlib, say zlib-ng on some Windows builds), the phone app keeps what it signs under the compression threshold: `SAFE_MESSAGE_BYTES` (99) and `SAFE_NICKNAME_BYTES`, used from step 16.6.
+  - `.gitignore`: `.build/`.
+- Ported from: new. It checks against `localPackages/BitFoundation` (`BitchatPacket.toBinaryData`, `toBinaryDataForSigning`, `from`) and CryptoKit's `Curve25519.Signing`.
+- Differences from Swift: none found.
+- Verified by:
+  - `python3 tools/cross_check_bitchat.py` — all 12 packets both ways; 300 of 300 texts compressed to exactly Apple's bytes. Run with Anaconda's Python 3.13 (zlib 1.3.1) and python.org's 3.14 in `packaging/.venv-mac` (zlib 1.2.12), both all good.
+  - `python3 -m pytest tests/test_bitchat.py` — 69 passed; `python3 -m pytest -q` — 657 passed (`packaging/.venv-mac`); 637 passed and 9 skipped (Anaconda 3.13).
+
 ## 16.1 Packet codec — 2026-09-28
 - What: `alertmesh/bitchat.py`, the iPhone app's Bluetooth packets.
   - `encode` and `decode`: header (version, type, TTL, time in ms, flags, payload length), sender and recipient IDs, the v2 route, compression with the original size in front, the signature, and padding. Decoding ignores bytes after the packet, and tries again without padding if needed, as Swift does. It refuses what Swift refuses: other versions, lengths beyond the data or over the framed-file cap, and compressed payloads that are too short, expand more than 50 000 times, or do not come back to their stated size.

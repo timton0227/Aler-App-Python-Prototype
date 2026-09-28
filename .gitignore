@@ -9,3 +9,4 @@ venv/
 packaging/.venv-*/
 build/
 dist/
+.build/
