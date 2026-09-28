@@ -3,7 +3,9 @@
 Ported from: ../alert-mesh/AlertMeshTests/NostrProtocolTests.swift
              (nostrEventSignatureVerification_roundTrip, _detectsTamper,
              inboundNostrEventRejects*/Accepts*), plus BIP-340's own test vector and
-             two events signed by other apps (the Swift tests' frozen fixtures).
+             two events signed by other apps (the Swift tests' frozen fixtures);
+         and ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
+             and CommunityReportBridgeTests.swift (the parts about the events themselves).
 """
 import hashlib
 import json
@@ -12,7 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from alertmesh import nostr
+from alertmesh import nostr, reports, wire
+from alertmesh.reports import ReportAuthor, ReportSeverity
+from alertmesh.signer import OfficialAlertSigner, WarningDraft
+from alertmesh.wire import HazardType
 
 FIXTURES = Path(__file__).resolve().parent.parent.parent / "alert-mesh" / "AlertMeshTests" / "Nostr" / "Fixtures"
 
@@ -135,3 +140,125 @@ def test_inbound_event_rejects_missing_fields():
     del data["sig"]
     assert nostr.Event.from_dict(data) is None
     assert nostr.Event.from_dict("not an object") is None
+
+
+# --- Warnings and reports as events ---------------------------------------------
+
+NOW_MS = 1_700_000_000_000
+
+
+def warning(cells=("r7hg2bc", "r7hu"), issued_at=NOW_MS):
+    draft = WarningDraft(headline="Flood", action_text="Move to higher ground", duration_hours=6,
+                         area_cells=list(cells))
+    return OfficialAlertSigner().sign(draft, bytes(range(16)), issued_at)
+
+
+def test_tags_are_every_short_prefix_of_each_cell():
+    assert nostr.tag_cells(["r7hg2bc", "R1"]) == ["r1", "r7", "r7h", "r7hg"]
+    assert nostr.tag_cells(["r7h"]) == ["r7", "r7h"]
+    assert nostr.tag_cells(["r"]) == []
+
+
+def test_a_warning_is_tagged_with_its_area_and_expiry():
+    alert = warning()
+    event = nostr.alert_event(wire.encode(alert), alert.area_cells, alert.expires_at)
+    assert event.kind == nostr.KIND_OFFICIAL_ALERT == 1403
+    assert ("g", "r7") in event.tags and ("g", "r7hg") in event.tags and ("g", "r7hu") in event.tags
+    assert ("g", "r7hg2") not in event.tags
+    assert ("expiration", str(alert.expires_at // 1000)) in event.tags
+    assert event.is_valid()
+
+
+def test_the_event_carries_the_signed_warning():
+    alert = warning()
+    event = nostr.alert_event(wire.encode(alert), alert.area_cells, alert.expires_at)
+    payload = nostr.payload_of(event, nostr.KIND_OFFICIAL_ALERT)
+    assert payload == wire.encode(alert)
+    assert wire.decode(payload) == alert and wire.verify_pinned(wire.decode(payload))
+
+
+def test_a_cancellation_is_tagged_with_the_warnings_area():
+    alert = warning()
+    cancellation = OfficialAlertSigner().cancel(alert.alert_id, NOW_MS + 100)
+    event = nostr.alert_event(wire.encode(cancellation), alert.area_cells, alert.expires_at)
+    assert ("g", "r7hg") in event.tags
+    assert ("expiration", str(alert.expires_at // 1000)) in event.tags
+    assert wire.decode(nostr.payload_of(event, nostr.KIND_OFFICIAL_ALERT)) == cancellation
+
+
+def test_updates_and_cancellations_are_new_versions():
+    alert = warning()
+    update = warning(issued_at=NOW_MS + 1)
+    cancellation = OfficialAlertSigner().cancel(alert.alert_id, NOW_MS + 2)
+    keys = {nostr.alert_version_key(item) for item in (alert, update, cancellation)}
+    assert len(keys) == 3
+    assert nostr.alert_version_key(alert) == nostr.alert_version_key(warning())
+
+
+def test_other_kinds_and_oversize_or_broken_content_are_ignored():
+    alert = warning()
+    content = nostr.alert_event(wire.encode(alert), alert.area_cells, alert.expires_at).content
+    assert nostr.payload_of(nostr.sign_event(1, [], content), nostr.KIND_OFFICIAL_ALERT) is None
+    assert nostr.payload_of(nostr.sign_event(1403, [], "A" * 1028), nostr.KIND_OFFICIAL_ALERT) is None
+    assert nostr.payload_of(nostr.sign_event(1403, [], "not base64!"), nostr.KIND_OFFICIAL_ALERT) is None
+
+
+def sos(author=None, geohash="r7hg2bc"):
+    return (author or ReportAuthor("Sam")).sos(geohash, "Trapped on roof", NOW_MS)
+
+
+def test_an_sos_is_tagged_with_its_cell_and_expiry():
+    report = sos()
+    event = nostr.report_event(report)
+    assert event.kind == nostr.KIND_COMMUNITY_REPORT == 1402
+    assert list(event.tags) == [("g", "r7hg"), ("expiration", str(report.expires_at // 1000))]
+    assert event.is_valid()
+
+
+def test_the_event_carries_the_signed_report():
+    report = sos()
+    payload = nostr.payload_of(nostr.report_event(report), nostr.KIND_COMMUNITY_REPORT)
+    assert reports.decode(payload) == report and reports.verify(reports.decode(payload))
+    assert nostr.payload_of(nostr.report_event(report), nostr.KIND_OFFICIAL_ALERT) is None
+
+
+def test_each_event_has_its_own_envelope_key():
+    report = sos()
+    assert nostr.report_event(report).pubkey != nostr.report_event(report).pubkey
+
+
+def test_only_calls_for_help_and_safe_go_online():
+    author = ReportAuthor("Sam")
+    assert nostr.is_bridged(sos(author).kind)
+    assert nostr.is_bridged(author.safe("r7hg2bc", "", NOW_MS + 1).kind)
+    assert not nostr.is_bridged(author.hazard(HazardType.FLOOD, ReportSeverity.HIGH, "r7hg2bc", "", NOW_MS).kind)
+
+
+def test_report_versions_differ_by_author_id_and_time():
+    author = ReportAuthor("Sam")
+    first = sos(author)
+    safe = author.safe(None, "", NOW_MS + 1)  # answers the SOS: same ID, later time
+    assert safe.report_id == first.report_id
+    assert nostr.report_version_key(first) != nostr.report_version_key(safe)
+    assert nostr.report_version_key(first) != nostr.report_version_key(sos())
+
+
+def test_the_warning_subscription_asks_for_every_warning():
+    subscription = nostr.official_alerts_filter(since_s=1_699_000_000)
+    assert subscription == {"kinds": [1403], "since": 1_699_000_000, "limit": 200}
+    assert "#g" not in subscription
+
+
+def test_the_report_subscription_asks_for_nearby_cells():
+    cells = nostr.report_cells(["r7hg2bc", None, "r7"])
+    assert "r7hg" in cells and len(cells) == 9  # the cell and its 8 neighbours; too-short places are left out
+    assert nostr.community_reports_filter(cells, since_s=5) == {"kinds": [1402], "#g": cells, "limit": 200,
+                                                               "since": 5}
+    assert nostr.report_cells([]) == []
+
+
+def test_relays_are_the_built_in_ones_unless_named(monkeypatch):
+    monkeypatch.delenv(nostr.RELAYS_VARIABLE, raising=False)
+    assert nostr.relay_urls() == list(nostr.BUILT_IN_RELAYS)
+    monkeypatch.setenv(nostr.RELAYS_VARIABLE, "ws://127.0.0.1:1, ws://127.0.0.1:2,")
+    assert nostr.relay_urls() == ["ws://127.0.0.1:1", "ws://127.0.0.1:2"]

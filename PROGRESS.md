@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 1 | 8 |
-| **All** | **77** | **87** |
+| 15 Internet link: warnings and calls for help reach iPhones | 2 | 9 |
+| **All** | **78** | **88** |
 
 **Next step:** 12.4
 
@@ -391,29 +391,33 @@ switch in each app, **off** until turned on. The tests never use the real relays
       Swift: `AlertMesh/Nostr/NostrProtocol.swift` (`NostrEvent.sign`, `calculateEventId`, `isValidSignature`), `AlertMesh/Nostr/NostrIdentity.swift`
       Done when: an event is made, given its ID and signed with a fresh key each time, and checked, the way the Swift app does; BIP-340 signing matches the published test vector; no new library is needed for it
       Verify: `python3 -m pytest tests/test_nostr.py`
-- [ ] 15.2 Warning and report events
+- [x] 15.2 Warning and report events
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift`, `CommunityReportBridge.swift` (`tagCells`, `makeEvent`, `payload`, `versionKey`); `AlertMesh/Nostr/NostrRelayManager.swift` (`NostrFilter.officialAlerts`, `communityReports`, built-in relays)
       Done when: a warning or cancellation becomes a kind 1403 event tagged with every 2- to 4-character prefix of its area and its expiry; an SOS or "I'm safe" becomes a kind 1402 event tagged with its 4-character cell; hazard reports are never sent; the Swift bridge tests are ported
       Verify: `python3 -m pytest tests/test_nostr.py`
-- [ ] 15.3 Relay link (`alertmesh/relays.py`)
+- [ ] 15.3 Geo relays: the relays nearest a place (`alertmesh/georelays.py`)
+      Swift: `AlertMesh/Nostr/GeoRelayDirectory.swift` (`validatedEntries`, `validatedDirectoryAddress`, `closestRelays`), `AlertMesh/AlertMesh/Utils/AustralianAreas.swift`, `relays/online_relays_gps.csv`
+      Done when: the relay list is read from the Swift app's copy (or the one packed into the app) and, with the internet on, from the same address the iPhone app downloads it from, with the same all-or-nothing checks; the 5 relays nearest a cell come out as the iPhone app picks them, because calls for help go to those relays, not to the built-in ones
+      Verify: `python3 -m pytest tests/test_georelays.py`
+- [ ] 15.4 Relay link (`alertmesh/relays.py`)
       Swift: `AlertMesh/Nostr/NostrRelayManager.swift` (connect, publish, subscribe, reconnect)
       Done when: the link connects to each relay, publishes, subscribes, hands every event to a handler, reconnects after a drop, and reports how many relays are connected; tested against a relay run inside the tests
       Verify: `python3 -m pytest tests/test_relays.py`
-- [ ] 15.4 Warning app sends warnings over the internet
+- [ ] 15.5 Warning app sends warnings over the internet
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (`publish`), `AlertMesh/App/AppRuntime.swift`
-      Done when: with "Send over the internet" on, every warning, update and cancellation from the console is published to the built-in relays; a cancellation carries its warning's area and expiry; the status bar says how many relays took it; off by default
+      Done when: with "Send over the internet" on, every warning, update and cancellation from the console is published to the built-in relays and the geo relays of its area, as the Mac console does; a cancellation carries its warning's area and expiry; the status bar says how many relays took it; off by default
       Verify: `python3 -m pytest tests/test_relays.py tests/test_warning_app.py`
-- [ ] 15.5 Phone app: warnings and calls for help from the internet
+- [ ] 15.6 Phone app: warnings and calls for help from the internet
       Swift: `OfficialAlertBridge.swift` (`refreshSubscription`, `receive`), `CommunityReportBridge.swift` (`publishIfNew`, `refreshSubscription`, `receive`)
-      Done when: with "Use the internet" on in Settings, the phone app takes every warning from the relays (checked against the development key), takes calls for help and "I'm safe" around its town and passes them on over Bluetooth, and puts its own and heard calls for help online once each; "How you're connected" shows the internet
+      Done when: with "Use the internet" on in Settings, the phone app takes every warning from the relays (checked against the development key), takes calls for help and "I'm safe" around its town from the geo relays there and passes them on over Bluetooth, and puts its own and heard calls for help online once each, on the geo relays of their cell; "How you're connected" shows the internet
       Verify: `python3 -m pytest tests/test_node.py tests/test_phone_app.py`
-- [ ] 15.6 Live check with the real relays
+- [ ] 15.7 Live check with the real relays
       Done when: the real relays accept an event signed here (a short-lived test kind that relays do not keep); a warning from the warning app shows on a phone app on another network
       Verify: `python3 tools/nostr_live_check.py`, then by hand
-- [ ] 15.7 Check with an iPhone
+- [ ] 15.8 Check with an iPhone
       Done when: a warning from the warning app shows on an iPhone running the Debug build; a call for help from the phone app shows on the iPhone, and one from the iPhone on the phone app
       Verify: by hand, with the user's iPhone
-- [ ] 15.8 README and wrap-up
+- [ ] 15.9 README and wrap-up
       Done when: the README explains the switches, what goes to public servers, and the iPhone check; packaged apps rebuilt
       Verify: `python3 -m pytest -q`; `python3 desktop.py --check` and `--app warning --check`
 

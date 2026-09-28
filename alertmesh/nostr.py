@@ -25,11 +25,15 @@ then thrown away.
 
 This is free and unencumbered software released into the public domain.
 """
+import base64
+import binascii
 import hashlib
 import json
 import os
 import time
 from dataclasses import dataclass
+
+from alertmesh import geohash, reports, wire
 
 # --- secp256k1 and BIP-340 ----------------------------------------------------
 
@@ -214,3 +218,126 @@ def sign_event(kind: int, tags, content: str, created_at: int | None = None,
     tags = tuple(tuple(tag) for tag in tags)
     digest = event_hash(pubkey, created_at, kind, tags, content)
     return Event(digest.hex(), pubkey, created_at, kind, tags, content, schnorr_sign(digest, secret_key).hex())
+
+
+# --- Warnings and reports as events ---------------------------------------------
+#
+# Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift and
+#              CommunityReportBridge.swift (tagCells, makeEvent, payload, versionKey),
+#              ../alert-mesh/AlertMesh/Nostr/NostrProtocol.swift (EventKind) and
+#              NostrRelayManager.swift (builtInRelays, NostrFilter.officialAlerts,
+#              NostrFilter.communityReports).
+#
+# The content of each event is the warning or report exactly as it is sent over
+# Bluetooth, in base64, so every app reads it with the same code and checks the same
+# signature.
+
+KIND_COMMUNITY_REPORT = 1402
+KIND_OFFICIAL_ALERT = 1403
+
+# The relays the iPhone app always uses. Every phone listens for warnings on all of
+# them, so a warning published to them reaches every phone with internet.
+BUILT_IN_RELAYS = ("wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://offchain.pub")
+RELAYS_VARIABLE = "ALERTMESH_NOSTR_RELAYS"  # comma-separated; the tests set their own
+
+# A warning's area cells are tagged with every prefix of 2 to 4 characters (about
+# 40 × 20 km at 4), so a client can ask for its own area without learning more.
+MIN_TAG_PRECISION = wire.AREA_GEOHASH_MIN_LENGTH
+MAX_TAG_PRECISION = 4
+# Calls for help are tagged with, and asked for by, their 4-character cell.
+REPORT_CELL_PRECISION = 4
+# A maximal warning is 370 bytes, about 500 in base64. Anything much longer is not ours.
+MAX_CONTENT_BYTES = 1024
+FILTER_LIMIT = 200
+
+
+def relay_urls() -> list[str]:
+    """The relays to use: the built-in ones, or those named in ALERTMESH_NOSTR_RELAYS."""
+    named = os.environ.get(RELAYS_VARIABLE)
+    if named is not None:
+        return [url.strip() for url in named.split(",") if url.strip()]
+    return list(BUILT_IN_RELAYS)
+
+
+def tag_cells(area) -> list[str]:
+    """Every 2- to 4-character prefix of each area cell, sorted and unique."""
+    cells = set()
+    for cell in area:
+        cell = cell.lower()
+        if len(cell) < MIN_TAG_PRECISION:
+            continue
+        for length in range(MIN_TAG_PRECISION, min(MAX_TAG_PRECISION, len(cell)) + 1):
+            cells.add(cell[:length])
+    return sorted(cells)
+
+
+def alert_event(payload: bytes, area, expires_at_ms: int, **signing) -> Event:
+    """A warning or cancellation (its signed bytes) as a kind 1403 event. A
+    cancellation has no area of its own: pass the cancelled warning's area and expiry.
+    `signing` goes to `sign_event` (the tests fix the time and key)."""
+    tags = [["g", cell] for cell in tag_cells(area)] + [["expiration", str(expires_at_ms // 1000)]]
+    return sign_event(KIND_OFFICIAL_ALERT, tags, base64.b64encode(payload).decode(), **signing)
+
+
+def is_bridged(kind: reports.ReportKind) -> bool:
+    """Calls for help and "I'm safe" go online. Hazard reports do not: they are many
+    and less urgent, and each would cost every bridging phone a publish."""
+    return kind in (reports.ReportKind.SOS, reports.ReportKind.SAFE)
+
+
+def report_cell(geohash: str) -> str:
+    return geohash.lower()[:REPORT_CELL_PRECISION]
+
+
+def report_event(report: reports.CommunityReport, **signing) -> Event:
+    """A call for help or "I'm safe" as a kind 1402 event, tagged with its 4-character cell."""
+    tags = [["g", report_cell(report.geohash)], ["expiration", str(report.expires_at // 1000)]]
+    return sign_event(KIND_COMMUNITY_REPORT, tags, base64.b64encode(reports.encode(report)).decode(), **signing)
+
+
+def payload_of(event: Event, kind: int) -> bytes | None:
+    """The signed bytes inside an event of this kind, or None. Not checked here: the
+    stores check the signature inside."""
+    if event.kind != kind or len(event.content.encode()) > MAX_CONTENT_BYTES:
+        return None
+    try:
+        return base64.b64decode(event.content, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+
+
+def alert_version_key(item) -> str:
+    """One per version of a warning or cancellation, to hand each on once."""
+    prefix = "c" if isinstance(item, wire.AlertCancellation) else "a"
+    return f"{prefix}-{item.alert_id.hex()}-{item.issued_at}"
+
+
+def report_version_key(report: reports.CommunityReport) -> str:
+    return f"{report.author_signing_key.hex()}-{report.report_id.hex()}-{report.created_at}"
+
+
+def official_alerts_filter(since_s: int | None = None, limit: int = FILTER_LIMIT) -> dict:
+    """Every warning, wherever it is: the proximity rule decides how loudly to tell."""
+    subscription = {"kinds": [KIND_OFFICIAL_ALERT], "limit": limit}
+    if since_s is not None:
+        subscription["since"] = since_s
+    return subscription
+
+
+def community_reports_filter(cells, since_s: int | None = None, limit: int = FILTER_LIMIT) -> dict:
+    subscription = {"kinds": [KIND_COMMUNITY_REPORT], "#g": list(cells), "limit": limit}
+    if since_s is not None:
+        subscription["since"] = since_s
+    return subscription
+
+
+def report_cells(places) -> list[str]:
+    """The 4-character cells to ask for calls for help: around each place (this
+    phone's and its watched places), with their neighbours."""
+    cells = set()
+    for place in places:
+        if place and len(place) >= REPORT_CELL_PRECISION:
+            cell = report_cell(place)
+            cells.add(cell)
+            cells.update(geohash.neighbors(cell))
+    return sorted(cells)

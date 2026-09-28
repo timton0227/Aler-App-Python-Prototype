@@ -24,6 +24,19 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.2 Warning and report events — 2026-09-28
+- What: in `alertmesh/nostr.py`, how warnings and calls for help travel as Nostr events.
+  - `alert_event`: a warning or cancellation, its signed bytes in base64, as a kind 1403 event. It is tagged with every 2- to 4-character prefix of its area cells and with its expiry (a cancellation carries its warning's area and expiry).
+  - `report_event`: a call for help or "I'm safe" as a kind 1402 event, tagged with its 4-character cell and expiry. `is_bridged` keeps hazard reports off the internet.
+  - `payload_of` takes the signed bytes back out, refusing other kinds, content over 1024 bytes and broken base64. The signature inside is checked by the stores, as before.
+  - `alert_version_key` and `report_version_key`, so each version is handed on once.
+  - `official_alerts_filter` (every warning, anywhere) and `community_reports_filter` with `report_cells` (the 4-character cells around a place, with their neighbours).
+  - `BUILT_IN_RELAYS`, the iPhone app's four relays; `ALERTMESH_NOSTR_RELAYS` names others (the tests use it).
+- Also: `PROGRESS.md` gains step 15.3, geo relays. Reading the Swift code for this step showed that the iPhone app sends calls for help to the 5 relays nearest the caller's area, not to the built-in ones, so the Python apps must pick relays the same way. The later steps are renumbered.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` and `CommunityReportBridge.swift` (`tagCells`, `makeEvent`, `payload`, `versionKey`, `isBridged`, the cells in `refreshSubscription`); `AlertMesh/Nostr/NostrRelayManager.swift` (`builtInRelays`, `NostrFilter.officialAlerts`, `communityReports`). Tests from `OfficialAlertBridgeTests.swift` and `CommunityReportBridgeTests.swift`, the parts about the events themselves.
+- Differences from Swift: none in the events. The bridges' state (what was already sent, the subscriptions) comes in steps 15.5 and 15.6.
+- Verified by: `python3 -m pytest tests/test_nostr.py` — 35 passed; `python3 -m pytest -q` — 508 passed.
+
 ## 15.1 Nostr events: BIP-340 signatures and event IDs — 2026-09-28
 - What: `alertmesh/nostr.py`, the envelope the internet link sends and receives.
   - `schnorr_sign`, `schnorr_verify` and `public_key`: BIP-340 signatures on the secp256k1 curve, written out in plain Python after the BIP's reference code, so no new library is needed.
