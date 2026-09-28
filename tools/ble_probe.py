@@ -75,6 +75,9 @@ class Probe:
     async def send(self, client: BleakClient, packet: Packet, label: str) -> None:
         limit = max(client.mtu_size - 3, 20)
         whole = bitchat.encode(packet)
+        if whole is None:
+            print(f"{stamp()}  could not encode {label}")
+            return
         pieces = [whole] if len(whole) <= limit else [
             bitchat.encode(f) for f in bitchat.split(packet, bitchat.chunk_size_for(limit))]
         for piece in pieces:

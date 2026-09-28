@@ -37,6 +37,10 @@ simplified, left out, or behaves differently from the app.
 - Ported from: new (it follows `BLEService+LinkLayerCentralRole.swift`: connect, discover, subscribe, then announce).
 - Differences from Swift: not applicable.
 - Verified by: a dry run of its packet handling (it verifies its own announce and compressed message); `python3 -m pytest -q` — 685 passed (`packaging/.venv-mac`).
+- Follow-up after a code review:
+  - `bitchat.frame_length` returns None for an empty buffer instead of failing. Its only caller never passes one, so this changed no behaviour.
+  - The probe reports a packet it cannot encode instead of stopping with an error.
+  - Verified by: new test `test_frame_length_waits_for_a_whole_header`; `python3 -m pytest -q` — 686 passed (`packaging/.venv-mac`); 666 passed, 9 skipped (Anaconda 3.13).
 
 ## 16.3 Announce, leave, catch-up request, fragments — 2026-09-28
 - What, in `alertmesh/bitchat.py`:

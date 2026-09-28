@@ -687,6 +687,8 @@ STREAM_HARD_CAP = 8 * 1024 * 1024  # TransportConfig.bleNotificationAssemblerHar
 def frame_length(buffer: bytes) -> int | None:
     """The length of the packet at the start of `buffer`, from its header; None when
     too little has arrived to tell, 0 when the header is not a packet's."""
+    if not buffer:
+        return None
     version = buffer[0]
     header_size = V2_HEADER_SIZE if version == 2 else V1_HEADER_SIZE
     prefix = header_size + SENDER_ID_SIZE

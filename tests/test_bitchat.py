@@ -546,6 +546,13 @@ def stream_packet(ts=0x0102030405):
     return packet(b"\xde\xad\xbe\xef", type=MessageType.MESSAGE, timestamp=ts)
 
 
+def test_frame_length_waits_for_a_whole_header():
+    frame = bitchat.encode(stream_packet())
+    assert bitchat.frame_length(b"") is None
+    assert bitchat.frame_length(frame[:21]) is None
+    assert bitchat.frame_length(frame) == len(frame)
+
+
 def test_one_frame_across_chunks():
     frame = bitchat.encode(stream_packet())
     stream = bitchat.NotificationStream(Clock())
