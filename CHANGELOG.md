@@ -24,6 +24,22 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.1 Packet codec — 2026-09-28
+- What: `alertmesh/bitchat.py`, the iPhone app's Bluetooth packets.
+  - `encode` and `decode`: header (version, type, TTL, time in ms, flags, payload length), sender and recipient IDs, the v2 route, compression with the original size in front, the signature, and padding. Decoding ignores bytes after the packet, and tries again without padding if needed, as Swift does. It refuses what Swift refuses: other versions, lengths beyond the data or over the framed-file cap, and compressed payloads that are too short, expand more than 50 000 times, or do not come back to their stated size.
+  - `signing_bytes`, `sign`, `verify`: the signature covers the packet with TTL 0, no signature and the RSR flag clear, compressed when due and padded, as `toBinaryDataForSigning`.
+    - A packet taken from the air keeps its compressed bytes (`Packet.compressed`), so its signature is checked on exactly what the sender signed, whatever compressor this computer has.
+    - `sign` fixes the compressed bytes first, so what is sent is what was signed.
+  - `peer_id` (the first 8 bytes of SHA-256 of the X25519 key), `set_ttl` (relaying changes only that byte), `dedup_key` (sender, time, type and the start of the payload's SHA-256).
+  - `MessageType`, with our own `LAPTOP_PRIVATE = 0x70` for laptop-only private messages.
+  - `alertmesh/chat.py`: `Identity.peer_id` and `Identity.sign_packet`.
+- Ported from: `localPackages/BitFoundation/Sources/BitFoundation/BinaryProtocol.swift`, `BitchatPacket.swift`, `MessagePadding.swift`, `CompressionUtil.swift`, `Constants.swift`, `FileTransferLimits.swift`, `MessageType.swift`, `PeerID.swift`; tests from `BinaryProtocolTests.swift`, `BinaryProtocolPaddingTests.swift`, `PeerIDTests.swift`.
+- Differences from Swift:
+  - Compression uses Python's zlib, raw DEFLATE at level 5 (what Apple documents for `COMPRESSION_ZLIB`). Whether it gives Apple's exact bytes is checked in step 16.2; it matters only for what laptops send.
+  - The Swift receiver rebuilds the signed bytes by compressing again; this port keeps the bytes that came off the air instead. The result is the same whenever the sender used Apple's compressor, and it also works when it did not.
+  - The Swift tests round-trip only; this adds byte-by-byte checks of the layout and of the signed bytes (the 91-byte "hello" message from the Swift source).
+- Verified by: `python3 -m pytest tests/test_bitchat.py` — 55 passed; `python3 -m pytest -q` — 643 passed with `packaging/.venv-mac`; 623 passed and 9 skipped with Anaconda 3.13.
+
 ## 15.9 README and wrap-up — 2026-09-28
 - What:
   - `README.md`:

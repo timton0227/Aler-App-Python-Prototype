@@ -29,8 +29,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| 16 One Bluetooth mesh with iPhones | 0 | 10 |
-| **All** | **84** | **98** |
+| 16 One Bluetooth mesh with iPhones | 1 | 10 |
+| **All** | **85** | **98** |
 
 **Next step:** 12.4
 
@@ -442,7 +442,7 @@ The iPhone's rules are in `../alert-mesh/localPackages/BitFoundation/` (the pack
 `../alert-mesh/AlertMesh/Services/BLE/` (the link). Step 15.8, the check with an
 iPhone, is done with step 16.10.
 
-- [ ] 16.1 Packet codec (`alertmesh/bitchat.py`)
+- [x] 16.1 Packet codec (`alertmesh/bitchat.py`)
       Swift: `localPackages/BitFoundation/Sources/BitFoundation/BinaryProtocol.swift`, `BitchatPacket.swift`, `MessagePadding.swift`, `CompressionUtil.swift`, `PeerID.swift`
       Done when: packets are encoded and decoded as the iPhone app does (header, flags, sender and recipient, compression, padding); the signed bytes are built as the iPhone builds them (TTL 0, no signature, padded, compressed when due), and a received packet's signature is checked from its own bytes; peer ID = the first 8 bytes of SHA-256 of the X25519 key; the Swift test cases are ported
       Verify: `python3 -m pytest tests/test_bitchat.py`

@@ -32,6 +32,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from alertmesh import bitchat
 from alertmesh.wire import _context, _ed25519_ok, _len16, _u64, _u64_from, _utf8, put_tlv, read_tlvs
 
 # --- Constants ----------------------------------------------------------------
@@ -269,6 +270,15 @@ class Identity:
     @property
     def chat_key(self) -> bytes:
         return self._chat.public_key().public_bytes_raw()
+
+    @property
+    def peer_id(self) -> bytes:
+        """The 8-byte ID iPhones know this device by: from the chat key, which the
+        iPhone's announce calls the Noise key (bitchat.peer_id)."""
+        return bitchat.peer_id(self.chat_key)
+
+    def sign_packet(self, packet: "bitchat.Packet") -> "bitchat.Packet":
+        return bitchat.sign(packet, self._signing)
 
     def _short_nickname(self) -> str:
         nickname = self.nickname.strip()
