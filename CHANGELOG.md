@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.2 This Mac's location — 2026-09-28
+- What: `alertmesh/location.py`, which gets this Mac's own position from Location Services in a process of its own, like the Bluetooth one.
+  - The process asks macOS for permission, then for one fix at start, every 5 minutes, and whenever the app sends "take a fix now". Accuracy is set to 100 m, as the iPhone app does.
+  - It passes fixes and status words to the app, with the Bluetooth process's message format (`P` fix, `S` status, `R` take a fix now).
+  - `LocationProcess` is the app's side. It keeps the latest fix and status, and turns each reading into a geohash at once (`position.Fix.from_point`), so raw coordinates go no further than the pipe. Broken or invalid readings are skipped. A process macOS stops is explained in the status.
+  - `status_words`: Location Services off, not allowed, asking, no permission after 30 s ("only the packaged app can ask"), waiting for a first fix, no fix right now, or on.
+  - `requirements.txt`: `pyobjc-framework-CoreLocation` on a Mac.
+- Tried by hand first:
+  - **From a plain `python` (Claude's shell):** Location Services is on, but macOS never asks. The permission stays "not determined".
+  - **A shell-script wrapper app that starts `python`:** the same result. The question is asked for the program that uses Location Services, and a bare `python` is not an app.
+  - **A small PyInstaller app** (built the way the phone app is, with the location usage words in its Info.plist): macOS asked once and was allowed, and a fix good to 35 m came back within seconds.
+  - So Location Services works in the packaged phone app, whose location process is a second copy of the app itself. From `streamlit run` the app falls back to the pin or the town, and the status words say so.
+  - The real location process, started from this folder: its status reads "asking macOS for permission", as expected.
+- Ported from: `AlertMesh/Services/LocationStateManager.swift` (permission, `requestLocation`, 100 m accuracy). The process and its messages follow `alertmesh/ble.py`.
+- Differences from Swift:
+  - The app asks for a fix only when it needs one. A laptop has no way to know it moved, so it asks every 5 minutes.
+  - The app blocks its screens until location is allowed. The laptop goes on with a pin or the town.
+- Verified by: `python3 -m pytest tests/test_location.py` — 6 passed (a stand-in process); `python3 -m pytest -q` — 720 passed (`packaging/.venv-mac`); 700 passed, 9 skipped (Anaconda 3.13).
+
 ## 17.1 Choosing the position — 2026-09-28
 - What: `alertmesh/position.py`.
   - `choose(pin, fix, town, now)` gives the position in use, as a `Where` (geohash, source, detail):

@@ -30,8 +30,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 3 | 10 |
-| 17 Where you are: a real position for the phone app | 1 | 7 |
-| **All** | **88** | **105** |
+| 17 Where you are: a real position for the phone app | 2 | 7 |
+| **All** | **89** | **105** |
 
 **Next step:** 12.4
 
@@ -503,7 +503,7 @@ permission refused).
       Swift: `AlertMesh/Services/LocationStateManager.swift` (accuracy, the geohash lengths), `AlertMesh/Services/CommunityReportManager.swift` (calls for help to 7 characters)
       Done when: the pin, the Mac's fix and the town are chosen in that order; a fix over an hour old is not used; the geohash is only as exact as the fix; the words say where the position came from
       Verify: `python3 -m pytest tests/test_position.py`
-- [ ] 17.2 This Mac's location (`alertmesh/location.py`)
+- [x] 17.2 This Mac's location (`alertmesh/location.py`)
       Swift: `AlertMesh/Services/LocationStateManager.swift` (`requestLocation`, permission)
       Done when: a separate process asks macOS for the position (permission once, then a fix at start, every 5 minutes and on request) and passes fixes and status words to the app, as the Bluetooth process does; it has been tried by hand from VS Code and from a packaged-style app
       Verify: `python3 -m pytest tests/test_location.py`; by hand on a Mac
