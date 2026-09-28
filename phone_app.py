@@ -22,13 +22,17 @@ are passed on over Bluetooth to laptops that have no network. With "Use the inte
 on in Settings, warnings and calls for help also come and go over Nostr relays, as on
 the iPhone, so the phone app and iPhones running Alert Mesh see each other's.
 
+Where you are (Settings): a pin dropped on a map, else this Mac's own location (the
+packaged app asks macOS once), else the centre of the town picked.
+
 This is free and unencumbered software released into the public domain.
 """
 import html
+import importlib.util
 
 import streamlit as st
 
-from alertmesh import hub, labels, notifications, phone, places, reports, style
+from alertmesh import hub, labels, location, notifications, phone, pinmap, places, position, reports, style
 from alertmesh.chat import TEXT_MAX_BYTES
 from alertmesh.node import NEARBY
 from alertmesh.proximity import Urgency, sos_urgency
@@ -55,7 +59,7 @@ def news() -> tuple:
     """What changes the page: anything new in the mesh, the links' state, and the minute
     (warnings and calls for help end on their own)."""
     return (p.node.version, p.bluetooth_status, p.wifi_status, p.internet_status, p.node.link.neighbours(),
-            p.clock() // 60_000)
+            p.location_status, p.geohash, p.clock() // 60_000)
 
 
 @st.fragment(run_every=1)
@@ -114,6 +118,20 @@ def internet_words() -> tuple[bool, str]:
     return not detail.strip().startswith("0 of"), f"Internet on · {detail.strip()} connected"
 
 
+# Short names of where the position came from, for the status bar and the report form.
+SOURCE_NAMES = {position.MAC: "this Mac's location", position.PIN: "your pin", position.TOWN: "your town's centre"}
+NO_PLACE = "Turn on location, drop a pin, or pick your town in Settings"
+
+
+def location_words() -> tuple[bool, str]:
+    where = p.where
+    if where is None:
+        return False, "Position unknown"
+    if where.source == position.MAC:
+        return True, f"Position: this Mac ({position.distance_words(where.detail)})"
+    return where.source == position.PIN, f"Position: {SOURCE_NAMES[where.source]}"
+
+
 def save_nickname() -> None:
     p.set_nickname(state.nickname)
 
@@ -124,6 +142,18 @@ def save_town() -> None:
 
 def save_internet() -> None:
     p.set_internet(state.internet)
+
+
+def save_use_location() -> None:
+    p.set_use_location(state.use_location)
+
+
+def open_pin() -> None:
+    """Settings is a dialog, and only one can be open: close it, then open the map."""
+    state.settings_open = False
+    state.pin_open = True
+    for key in ("pin_coarse", "pin_fine", "pin_typed", "pin_move", "pin_centre"):
+        state.pop(key, None)
 
 
 def open_settings() -> None:
@@ -141,10 +171,26 @@ def settings() -> None:
     names = town_names()
     st.text_input("Nickname (people nearby see it; anyone can pick any name)", p.nickname, key="nickname",
                   max_chars=reports.NICKNAME_MAX_BYTES, on_change=save_nickname)
-    st.selectbox("Where you are", names, key="town", on_change=save_town, placeholder="Pick your town",
+    st.markdown('<div class="am-fieldlabel">Where you are</div>', unsafe_allow_html=True)
+    where = p.where
+    rough = where and (places.label(where.geohash) or f"At {where.geohash}")
+    st.markdown(f"<div><b>{style.esc(rough)}</b>, {style.esc(position.words(where))}.</div>" if where
+                else "<div>Not known yet.</div>", unsafe_allow_html=True)
+    st.caption("It decides which warnings are for you, and a call for help or a report says you are there "
+               "(to about 150 m).")
+    st.toggle("Use this Mac's location", p.profile.use_location, key="use_location", on_change=save_use_location,
+              disabled=not location.available())
+    st.caption(f"Location: {p.location_status}")
+    with st.container(horizontal=True):
+        if st.button("Drop a pin", key="drop_pin", icon=":material/location_on:"):
+            open_pin()
+            st.rerun()  # a button in a dialog reruns only the dialog; the map is another one
+        if p.profile.pin:
+            st.button("Clear pin", key="clear_pin", on_click=p.set_pin, args=(None,))
+    st.caption("A pin comes first, until you clear it. Without a pin or this Mac's location, your town's "
+               "centre is used.")
+    st.selectbox("Your town", names, key="town", on_change=save_town, placeholder="Pick your town",
                  index=names.index(p.profile.town) if p.profile.town in names else None)
-    st.caption("A laptop has no GPS, so your town stands in for your position. "
-               "It decides which warnings are for you, and a call for help says you are there.")
     st.toggle("Use the internet", p.profile.internet, key="internet", on_change=save_internet,
               disabled=not p.internet_available)
     st.caption("Warnings and calls for help also come and go over the internet, as on the iPhone. Your calls "
@@ -158,13 +204,109 @@ def settings() -> None:
 def sidebar_foot() -> None:
     """You and your town at the foot of the sidebar; clicking them opens Settings."""
     with st.sidebar.container(key="am_foot"):
-        st.button(f"{p.nickname} · {p.profile.town or 'Pick your town'}", key="open_settings",
+        st.button(f"{p.nickname} · {foot_place()}", key="open_settings",
                   icon=":material/settings:", width="stretch", on_click=open_settings,
                   help=f"Settings: your nickname and town ({style.shortcut_label(',')})")
 
 
+def foot_place() -> str:
+    """The town while the town is in use; else the rough place of the pin or fix."""
+    where = p.where
+    if where is None:
+        return "Pick your town"
+    if where.source == position.TOWN:
+        return where.detail
+    return places.label(where.geohash) or where.geohash
+
+
 def status_bar() -> None:
-    style.status_bar([bluetooth_words(), network_words(), internet_words()], style.updated_text())
+    style.status_bar([bluetooth_words(), network_words(), internet_words(), location_words()],
+                     style.updated_text())
+
+
+# --- Dropping a pin (alertmesh/pinmap.py) ---------------------------------------------
+
+
+def close_pin() -> None:
+    state.pin_open = False
+
+
+def pin_back() -> None:
+    state.pop("pin_coarse", None)
+    state.pop("pin_fine", None)
+
+
+def pin_typed() -> None:
+    point = pinmap.parse_coordinates(state.get("pin_typed", ""))
+    if point is not None:
+        state.pin_fine = pinmap.cell_at(*point)
+        state.pin_coarse = state.pin_fine[:pinmap.COARSE_LENGTH]
+
+
+def pin_move() -> None:
+    town = places.find(state.pin_move) if state.get("pin_move") else None
+    if town is not None:
+        pin_back()
+        state.pin_centre = places.geohash_of(town)
+
+
+def pin_deck(cells: list[str], layer: str, chosen: str | None):
+    import pydeck as pdk
+
+    lat, lon, zoom = pinmap.view(cells)
+    layers = [
+        pdk.Layer("PolygonLayer", pinmap.rows(cells, chosen), id=layer, pickable=True, stroked=True, filled=True,
+                  get_polygon="outline", get_fill_color="chosen ? [255, 59, 48, 150] : [0, 122, 255, 28]",
+                  get_line_color=[0, 122, 255, 140], line_width_min_pixels=1, auto_highlight=True,
+                  highlight_color=[255, 149, 0, 120]),
+        pdk.Layer("TextLayer", pinmap.nearby_towns(cells), id="towns", get_position="position", get_text="name",
+                  get_size=14, get_color=[60, 60, 67, 230], get_alignment_baseline="'bottom'"),
+    ]
+    return pdk.Deck(layers=layers, initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=zoom),
+                    tooltip={"text": "{cell}"})
+
+
+@st.dialog("Drop a pin", width="large", on_dismiss=close_pin)
+def pin_sheet() -> None:
+    """Two clicks: a cell of about 1 km, then one of about 150 m inside it. Or coordinates."""
+    guess = state.get("pin_centre") or p.geohash
+    coarse, fine = state.get("pin_coarse"), state.get("pin_fine")
+    st.selectbox("Move the map to", town_names(), index=None, placeholder="Pick a town", key="pin_move",
+                 on_change=pin_move)
+    if importlib.util.find_spec("pydeck") is None:
+        st.caption("The map needs the pydeck library (python3 -m pip install -r requirements.txt). "
+                   "Coordinates work without it.")
+    elif guess is None and coarse is None:
+        st.caption("Pick a town to start from, or type coordinates below.")
+    elif coarse is None:
+        st.caption("Click the square you are in (each is about 1 km). Scroll to zoom.")
+        event = st.pydeck_chart(pin_deck(pinmap.coarse_cells(guess), pinmap.COARSE_LAYER, None), height=420,
+                                on_select="rerun", selection_mode="single-object", key=f"pin_map_{guess[:5]}")
+        clicked = pinmap.picked(event.selection, pinmap.COARSE_LAYER)
+        if clicked:
+            state.pin_coarse = clicked
+            st.rerun(scope="fragment")
+    else:
+        st.caption("Now click the small square you are in (each is about 150 m).")
+        event = st.pydeck_chart(pin_deck(pinmap.fine_cells(coarse), pinmap.FINE_LAYER, fine), height=420,
+                                on_select="rerun", selection_mode="single-object", key=f"pin_map_{coarse}")
+        clicked = pinmap.picked(event.selection, pinmap.FINE_LAYER)
+        if clicked and clicked != fine:
+            state.pin_fine = clicked
+            st.rerun(scope="fragment")
+    st.text_input("Or type or paste coordinates", placeholder="-14.465, 132.263", key="pin_typed",
+                  on_change=pin_typed)
+    if state.get("pin_typed") and pinmap.parse_coordinates(state.pin_typed) is None:
+        st.caption("Not coordinates: latitude, then longitude, for example -14.465, 132.263")
+    if fine:
+        st.markdown(f"<div>Pin: <b>{style.esc(place_words(fine))}</b> ({fine})</div>", unsafe_allow_html=True)
+    sheet_buttons(*style.button_order(
+        lambda: st.button("Use this spot", key="pin_use", type="primary", disabled=not fine),
+        lambda: st.button("Back", key="pin_back", disabled=coarse is None, on_click=pin_back)))
+    if state.get("pin_use") and p.set_pin(fine):
+        close_pin()
+        st.rerun()  # a button in a dialog reruns only the dialog: close it for the whole page
+    st.caption(places.CREDIT)
 
 
 # --- Now (NowView, SOSView) -------------------------------------------------------
@@ -184,6 +326,7 @@ def send_sos() -> None:
 
 def open_sos() -> None:
     state.sos_open = True
+    p.refresh_location()  # a fresh fix if it comes in time; never waited for
 
 
 def close_sos() -> None:
@@ -218,8 +361,10 @@ def sos_sheet() -> None:
 <p class="am-muted" style="font-size:14.5px">This tells every laptop near you that you need help, and they """
                              f"""pass it on until it reaches someone with a signal.</p>
 <p class="am-warnline">This is not 000. If you have any phone signal at all, call emergency services first.</p>
-<p class="am-muted" style="font-size:14px">It says you are {style.esc(place_words(p.geohash))}, the town """
-                             """picked in Settings: a laptop has no GPS.</p>"""), unsafe_allow_html=True)
+<p class="am-muted" style="font-size:14px">It says you are {style.esc(place_words(p.geohash))}, """
+                             f"""{style.esc(position.words(p.where))}, to about 150 metres: close enough to find you """
+                             """without pinpointing your house. Wrong? Drop a pin in Settings.</p>"""),
+                unsafe_allow_html=True)
     st.text_input("Note", placeholder="who is with you, what is wrong (optional)", max_chars=reports.NOTE_MAX_BYTES,
                   key="sos_note")
     sheet_buttons(*style.button_order(
@@ -248,7 +393,7 @@ def help_bar() -> None:
     with st.container(key="am_helpbar"):
         st.button("I need help", key="need_help", icon=":material/sos:", type="primary", width="stretch",
                   disabled=p.geohash is None, on_click=open_sos,
-                  help="Pick your town in Settings first, so people know where to come." if p.geohash is None
+                  help=f"{NO_PLACE} first, so people know where to come." if p.geohash is None
                   else f"Opens the call for help ({style.shortcut_label('h', shift=True)}). Nothing is sent until "
                   "you press Send.")
 
@@ -453,7 +598,7 @@ def report_view() -> None:
         st.markdown('<div class="am-section">Report a hazard</div>', unsafe_allow_html=True)
         with st.container(border=True):
             if p.geohash is None:
-                st.caption("A report needs a place. Pick your town in Settings first.")
+                st.caption(f"A report needs a place. {NO_PLACE} first.")
             else:
                 st.selectbox("Type", list(HazardType), format_func=labels.hazard_name, key="r_hazard")
                 # Three buttons, the chosen one blue (a segmented control's look; the
@@ -469,7 +614,7 @@ def report_view() -> None:
                 st.text_area("What's happening here?", max_chars=reports.NOTE_MAX_BYTES, key="r_note", height=80)
                 with st.container(horizontal=True, vertical_alignment="center"):
                     st.button("Send report", type="primary", on_click=send_hazard)
-                    st.caption(f"Sent from {place_words(p.geohash)}")
+                    st.caption(f"Sent from {place_words(p.geohash)} ({SOURCE_NAMES[p.where.source]})")
     with listed:
         st.markdown('<div class="am-section">From people nearby</div>', unsafe_allow_html=True)
         items = p.reports()
@@ -573,10 +718,12 @@ sidebar_foot()
 status_bar()
 if state.get("settings_open"):
     settings()
+elif state.get("pin_open"):
+    pin_sheet()
 
 style.page_title(view)
 if p.geohash is None:
-    st.info("Pick your town in Settings, so the app knows which warnings are for you.")
+    st.info(f"{NO_PLACE}, so the app knows which warnings are for you.")
     st.button("Open Settings", on_click=open_settings)
 if view == REPORT:
     report_view()

@@ -13,4 +13,5 @@ nbconvert>=7.16       # runs the notebook top to bottom as a check
 bleak>=3.0            # phone app: finds nearby laptops over Bluetooth and sends to them
 bless>=0.3            # phone app: lets nearby laptops find this one and send to it
 websockets>=16        # internet link: talks to Nostr relays, as the iPhone app does
+pydeck>=0.9           # phone app: the map to drop a pin on (Streamlit draws it)
 pyobjc-framework-CoreLocation>=12; sys_platform == "darwin"  # phone app: this Mac's own position

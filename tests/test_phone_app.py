@@ -317,7 +317,7 @@ def test_page_asks_for_a_town_first(me):
     me.set_town(None)
     at = AppTest.from_file(APP, default_timeout=TIMEOUT)
     at.run()
-    assert any("Pick your town" in i.value for i in at.info)
+    assert any("drop a pin, or pick your town" in i.value for i in at.info)
     assert button(at, "I need help").disabled
     button(at, "Open Settings").click().run()
     at.selectbox(key="town").set_value("Katherine").run()
@@ -334,6 +334,78 @@ def test_settings_open_from_the_foot_of_the_sidebar(me, app):
     app.text_input(key="nickname").input("Aroha").run()
     assert me.nickname == "Aroha"
 
+
+
+def settings_open(at: AppTest) -> AppTest:
+    at.button(key="open_settings").click().run()
+    assert not at.exception
+    return at
+
+
+def test_settings_say_where_the_position_comes_from(me, app):
+    settings_open(app)
+    assert "<b>Near Katherine</b>, at the centre of Katherine, the town in Settings." in page(app)
+    located(me).on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    app.run()
+    assert "<b>Near Darwin</b>, at this Mac&#x27;s location (about 40 m)." in page(app)
+    assert "Position: this Mac (about 40 m)" in page(app)
+
+
+def test_the_location_switch_turns_this_macs_position_off(me, app):
+    located(me).on_fix(position.Fix.from_point(*DARWIN_STREET, 35, NOW))
+    settings_open(app)
+    app.toggle(key="use_location").set_value(False).run()
+    assert me.profile.use_location is False and me.where.source == position.TOWN
+    assert any(c.value == "Location: off" for c in app.caption)
+
+
+def test_dropping_a_pin_by_typing_coordinates(me, app):
+    settings_open(app)
+    app.button(key="drop_pin").click().run()
+    assert not app.exception and app.session_state["pin_open"]
+    assert button(app, "Use this spot").disabled
+    app.text_input(key="pin_typed").input("12.4630 S, 130.8440 E").run()
+    assert "qvqj" not in app.session_state["pin_fine"]
+    button(app, "Use this spot").click().run()
+    assert me.where == position.Where(geohash.encode(*DARWIN_STREET, 7), position.PIN)
+    assert not app.session_state["pin_open"]
+    assert "Position: your pin" in page(app)
+    assert app.button(key="open_settings").label == f"{me.nickname} · Near Darwin"
+
+
+def test_typing_something_that_is_not_coordinates_says_so(me, app):
+    settings_open(app)
+    app.button(key="drop_pin").click().run()
+    app.text_input(key="pin_typed").input("Katherine").run()
+    assert any(c.value.startswith("Not coordinates") for c in app.caption)
+    assert button(app, "Use this spot").disabled
+
+
+def test_the_pin_map_opens_on_the_current_position(me, app):
+    pytest.importorskip("pydeck")
+    settings_open(app)
+    app.button(key="drop_pin").click().run()
+    assert not app.exception
+    assert any("about 1 km" in c.value for c in app.caption)
+
+
+def test_clearing_the_pin_goes_back_to_the_town(me, app):
+    me.set_pin("qvqj0cz")
+    settings_open(app)
+    app.button(key="clear_pin").click().run()
+    assert me.profile.pin is None and me.where.source == position.TOWN
+
+
+def test_a_pin_opens_the_call_for_help_without_a_town(me):
+    me.set_town(None)
+    me.set_pin(geohash.encode(*DARWIN_STREET, 7))
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    assert not at.info and not button(at, "I need help").disabled
+    fake = located(me)
+    button(at, "I need help").click().run()
+    assert fake.asked == 1  # a fresh fix is asked for as the sheet opens
+    assert "at the pin you dropped, to about 150 metres" in page(at)
 
 class Pool:
     """Stands in for the relay pool."""

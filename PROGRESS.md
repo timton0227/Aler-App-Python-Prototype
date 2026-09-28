@@ -30,8 +30,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 3 | 10 |
-| 17 Where you are: a real position for the phone app | 4 | 7 |
-| **All** | **91** | **105** |
+| 17 Where you are: a real position for the phone app | 5 | 7 |
+| **All** | **92** | **105** |
 
 **Next step:** 12.4
 
@@ -513,7 +513,7 @@ permission refused).
 - [x] 17.4 Pin map helpers (`alertmesh/pinmap.py`)
       Done when: the clickable cells around a place (about 1 km, then about 150 m), their outlines, the clicked cell from Streamlit's selection, nearby town names, and typed or pasted coordinates are worked out and tested
       Verify: `python3 -m pytest tests/test_pinmap.py`
-- [ ] 17.5 Phone app: "Where you are"
+- [x] 17.5 Phone app: "Where you are"
       Done when: Settings says where the position comes from and how exact it is, has the location switch with its status, "Drop a pin" (a map in two clicks, or pasted coordinates) and "Clear pin", and the town as the last fallback; the call for help, reports and the status bar say where the position came from
       Verify: `python3 -m pytest tests/test_phone_app.py`
 - [ ] 17.6 Packaging and README

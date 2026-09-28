@@ -24,6 +24,37 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 17.5 Phone app: "Where you are" — 2026-09-28
+- What, in `phone_app.py`:
+  - **Settings, "Where you are":**
+    - where the person is and where that came from, for example "Near Katherine, at this Mac's location (about 40 m)";
+    - the "Use this Mac's location" switch, with the location process's status under it (greyed out where there is no Location Services);
+    - "Drop a pin", and "Clear pin" while a pin is set;
+    - the town, now the last fallback.
+    - The old caption "A laptop has no GPS" is gone.
+  - **"Drop a pin" sheet:**
+    - "Move the map to" picks a town to start from.
+    - A map of about 1 km squares round the current position: click one, then one of the about 150 m squares in it. The chosen one turns red.
+    - Or type or paste coordinates. Something that is not coordinates says so.
+    - "Use this spot" saves the pin, and "Back" returns to the big squares.
+    - The map is a pydeck chart that ships with Streamlit, with clickable cells from `alertmesh/pinmap.py`. Without the pydeck library the sheet says so, and coordinates still work.
+  - **Words that say where the position came from:**
+    - the call for help: "It says you are near Katherine, at the pin you dropped, to about 150 metres: close enough to find you without pinpointing your house", after the iPhone's SOS screen;
+    - the report form: "Sent from … (this Mac's location / your pin / your town's centre)";
+    - a new "Position: …" item on the status bar;
+    - the foot of the sidebar shows the rough place of a pin or fix.
+  - Opening the call for help asks for a fresh fix without waiting for it.
+  - "I need help", the report form and the banner at the top all ask for "location, a pin, or your town" when there is none.
+  - `requirements.txt`: `pydeck`. Anaconda's Streamlit comes without it.
+- Found by hand in the browser pane:
+  - A button inside a Streamlit dialog reruns only that dialog. So "Drop a pin" (which swaps Settings for the map sheet) and "Use this spot" (which closes the sheet) now rerun the whole page. Streamlit's test runner always reruns the whole page, so the tests could not show this.
+- Ported from: `AlertMesh/Views/SOSView.swift` (the "about 150 metres" wording). The pin, the switch and the fallbacks are new.
+- Differences from Swift: the iPhone app has no pin and no town; it asks for location before anything else.
+- Verified by:
+  - `python3 -m pytest tests/test_phone_app.py` — 57 passed (7 new page tests: the settings words, the switch, a pin by coordinates, wrong coordinates, the map opening, clearing the pin, a call for help with only a pin).
+  - `python3 -m pytest -q` — 763 passed (`packaging/.venv-mac`); 742 passed, 10 skipped (Anaconda 3.13, which has no pydeck, so the map test skips).
+  - By hand in the browser pane, with a scratch profile: picked Katherine, clicked a 1 km square and then a 150 m square, and pressed "Use this spot". The sheet closed; the status bar said "Position: your pin"; "I need help" opened with "It says you are near Katherine, at the pin you dropped, to about 150 metres".
+
 ## 17.4 Pin map helpers — 2026-09-28
 - What: `alertmesh/pinmap.py`, the logic behind the "Drop a pin" map, kept apart from the page so it can be tested.
   - Streamlit's map reports which shape was clicked, not which spot. So the map is covered in clickable geohash cells, picked in two steps:
