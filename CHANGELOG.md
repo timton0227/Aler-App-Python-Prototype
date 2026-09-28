@@ -24,6 +24,21 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.7 Live check with the real relays — 2026-09-28
+- What: `tools/nostr_live_check.py`, which checks the internet link against the real relays.
+  1. With no options: one short-lived event (kind 20001, which relays pass on but do not keep) to the 4 built-in relays, with each relay's answer. A relay that accepts it has checked the event ID and the BIP-340 signature made here.
+  2. `--warning`: a TEST warning for Katherine, published the warning app's way and heard from a second connection the phone app's way, then cancelled.
+  3. `--sos`: a TEST call for help near Katherine from a throwaway identity, sent the phone app's way to the 5 relays nearest its cell and heard by a second phone app's link, then answered with "I'm safe".
+  2 and 3 go to public relays; their words say they are tests, and they are cancelled or answered straight away.
+- Also: the done-when of this step now says what the tool checks. "A phone app on another network" is covered by step 15.8, with the iPhone.
+- Ported from: new.
+- Differences from Swift: not applicable.
+- Verified by: `python3 tools/nostr_live_check.py --warning --sos`, run on 2026-09-28 with `packaging/.venv-mac` (outside Claude's sandbox, which has no internet):
+  1. All 4 built-in relays took the short-lived event. (In a run minutes before, nos.lol refused connections with HTTP 502; the other 3 took it.)
+  2. The test warning went to 9 relays (the 4 built-in and the 5 nearest Katherine's cell `qvqj`). 5 took it and 4 geo relays did not answer within 20 seconds. The listening link got it, and dropped it after the cancellation.
+  3. The test call for help went to the 5 relays nearest `qvqj`. 2 took it, 3 did not answer. The listening link got it, and "I'm safe" replaced it.
+  - The first run showed a bug in the tool itself (the short-lived event was never published); fixed before this run.
+
 ## 15.6 Phone app: warnings and calls for help from the internet — 2026-09-28
 - What:
   - `alertmesh/internet.py`, `PhoneLink`, the phone app's side of the link while switched on:
