@@ -1,6 +1,6 @@
 """Where the person is: a pin they dropped, this Mac's own location, or their town.
 
-Based on: ../alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift (one
+Based on: alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift (one
 coarse fix at a time, turned into geohashes) and CommunityReportManager.swift (calls
 for help and "I'm safe" to 7 characters, about 150 m).
 

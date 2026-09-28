@@ -1,7 +1,7 @@
 """Community reports: hazard reports, SOS calls for help and "I'm safe" check-ins.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift
-Contract:    ../alert-mesh/docs/ALERT-WIRE-FORMAT.md ("Community reports")
+Ported from: alert-mesh/AlertMesh/AlertMesh/Protocols/CommunityReportPackets.swift
+Contract:    alert-mesh/docs/ALERT-WIRE-FORMAT.md ("Community reports")
 
 A report is something an ORDINARY PERSON says, signed with their own key. It is the
 mirror image of an official warning: the author's key travels with the report, and

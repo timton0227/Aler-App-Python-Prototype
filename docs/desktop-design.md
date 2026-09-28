@@ -8,7 +8,7 @@ still open.
 A clickable mockup of both apps, with a macOS / Windows switch, is in
 [`desktop-design-mockup.html`](desktop-design-mockup.html). Open it in any browser.
 
-All Swift paths are relative to `../alert-mesh/`.
+All Swift paths are relative to `alert-mesh/`.
 
 ## The idea
 

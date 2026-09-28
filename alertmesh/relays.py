@@ -1,6 +1,6 @@
 """The relay link: talks to Nostr relays over WebSockets.
 
-Ported from: ../alert-mesh/AlertMesh/Nostr/NostrRelayManager.swift (connect, sendEvent,
+Ported from: alert-mesh/AlertMesh/Nostr/NostrRelayManager.swift (connect, sendEvent,
              subscribe, unsubscribe, the inbound checks, reconnect with backoff).
 
 A relay speaks a small JSON protocol (NIP-01) over a WebSocket:

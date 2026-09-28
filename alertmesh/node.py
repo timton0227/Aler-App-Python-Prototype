@@ -1,6 +1,6 @@
 """One laptop in a real mesh: what it keeps, what it shows, what it passes on.
 
-Modelled on: ../alert-mesh/AlertMesh/Services/BLE/BLEService.swift (receive and relay),
+Modelled on: alert-mesh/AlertMesh/Services/BLE/BLEService.swift (receive and relay),
              BLEIngressPacketGuard.swift (clock and duplicates), BLEAnnounceHandlingPolicy
              and BLEAnnounceHandler.swift (who is nearby), BLEPublicMessagePolicy and
              BLEPublicMessageHandler.swift (Nearby chat), RelayController.swift (TTL) and

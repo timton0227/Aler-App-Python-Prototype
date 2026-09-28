@@ -1,6 +1,6 @@
 """Geohash: turns a latitude and longitude into a short area code, and back.
 
-Ported from: ../alert-mesh/AlertMesh/Protocols/Geohash.swift (enum Geohash).
+Ported from: alert-mesh/AlertMesh/Protocols/Geohash.swift (enum Geohash).
 
 A geohash is a string of base-32 characters. Each extra character narrows the area,
 so a longer code is a smaller box, and a code that starts with another code lies

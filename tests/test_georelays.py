@@ -1,7 +1,7 @@
 """Tests for alertmesh.georelays.
 
-Ported from: ../alert-mesh/AlertMeshTests/Nostr/GeoRelayDirectoryTests.swift and
-             ../alert-mesh/AlertMeshTests/AlertMesh/Utils/AustralianAreasTests.swift
+Ported from: alert-mesh/AlertMeshTests/Nostr/GeoRelayDirectoryTests.swift and
+             alert-mesh/AlertMeshTests/AlertMesh/Utils/AustralianAreasTests.swift
              (relaysForARoomComeFromItsAnchor).
 """
 import pytest
@@ -91,8 +91,6 @@ def test_validated_entries_requires_exact_baseline_entry_overlap():
 
 def test_the_swift_apps_list_passes_the_strict_checks():
     path = georelays.CSV_CANDIDATES[0]
-    if not path.exists():
-        pytest.skip("the Swift app is not next to this folder")
     entries = georelays.validated_entries(path.read_bytes(), georelays.MIN_REMOTE_ENTRIES)
     assert entries is not None and len(entries) > 250
 

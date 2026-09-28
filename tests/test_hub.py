@@ -1,6 +1,6 @@
 """The evacuation-centre board.
 
-Ported from ../alert-mesh/AlertMeshTests/AlertMesh/Views/HubBoardViewTests.swift. The
+Ported from alert-mesh/AlertMeshTests/AlertMesh/Views/HubBoardViewTests.swift. The
 Swift rendering tests (mount the view in both themes) become checks on the HTML.
 """
 from alertmesh import hub

@@ -1,8 +1,8 @@
 """A simulated Bluetooth mesh: phones on a map passing warnings and reports along.
 
 New code, with no Swift file to port. The behaviour follows the app:
-- TTL values and relay rules: ../alert-mesh/AlertMesh/Services/TransportConfig.swift,
-  ../alert-mesh/AlertMesh/Services/RelayController.swift
+- TTL values and relay rules: alert-mesh/AlertMesh/Services/TransportConfig.swift,
+  alert-mesh/AlertMesh/Services/RelayController.swift
 - what is relayed: BLEService.handleOfficialAlert (only what the store accepts)
 - carrying: GossipSyncManager (every 60 s, neighbours swap what they hold, one hop)
 - internet: OfficialAlertBridge (phones online pull warnings and hand them to the mesh)

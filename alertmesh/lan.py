@@ -1,7 +1,7 @@
 """The Wi-Fi link: the warning app sends signed warnings to every phone app on the
 same local network.
 
-Stands in for: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift,
+Stands in for: alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift,
 which carries warnings over the internet (Nostr relays). Here the "internet" is the
 local network: the warning app sends each signed warning or cancellation as a UDP
 multicast packet, and every phone app on the same Wi-Fi (or the same computer) hears

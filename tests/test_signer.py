@@ -1,6 +1,6 @@
 """Tests for alertmesh.signer.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertIssuerTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertIssuerTests.swift.
 """
 from alertmesh import wire
 from alertmesh.signer import (

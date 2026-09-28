@@ -1,10 +1,10 @@
 """The internet link: warnings and calls for help over Nostr, as the iPhone app sends them.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift
              (publish: the warning app's side; refreshSubscription and receive: the
              phone app's side), CommunityReportBridge.swift (the phone app's calls for
              help, both ways)
-         and ../alert-mesh/AlertMesh/App/AppRuntime.swift (which relays each side uses).
+         and alert-mesh/AlertMesh/App/AppRuntime.swift (which relays each side uses).
 
 Everything sent this way goes to public relays that anyone can read. The apps turn the
 link on only when asked (a switch), and the tests name their own relays

@@ -1,9 +1,9 @@
 """What a notification says: the title and body a phone shows.
 
 Ported from:
-- ../alert-mesh/AlertMesh/AlertMesh/Services/AlertNotificationContent.swift
+- alert-mesh/AlertMesh/AlertMesh/Services/AlertNotificationContent.swift
   (make, Whereabouts, severity emoji)
-- ../alert-mesh/AlertMesh/AlertMesh/Services/SOSNotificationContent.swift (make)
+- alert-mesh/AlertMesh/AlertMesh/Services/SOSNotificationContent.swift (make)
 
 When a notification is shown, and how loud, is decided elsewhere (`proximity` and
 `mesh_sim.Phone.evaluate`). This module only says what it reads.

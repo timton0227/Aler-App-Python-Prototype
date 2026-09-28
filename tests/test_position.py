@@ -1,6 +1,6 @@
 """Tests for alertmesh.position: which position the phone app uses, and how exact it is.
 
-Swift reference: ../alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift
+Swift reference: alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift
 (the app has no pin and no town fallback; those are the laptop's).
 """
 import math

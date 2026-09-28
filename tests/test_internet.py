@@ -1,7 +1,7 @@
 """Tests for alertmesh.internet, with stand-ins for the relays, and end to end against a
 relay run inside the tests (fake_relay.py).
 
-Ported from: ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
+Ported from: alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
              and CommunityReportBridgeTests.swift (each test names its Swift case where
              there is one).
 """

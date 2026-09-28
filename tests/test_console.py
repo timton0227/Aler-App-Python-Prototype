@@ -1,10 +1,10 @@
 """The warning console: sending both ways, and picking the area.
 
 Ported from:
-- ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertIssuerTests.swift
+- alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertIssuerTests.swift
   (the send tests; the key-store tests are left out because the prototype always
   signs with the development key, and the draft and signing tests are in test_signer.py)
-- ../alert-mesh/AlertMeshTests/AlertMesh/Views/IssueWarningViewTests.swift (map clicks)
+- alert-mesh/AlertMeshTests/AlertMesh/Views/IssueWarningViewTests.swift (map clicks)
 """
 import pytest
 

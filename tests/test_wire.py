@@ -1,6 +1,6 @@
 """Tests for alertmesh.wire.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Protocols/AlertPacketsTests.swift.
 Test names keep the Swift test name in their docstring where one exists.
 """
 import os

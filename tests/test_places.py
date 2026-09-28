@@ -1,6 +1,6 @@
 """Tests for alertmesh.places.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Utils/AustralianPlacesTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Utils/AustralianPlacesTests.swift.
 """
 import math
 
@@ -159,15 +159,13 @@ def test_outside_australia_says_nothing():
 # --- Finding the list inside the desktop app (step 12.1) ---
 
 
-def test_development_reads_the_swift_apps_own_file():
+def test_the_copy_of_the_swift_apps_file_is_read():
     assert places.DATA_FILE == places.DATA_FILE_CANDIDATES[0]
-    assert places.DATA_FILE.parts[-5:] == ("alert-mesh", "AlertMesh", "AlertMesh", "Utils",
-                                           "AustralianPlacesData.swift")
+    assert places.DATA_FILE.parts[-3:] == ("alertmesh", "data", "AustralianPlacesData.swift")
 
 
-def test_inside_the_app_the_bundled_copy_is_used(tmp_path):
-    """No Swift folder next to the package (as inside the desktop app): the copy the
-    build put in alertmesh/data/ is read instead, with the same result."""
+def test_the_first_place_that_has_the_list_is_used(tmp_path):
+    """A missing place is passed over; the next one gives the same result."""
     bundled = tmp_path / "data" / places.DATA_FILE_NAME
     bundled.parent.mkdir()
     bundled.write_text(places.DATA_FILE_CANDIDATES[0].read_text(encoding="utf-8"), encoding="utf-8")

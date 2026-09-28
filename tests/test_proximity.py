@@ -1,6 +1,6 @@
 """Tests for alertmesh.proximity.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Services/AlertProximityTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Services/AlertProximityTests.swift.
 Cells are real cells around Fitzroy Crossing, WA (r7hg...), as in the Swift tests.
 """
 import pytest

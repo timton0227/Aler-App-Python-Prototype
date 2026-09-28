@@ -1,11 +1,11 @@
 """The warning console: the operator plays the Bureau or a government agency.
 
 Ported from:
-- ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift (issue, update,
+- alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertIssuer.swift (issue, update,
   resend, cancel, and the outcome line)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/WarningAreaMapView.swift (WarningAreaPicker:
+- alert-mesh/AlertMesh/AlertMesh/Views/WarningAreaMapView.swift (WarningAreaPicker:
   sizes, toggle, corners)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/IssueWarningView.swift (English strings)
+- alert-mesh/AlertMesh/AlertMesh/Views/IssueWarningView.swift (English strings)
 
 Like the Swift issuer, the console does not know about Bluetooth or the internet
 itself: it is handed a `broadcast` function and a `publish` function. The Streamlit

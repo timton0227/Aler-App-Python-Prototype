@@ -1,8 +1,8 @@
 """Chat: each person's keys, and laptop-to-laptop private messages.
 
-Modelled on: ../alert-mesh/localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift
+Modelled on: alert-mesh/localPackages/BitFoundation/Sources/BitFoundation/MessageType.swift
              (`announce`, `message`, `noiseEncrypted`) and
-             ../alert-mesh/AlertMesh/Services/PrivateChatManager.swift
+             alert-mesh/AlertMesh/Services/PrivateChatManager.swift
 Since Phase 16 announces and Nearby messages go in the iPhone app's own packets
 (alertmesh/bitchat.py, alertmesh/node.py), so iPhones and laptops chat in public.
 Private messages stay between laptops: iPhones encrypt theirs with Noise, which laptops

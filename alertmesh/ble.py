@@ -1,6 +1,6 @@
 """The Bluetooth link: the only part of the phone app that touches the radio.
 
-Modelled on: ../alert-mesh/AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift
+Modelled on: alert-mesh/AlertMesh/Services/BLE/BLEService+LinkLayerCentralRole.swift
              (scan, connect, subscribe, write), BLEService+LinkLayerPeripheralRole.swift
              (advertise, take writes, notify), BLEOutboundLinkPlanner.swift and
              BLEOutboundPacketPolicy.swift (fragments sized to each link).

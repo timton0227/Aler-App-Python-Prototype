@@ -1,10 +1,10 @@
 """Words and colours the screens use, so the page says what the app says.
 
 Ported from (English default strings and light-theme colours):
-- ../alert-mesh/AlertMesh/AlertMesh/Services/AlertNotificationContent.swift (Strings.severity, Strings.hazard)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/AlertsView.swift (Strings.proximity, until text)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/AlertSeverityStyle.swift, ../alert-mesh/AlertMesh/Utils/Theme.swift
-- ../alert-mesh/AlertMesh/AlertMesh/Views/CommunityReportStyle.swift (report kinds and severities)
+- alert-mesh/AlertMesh/AlertMesh/Services/AlertNotificationContent.swift (Strings.severity, Strings.hazard)
+- alert-mesh/AlertMesh/AlertMesh/Views/AlertsView.swift (Strings.proximity, until text)
+- alert-mesh/AlertMesh/AlertMesh/Views/AlertSeverityStyle.swift, alert-mesh/AlertMesh/Utils/Theme.swift
+- alert-mesh/AlertMesh/AlertMesh/Views/CommunityReportStyle.swift (report kinds and severities)
 
 This is free and unencumbered software released into the public domain.
 """

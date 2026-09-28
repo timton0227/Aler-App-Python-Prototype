@@ -1,10 +1,10 @@
 """Tests for alertmesh.nostr.
 
-Ported from: ../alert-mesh/AlertMeshTests/NostrProtocolTests.swift
+Ported from: alert-mesh/AlertMeshTests/NostrProtocolTests.swift
              (nostrEventSignatureVerification_roundTrip, _detectsTamper,
              inboundNostrEventRejects*/Accepts*), plus BIP-340's own test vector and
              two events signed by other apps (the Swift tests' frozen fixtures);
-         and ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
+         and alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertBridgeTests.swift
              and CommunityReportBridgeTests.swift (the parts about the events themselves).
 """
 import hashlib
@@ -19,7 +19,7 @@ from alertmesh.reports import ReportAuthor, ReportSeverity
 from alertmesh.signer import OfficialAlertSigner, WarningDraft
 from alertmesh.wire import HazardType
 
-FIXTURES = Path(__file__).resolve().parent.parent.parent / "alert-mesh" / "AlertMeshTests" / "Nostr" / "Fixtures"
+FIXTURES = Path(__file__).resolve().parent / "data" / "nostr_fixtures"  # copied from the Swift app's tests
 
 
 # --- BIP-340 --------------------------------------------------------------------
@@ -99,8 +99,6 @@ def test_dict_round_trip():
 @pytest.mark.parametrize("name", ["LegacyPrivateEnvelope733098bb", "AndroidLegacyPrivateEnvelopeB7f0b33d"])
 def test_events_signed_by_other_apps_verify(name):
     path = FIXTURES / f"{name}.json"
-    if not path.exists():
-        pytest.skip("the Swift app's test fixtures are not next to this folder")
     event = nostr.Event.from_dict(json.loads(path.read_text()))
     assert event is not None and event.is_valid()
     assert not replace(event, created_at=event.created_at + 1).is_valid()

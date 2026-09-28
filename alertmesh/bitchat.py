@@ -1,7 +1,7 @@
 """The iPhone app's Bluetooth packets (bitchat's binary protocol), so laptops and iPhones
 share one mesh.
 
-Ported from: ../alert-mesh/localPackages/BitFoundation/Sources/BitFoundation/
+Ported from: alert-mesh/localPackages/BitFoundation/Sources/BitFoundation/
              BinaryProtocol.swift (encode, decode), BitchatPacket.swift
              (toBinaryDataForSigning), MessagePadding.swift, CompressionUtil.swift,
              Constants.swift, FileTransferLimits.swift, MessageType.swift and

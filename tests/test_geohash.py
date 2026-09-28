@@ -1,7 +1,7 @@
 """Tests for alertmesh.geohash.
 
-Swift reference: ../alert-mesh/AlertMesh/Protocols/Geohash.swift and
-../alert-mesh/AlertMeshTests/LocationChannelsTests.swift.
+Swift reference: alert-mesh/AlertMesh/Protocols/Geohash.swift and
+alert-mesh/AlertMeshTests/LocationChannelsTests.swift.
 """
 from alertmesh import geohash
 

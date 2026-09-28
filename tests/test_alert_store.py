@@ -1,6 +1,6 @@
 """Tests for alertmesh.alert_store.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertStoreTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Services/OfficialAlertStoreTests.swift.
 """
 import os
 

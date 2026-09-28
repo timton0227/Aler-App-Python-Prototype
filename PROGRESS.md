@@ -4,8 +4,9 @@ This is the checklist for the Python prototype. Each step is small: usually one 
 or one group of rules, plus its tests. Take the next unticked step, follow the rules at
 the bottom, and record the result in [`CHANGELOG.md`](CHANGELOG.md).
 
-All paths under **Swift** are relative to `../alert-mesh/`. Run every **Verify** command
-from this folder (`python-prototype/`).
+All paths under **Swift** are relative to `alert-mesh/` in the Swift app's repository
+([Aler-App-Prototype](https://github.com/timton0227/Aler-App-Prototype)). Run every
+**Verify** command from this folder (`python-prototype/`).
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` blocked (reason on the line)
 
@@ -31,7 +32,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
 | 16 One Bluetooth mesh with iPhones | 8 | 10 |
 | 17 Where you are: a real position for the phone app | 6 | 7 |
-| **All** | **98** | **105** |
+| 18 Own repository | 1 | 1 |
+| **All** | **99** | **106** |
 
 **Next step:** 12.4
 
@@ -522,6 +524,17 @@ permission refused).
 - [ ] 17.7 Check by hand
       Done when: the permission question shows once; Settings shows this Mac's location and how exact it is; a call for help carries a cell near the real spot; a pin moves it and clearing the pin goes back; with Location Services off the pin, then the town, is used
       Verify: by hand, with the packaged phone app
+
+## Phase 18 — Own repository
+
+Added at the user's request. The Python prototype moves out of the Swift app's
+repository into its own ([Aler-App-Python-Prototype](https://github.com/timton0227/Aler-App-Python-Prototype)),
+with its history. Until now it read a few files straight from the Swift app next to it;
+it now keeps copies, so it runs, tests and builds on its own.
+
+- [x] 18.1 Stand on its own
+      Done when: the town list, the relay list, the icon images and the Nostr test fixtures are copied in (`alertmesh/swift_app.py` lists them); nothing at run time, in the tests or in the builds reads the Swift app; `tools/copy_from_swift.py` refreshes the copies and a test checks they still match when the Swift app is next to this folder (`../App_prototype/alert-mesh`, or `ALERTMESH_SWIFT_APP`)
+      Verify: `python3 -m pytest -q`, with and without the Swift app
 
 ---
 

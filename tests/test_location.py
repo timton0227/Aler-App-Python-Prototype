@@ -2,7 +2,7 @@
 words. The process itself needs macOS Location Services and a packaged app, so these
 use a stand-in process; the real one is checked by hand (PROGRESS.md 17.2 and 17.7).
 
-Swift reference: ../alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift
+Swift reference: alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift
 """
 import sys
 import time

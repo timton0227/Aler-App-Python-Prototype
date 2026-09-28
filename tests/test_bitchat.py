@@ -1,6 +1,6 @@
 """Tests for alertmesh.bitchat: the iPhone app's Bluetooth packets.
 
-Ported from: ../alert-mesh/localPackages/BitFoundation/Tests/BitFoundationTests/
+Ported from: alert-mesh/localPackages/BitFoundation/Tests/BitFoundationTests/
              BinaryProtocolTests.swift, BinaryProtocolPaddingTests.swift and
              PeerIDTests.swift (the parts about packets, padding, compression and the
              peer ID). The Swift tests round-trip only; byte-exact vectors made by the
@@ -350,7 +350,7 @@ def test_what_the_phone_app_signs_stays_uncompressed_under_the_safe_limits():
 
 
 # --- Announce ---------------------------------------------------------------------------
-# Ported from: ../alert-mesh/AlertMeshTests/Protocols/PacketsTests.swift
+# Ported from: alert-mesh/AlertMeshTests/Protocols/PacketsTests.swift
 
 KEY_A, KEY_B = b"\x11" * 32, b"\x22" * 32
 
@@ -408,7 +408,7 @@ def test_our_announce_stays_uncompressed_up_to_the_safe_nickname():
 
 
 # --- Catch-up request ---------------------------------------------------------------------
-# Ported from: ../alert-mesh/AlertMeshTests/Sync/RequestSyncPacketFragmentFilterTests.swift and
+# Ported from: alert-mesh/AlertMeshTests/Sync/RequestSyncPacketFragmentFilterTests.swift and
 # the RequestSyncPacket / SyncTypeFlags wire rules.
 
 
@@ -439,7 +439,7 @@ def test_request_sync_decode_rejects_bad_parameters_and_ignores_unknown_tlvs():
 
 
 # --- Fragments -------------------------------------------------------------------------
-# Ported from: ../alert-mesh/AlertMeshTests/Services/BLEOutboundFragmentPlannerTests.swift and
+# Ported from: alert-mesh/AlertMeshTests/Services/BLEOutboundFragmentPlannerTests.swift and
 # BLEFragmentAssemblyBufferTests.swift.
 
 
@@ -539,7 +539,7 @@ def test_an_assembly_over_the_size_limit_is_dropped(monkeypatch):
 
 
 # --- Notifications as a stream ---------------------------------------------------------------
-# Ported from: ../alert-mesh/AlertMeshTests/NotificationStreamAssemblerTests.swift
+# Ported from: alert-mesh/AlertMeshTests/NotificationStreamAssemblerTests.swift
 
 
 def stream_packet(ts=0x0102030405):

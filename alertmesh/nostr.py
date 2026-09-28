@@ -1,8 +1,8 @@
 """Nostr events: what the internet link sends and receives.
 
-Ported from: ../alert-mesh/AlertMesh/Nostr/NostrProtocol.swift (NostrEvent: sign,
+Ported from: alert-mesh/AlertMesh/Nostr/NostrProtocol.swift (NostrEvent: sign,
              calculateEventId, isValidSignature, isWithinInboundTagLimits)
-         and ../alert-mesh/AlertMesh/Nostr/NostrIdentity.swift (generate).
+         and alert-mesh/AlertMesh/Nostr/NostrIdentity.swift (generate).
 
 Nostr is a public network of relay servers. Anyone can send an event to a relay, and
 anyone can ask a relay for the events it holds. An event is a small JSON object:
@@ -222,9 +222,9 @@ def sign_event(kind: int, tags, content: str, created_at: int | None = None,
 
 # --- Warnings and reports as events ---------------------------------------------
 #
-# Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift and
+# Ported from: alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift and
 #              CommunityReportBridge.swift (tagCells, makeEvent, payload, versionKey),
-#              ../alert-mesh/AlertMesh/Nostr/NostrProtocol.swift (EventKind) and
+#              alert-mesh/AlertMesh/Nostr/NostrProtocol.swift (EventKind) and
 #              NostrRelayManager.swift (builtInRelays, NostrFilter.officialAlerts,
 #              NostrFilter.communityReports).
 #

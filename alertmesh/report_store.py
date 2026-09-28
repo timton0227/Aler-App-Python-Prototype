@@ -1,6 +1,6 @@
 """What one phone keeps: the newest verified version of each person's reports.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/CommunityReportStore.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Services/CommunityReportStore.swift
 
 A record is one (author key, report ID) pair. A later version from the SAME author
 replaces it; that is how "I'm safe" answers an SOS. A stranger reusing the ID makes a

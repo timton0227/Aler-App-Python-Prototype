@@ -1,11 +1,11 @@
 """Geo relays: the Nostr relays nearest a place.
 
-Ported from: ../alert-mesh/AlertMesh/Nostr/GeoRelayDirectory.swift (validatedEntries,
+Ported from: alert-mesh/AlertMesh/Nostr/GeoRelayDirectory.swift (validatedEntries,
              validatedDirectoryAddress, closestRelays, haversineKm, loading and the
-             daily refresh) and ../alert-mesh/AlertMesh/AlertMesh/Utils/AustralianAreas.swift
+             daily refresh) and alert-mesh/AlertMesh/AlertMesh/Utils/AustralianAreas.swift
              (the anchors of the Australia-wide and state rooms).
-Data:        ../alert-mesh/relays/online_relays_gps.csv, or the copy inside the app
-             (see CSV_CANDIDATES).
+Data:        alert-mesh/relays/online_relays_gps.csv, copied unchanged into
+             alertmesh/data/ (see alertmesh/swift_app.py).
 
 The iPhone app sends a call for help to the 5 relays nearest its 4-character cell, and
 a phone asks the 5 relays nearest each cell around it. Both must pick the same relays,
@@ -32,7 +32,6 @@ from alertmesh import geohash
 REMOTE_URL = "https://raw.githubusercontent.com/permissionlesstech/bitchat/refs/heads/main/relays/online_relays_gps.csv"
 CSV_NAME = "online_relays_gps.csv"
 CSV_CANDIDATES = (
-    Path(__file__).resolve().parents[2] / "alert-mesh" / "relays" / CSV_NAME,
     Path(__file__).resolve().parent / "data" / CSV_NAME,
 )
 

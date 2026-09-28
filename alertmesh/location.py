@@ -1,6 +1,6 @@
 """This Mac's own position, from Location Services, in a process of its own.
 
-Based on: ../alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift, which
+Based on: alert-mesh/AlertMesh/AlertMesh/Services/LocationStateManager.swift, which
 asks for permission once, then for one coarse fix at a time (`requestLocation`,
 accuracy 100 m) rather than following the phone around.
 

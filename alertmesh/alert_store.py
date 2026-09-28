@@ -1,6 +1,6 @@
 """What one phone keeps: the newest verified version of each official warning.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertStore.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertStore.swift
 
 `alert_id` names the EVENT and `issued_at` is the VERSION. The store keeps one
 version per event: a newer one replaces it, the same one is a duplicate, and an

@@ -3,7 +3,7 @@
     python3 tools/cross_check_swift.py
 
 1. Swift signs, Python checks. For each case, the app's own signing script
-   (../alert-mesh/scripts/sign-test-alert.swift, an independent implementation of
+   (alert-mesh/scripts/sign-test-alert.swift, an independent implementation of
    docs/ALERT-WIRE-FORMAT.md) signs a warning or cancellation with fresh inputs.
    Python must decode it, verify it with the pinned key, read back the same fields,
    and produce the very same bytes up to the signature (Ed25519 signatures from
@@ -29,10 +29,11 @@ sys.path.insert(0, str(ROOT))
 
 from alertmesh import wire  # noqa: E402
 from alertmesh.alert_store import AlertStore, IngestResult  # noqa: E402
+from alertmesh.swift_app import SWIFT_APP  # noqa: E402
 from alertmesh.signer import DEV_PRIVATE_KEY, OfficialAlertSigner, WarningDraft  # noqa: E402
 from alertmesh.wire import HazardType, Severity  # noqa: E402
 
-SIGN_SCRIPT = ROOT.parent / "alert-mesh" / "scripts" / "sign-test-alert.swift"
+SIGN_SCRIPT = SWIFT_APP / "scripts" / "sign-test-alert.swift"
 VERIFY_SCRIPT = HERE / "verify_signature.swift"
 
 HAZARDS = {"flood": HazardType.FLOOD, "bushfire": HazardType.BUSHFIRE, "storm": HazardType.STORM,
@@ -193,7 +194,7 @@ def run() -> list[tuple[str, list[str]]]:
 
 def main() -> int:
     if not swift_available():
-        print("Swift is not available (or ../alert-mesh is missing): nothing to cross-check.")
+        print(f"Swift is not available (or the Swift app is not at {SWIFT_APP}): nothing to cross-check.")
         return 1
     failed = 0
     for name, problems in run():

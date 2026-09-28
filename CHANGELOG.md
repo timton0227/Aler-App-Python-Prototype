@@ -14,7 +14,7 @@ Entry format:
 ```
 ## <step> <title> — <date>
 - What: what was added or changed.
-- Ported from: the Swift file and function (paths relative to ../alert-mesh/), or "new".
+- Ported from: the Swift file and function (paths relative to alert-mesh/ in the Swift app's repository), or "new".
 - Differences from Swift: "none", or each difference and why.
 - Verified by: the command that was run, and its result.
 ```
@@ -23,6 +23,21 @@ Entry format:
 simplified, left out, or behaves differently from the app.
 
 ---
+
+## 18.1 Stand on its own — 2026-09-28
+- What:
+  - The prototype moved out of the Swift app's repository into its own, with its history (`git subtree split`). Claude trailers were taken off the old commit messages on the way.
+  - Copies of the Swift app's files it used: `alertmesh/data/AustralianPlacesData.swift` and `online_relays_gps.csv`, `packaging/AlertMesh.iconset/` (10 icon images), `tests/data/nostr_fixtures/` (4 JSON files).
+  - `alertmesh/swift_app.py`: where the Swift app is (`../App_prototype/alert-mesh`, or `ALERTMESH_SWIFT_APP`) and the list of copies. `tools/copy_from_swift.py` refreshes them (`--check` only reports). `tests/test_swift_copies.py` checks they match.
+  - `places.py` and `georelays.py` read only the copies. The build scripts and the PyInstaller spec take the icon, town list and relay list from this repository; `build_mac.sh` and `build_windows.ps1` no longer need the Swift folder.
+  - `tools/cross_check_swift.py` finds the Swift signing script through `swift_app.SWIFT_APP`; `tools/bitchat_check/Package.swift` points at `../../../App_prototype/alert-mesh/localPackages/BitFoundation`.
+  - "Ported from" paths now read `alert-mesh/…` (the Swift app's repository) instead of `../alert-mesh/…`. README says where the Swift app is.
+- Ported from: new.
+- Differences from Swift: none (the copies are byte-for-byte the Swift app's files).
+- Verified by:
+  - `python3 -m pytest -q`: 794 passed (`.venv-mac`); 773 passed, 10 skipped (Anaconda 3.13).
+  - With `ALERTMESH_SWIFT_APP=/nonexistent`: 791 passed, 3 skipped (the copy check and the Swift cross-checks).
+  - `python3 tools/copy_from_swift.py --check`: all 16 copies match.
 
 ## 16.8 Fragments per link, and new links — 2026-09-28
 - What:

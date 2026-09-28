@@ -1,6 +1,6 @@
 """The loud-or-quiet rule: how close is this phone to a warning, and how loud should it be?
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/AlertProximity.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Services/AlertProximity.swift
 
 Uses area codes (geohashes) only, never raw coordinates, like the app. A place is
 INSIDE a warning when its code starts with one of the warning's cells, and ADJACENT
@@ -151,7 +151,7 @@ def decide(
 
 
 # --- SOS: how loud is someone else's call for help? ------------------------------
-# Ported from SOSProximity in ../alert-mesh/AlertMesh/AlertMesh/Services/SOSNotificationsModel.swift
+# Ported from SOSProximity in alert-mesh/AlertMesh/AlertMesh/Services/SOSNotificationsModel.swift
 
 # An SOS is "near" when it is in the same ~5 km cell as this phone or a watched
 # place, or a neighbouring one.

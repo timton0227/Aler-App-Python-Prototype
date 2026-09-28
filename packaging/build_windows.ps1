@@ -8,8 +8,7 @@
 # sharing: dist\Alert-Mesh-windows.zip and dist\Alert-Mesh-Warnings-windows.zip.
 # The first run makes a separate build environment, packaging\.venv-windows, with the
 # newest Python 3 the Python launcher knows (py -3), or the python.exe named by
-# $env:PYTHON. Needs Python 3.10 or newer from python.org, and the ..\alert-mesh folder
-# next to this one. Later runs reuse the environment. Downloads the build tools from
+# $env:PYTHON. Needs Python 3.10 or newer from python.org. Later runs reuse the environment. Downloads the build tools from
 # PyPI on the first run.
 #
 # NOT YET RUN: written on a Mac, where it cannot be tested (PROGRESS.md step 12.4).
@@ -27,10 +26,6 @@ Set-Location (Split-Path -Parent $PSScriptRoot)
 $Venv = "packaging\.venv-windows"
 $VenvPython = "$Venv\Scripts\python.exe"
 if ($env:PYTHON) { $Python = $env:PYTHON; $PythonArgs = @() } else { $Python = "py"; $PythonArgs = @("-3") }
-
-if (-not (Test-Path "..\alert-mesh")) {
-    throw "The Swift app folder (..\alert-mesh) is missing: the build copies the town list and the icon from it."
-}
 
 if (-not (Test-Path $VenvPython)) {
     & $Python @PythonArgs -c "import sys; sys.exit(sys.version_info < (3, 10))"

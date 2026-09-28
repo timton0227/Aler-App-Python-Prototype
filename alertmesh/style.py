@@ -1,10 +1,10 @@
 """The iPhone app's look, for both desktop apps: colours, typeface and one stylesheet.
 
 Ported from (values, light / dark), as written down in docs/desktop-design.md:
-- ../alert-mesh/AlertMesh/Utils/Theme.swift (ThemePalette.alertMesh, severity fill and text colours)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/EmergencyLayout.swift (card radius 16, padding 18, gap 16;
+- alert-mesh/AlertMesh/Utils/Theme.swift (ThemePalette.alertMesh, severity fill and text colours)
+- alert-mesh/AlertMesh/AlertMesh/Views/EmergencyLayout.swift (card radius 16, padding 18, gap 16;
   the system typeface, never monospace)
-- ../alert-mesh/AlertMesh/AlertMesh/Views/ChatBubbleRow.swift (ChatBubbleStyle)
+- alert-mesh/AlertMesh/AlertMesh/Views/ChatBubbleRow.swift (ChatBubbleStyle)
 
 Streamlit draws its own widgets from THEME (both apps, light and dark). What Streamlit
 has no setting for is drawn by small HTML blocks with the classes in CSS; every colour

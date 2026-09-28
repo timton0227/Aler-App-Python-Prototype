@@ -1,6 +1,6 @@
 """The warning console's signer: check a draft warning, then sign it.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertSigning.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Services/OfficialAlertSigning.swift
              (WarningDraft, OfficialAlertSigner)
 and the version helper from OfficialAlertIssuer.swift (nextIssuedAt).
 

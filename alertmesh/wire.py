@@ -1,8 +1,8 @@
 """Official warning format: build, sign-check and read warnings and cancellations.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPackets.swift
-Contract:    ../alert-mesh/docs/ALERT-WIRE-FORMAT.md
-Pinned key:  ../alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPublisherKey.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPackets.swift
+Contract:    alert-mesh/docs/ALERT-WIRE-FORMAT.md
+Pinned key:  alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPublisherKey.swift
 
 Bytes produced here must match the Swift app exactly. A difference of one byte means
 no warning ever verifies, and nothing says why. The tests check this module against

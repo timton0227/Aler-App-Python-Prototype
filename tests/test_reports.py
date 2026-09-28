@@ -1,6 +1,6 @@
 """Tests for alertmesh.reports.
 
-Swift reference: ../alert-mesh/AlertMeshTests/AlertMesh/Protocols/CommunityReportPacketsTests.swift.
+Swift reference: alert-mesh/AlertMeshTests/AlertMesh/Protocols/CommunityReportPacketsTests.swift.
 Test docstrings name the Swift test they port, where one exists.
 """
 import os

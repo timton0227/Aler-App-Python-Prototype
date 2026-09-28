@@ -1,7 +1,7 @@
 """The evacuation-centre board: every live official warning, sized to be read from
 across a hall rather than from a desk.
 
-Ported from: ../alert-mesh/AlertMesh/AlertMesh/Views/HubBoardView.swift
+Ported from: alert-mesh/AlertMesh/AlertMesh/Views/HubBoardView.swift
 (hero card, rows, hidden count, footer, clock, empty state, English strings).
 
 It is a display, not a screen you operate: the most serious warning is always the

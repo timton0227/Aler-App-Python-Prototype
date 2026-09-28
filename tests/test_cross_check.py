@@ -7,7 +7,7 @@ import pytest
 
 from tools import cross_check_swift as cc
 
-pytestmark = pytest.mark.skipif(not cc.swift_available(), reason="needs Swift and ../alert-mesh")
+pytestmark = pytest.mark.skipif(not cc.swift_available(), reason="needs Swift and the Swift app")
 
 
 def test_swift_and_python_agree_both_ways():

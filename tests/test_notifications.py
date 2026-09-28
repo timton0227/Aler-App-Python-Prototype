@@ -1,9 +1,9 @@
 """What notifications say.
 
 Ported from:
-- ../alert-mesh/AlertMeshTests/AlertMesh/Services/AlertNotificationContentTests.swift
+- alert-mesh/AlertMeshTests/AlertMesh/Services/AlertNotificationContentTests.swift
   (all but the notification identifier, which the prototype has no use for)
-- the content tests in ../alert-mesh/AlertMeshTests/AlertMesh/Services/SOSNotificationsModelTests.swift
+- the content tests in alert-mesh/AlertMeshTests/AlertMesh/Services/SOSNotificationsModelTests.swift
 """
 import pytest
 

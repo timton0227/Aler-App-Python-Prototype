@@ -16,13 +16,6 @@ cd "$(dirname "$0")/.."
 
 PYTHON="${PYTHON:-python3}"
 VENV=packaging/.venv-mac
-SWIFT_APP=../alert-mesh
-ICONS="$SWIFT_APP/AlertMesh/Assets.xcassets/AppIcon.appiconset"
-
-if [ ! -d "$SWIFT_APP" ]; then
-    echo "The Swift app folder ($SWIFT_APP) is missing: the build copies the town list and the icon from it." >&2
-    exit 1
-fi
 
 if [ ! -x "$VENV/bin/python" ]; then
     if ! "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
@@ -35,13 +28,10 @@ fi
 "$VENV/bin/python" -m pip install --quiet --upgrade pip
 "$VENV/bin/python" -m pip install --quiet -r packaging/requirements-build.txt
 
-echo "Making the icon from the Swift app's icon images"
+echo "Making the icon from the Swift app's icon images (packaging/AlertMesh.iconset)"
 rm -rf build/icon
-mkdir -p build/icon/AlertMesh.iconset
-for size in 16x16 16x16@2x 32x32 32x32@2x 128x128 128x128@2x 256x256 256x256@2x 512x512 512x512@2x; do
-    cp "$ICONS/icon_$size.png" build/icon/AlertMesh.iconset/
-done
-iconutil -c icns build/icon/AlertMesh.iconset -o build/icon/AlertMesh.icns
+mkdir -p build/icon
+iconutil -c icns packaging/AlertMesh.iconset -o build/icon/AlertMesh.icns
 
 echo "Building the apps (a few minutes)"
 "$VENV/bin/pyinstaller" --noconfirm --clean --log-level WARN \

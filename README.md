@@ -9,7 +9,15 @@ runs on laptops, in VS Code or as two double-click apps:
 - the **warning app**, the Bureau's side: write and send official warnings, watch one
   spread through a simulated town, and show the evacuation centre's wall display.
 
-The Swift app in `../alert-mesh/` is the **reference**. This folder never changes it.
+The Swift app is the **reference**. It lives in its own repository
+([Aler-App-Prototype](https://github.com/timton0227/Aler-App-Prototype), folder
+`alert-mesh/`); paths like `alert-mesh/…` in this repository point there. This
+repository never changes it, and does not need it to run, test or build: the few files
+it uses (the town list, the relay list, the icon images and some test fixtures) are
+copied in, as listed in `alertmesh/swift_app.py`. With the Swift app's repository next
+to this one (`../App_prototype/alert-mesh`, or `ALERTMESH_SWIFT_APP` set),
+`python3 tools/copy_from_swift.py` refreshes the copies, a test checks they still
+match, and the Swift cross-checks run.
 Every Python module names the Swift file it was ported from, and every step of the port
 is listed in [`PROGRESS.md`](PROGRESS.md) and recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -199,7 +207,7 @@ switched on**, because relays are public: anyone can read what is sent there.
 
 Warnings are signed with the development key. Only an iPhone app built in **Debug**
 trusts that key; a Release or TestFlight build shows no warnings at all until a real
-key exists (see `../alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPublisherKey.swift`).
+key exists (see `alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPublisherKey.swift`).
 
 Needs the `websockets` library (`python3 -m pip install -r requirements.txt` again if
 you set up before it was added). Without it the switches are greyed out.
@@ -234,8 +242,7 @@ neither can be made smaller than 960 × 600. `desktop.py` shows a page in its ow
 
 ### Build it
 
-Both builds need `../alert-mesh/` next to this folder: they copy the town list and the
-icon from it. The first build downloads the build tools into a separate environment
+The first build downloads the build tools into a separate environment
 (`packaging/.venv-mac` or `packaging\.venv-windows`); later builds take about a minute.
 
 | Computer | Command, from this folder | Result |
@@ -288,7 +295,7 @@ To try the windows without building, install the build tools
 ## The signing key in this folder
 
 The prototype signs warnings with the **development key** published in
-`../alert-mesh/docs/ALERT-WIRE-FORMAT.md`. Its private half is public on purpose, so
+`alert-mesh/docs/ALERT-WIRE-FORMAT.md`. Its private half is public on purpose, so
 anyone can reproduce the test vectors. It must never sign a real warning.
 
 ## Credits
