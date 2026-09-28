@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 7 | 9 |
-| **All** | **83** | **88** |
+| 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
+| **All** | **84** | **88** |
 
 **Next step:** 12.4
 
@@ -417,7 +417,7 @@ switch in each app, **off** until turned on. The tests never use the real relays
 - [ ] 15.8 Check with an iPhone
       Done when: a warning from the warning app shows on an iPhone running the Debug build; a call for help from the phone app shows on the iPhone, and one from the iPhone on the phone app
       Verify: by hand, with the user's iPhone
-- [ ] 15.9 README and wrap-up
+- [x] 15.9 README and wrap-up
       Done when: the README explains the switches, what goes to public servers, and the iPhone check; packaged apps rebuilt
       Verify: `python3 -m pytest -q`; `python3 desktop.py --check` and `--app warning --check`
 

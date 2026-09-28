@@ -26,9 +26,12 @@ is listed in [`PROGRESS.md`](PROGRESS.md) and recorded in [`CHANGELOG.md`](CHANG
   the other person can open, laptop to laptop over Bluetooth.
 - Warnings from the warning app reach phone apps over the local network (Wi-Fi), and
   phone apps pass them on over Bluetooth to laptops without a network.
+- The internet, when switched on: warnings and calls for help over Nostr relays, the
+  same way the iPhone app sends them, so the Python apps and iPhones running Alert Mesh
+  see each other's (see "The internet and iPhones").
 
-Not covered: talking to real iPhones (the laptops' Bluetooth format is their own), Tor,
-internet relays (Nostr), voice, images, read receipts.
+Not covered: talking to real iPhones over Bluetooth (the laptops' Bluetooth format is
+their own), chat over the internet, Tor, voice, images, read receipts.
 
 ## Set up (once)
 
@@ -74,7 +77,7 @@ sidebar. **Simulated town**, under the tabs, builds a different town.
 
 | Tab | What it does |
 |---|---|
-| Warning console | Write a warning, pick its area, check the preview (the warning as a phone in the area shows it), and send it. In the simulated town it goes out over Bluetooth from the evacuation centre and to the internet; it also goes to real phone apps on this network. |
+| Warning console | Write a warning, pick its area, check the preview (the warning as a phone in the area shows it), and send it. In the simulated town it goes out over Bluetooth from the evacuation centre and to the internet; it also goes to real phone apps on this network and, with **Send over the internet** on (in the sidebar), to real phone apps and iPhones anywhere. |
 | Map | Watch a warning spread: blue phones read it on the internet, red phones got it over Bluetooth. |
 | Hub board | The evacuation centre's wall display, in large type. It stays black whatever the system's light or dark setting, for a projector in a hall. |
 
@@ -102,8 +105,8 @@ there. Your nickname, town and keys are kept in `~/Library/Application Support/A
 
 Both apps take the iPhone app's look: the system typeface, system blue, rounded grey
 cards, and the same light and dark colours. They follow the computer's light or dark
-setting. A status bar along the bottom says whether Bluetooth and the local network
-are on.
+setting. A status bar along the bottom says whether Bluetooth, the local network and
+the internet are on.
 
 | Shortcut | Mac | Windows |
 |---|---|---|
@@ -113,11 +116,12 @@ are on.
 
 What travels how:
 
-| | Between laptops over Bluetooth | From the warning app over the local network |
-|---|---|---|
-| Nearby and private messages | yes, up to 7 hops | no |
-| Calls for help, "I'm safe", hazard reports | yes, up to 7 hops | no |
-| Official warnings | yes, passed on by any laptop that has one | yes, repeated every 30 s |
+| | Between laptops over Bluetooth | From the warning app over the local network | Over the internet, when switched on |
+|---|---|---|---|
+| Nearby and private messages | yes, up to 7 hops | no | no |
+| Calls for help, "I'm safe" | yes, up to 7 hops | no | yes, to and from iPhones too |
+| Hazard reports | yes, up to 7 hops | no | no (the iPhone app keeps them off too) |
+| Official warnings | yes, passed on by any laptop that has one | yes, repeated every 30 s | yes, to iPhones too |
 
 Bluetooth reaches about 10 m indoors. One computer cannot talk to itself over
 Bluetooth, so trying the chat needs two laptops (see "Two-laptop check").
@@ -155,6 +159,51 @@ few metres. On one laptop, also open the warning app.
 
 If step 1 fails, try `python3 tools/ble_probe.py` on both laptops (from VS Code's
 terminal): each should list the other under "Alert Mesh laptops".
+
+### The internet and iPhones
+
+The iPhone app sends warnings and calls for help over the internet through Nostr, a
+public network of relay servers. Both Python apps can do the same, so they and iPhones
+running Alert Mesh see each other's warnings and calls for help. It is **off until
+switched on**, because relays are public: anyone can read what is sent there.
+
+- **Warning app:** **Send over the internet**, in the sidebar. Each warning, update and
+  cancellation goes to the iPhone app's 4 built-in relays, which every phone listens
+  on, and to the 5 relays nearest each area cell. Turning it on also sends the
+  warnings already live. The status bar says how many relays took the last warning.
+- **Phone app:** **Use the internet**, in Settings (kept between runs). The phone app
+  then gets every warning, and calls for help around its town; and it puts its own
+  calls for help, and ones it hears over Bluetooth, online on the 5 relays nearest
+  their area. That is how the iPhone app does it, so the relays match. A call for help
+  shows your nickname, your note and your place to about 150 m.
+
+Warnings are signed with the development key. Only an iPhone app built in **Debug**
+trusts that key; a Release or TestFlight build shows no warnings at all until a real
+key exists (see `../alert-mesh/AlertMesh/AlertMesh/Protocols/AlertPublisherKey.swift`).
+
+Needs the `websockets` library (`python3 -m pip install -r requirements.txt` again if
+you set up before it was added). Without it the switches are greyed out.
+
+**Check with the real relays** (sends a short-lived test event; add `--warning` and
+`--sos` for a test warning and a test call for help, each withdrawn straight away):
+
+```bash
+python3 tools/nostr_live_check.py --warning --sos
+```
+
+**Check with an iPhone** (not yet done):
+
+1. Install the Alert Mesh iPhone app from Xcode (a Debug build), allow location, and
+   give it internet.
+2. Open the warning app, turn on **Send over the internet**, and send a warning for
+   the town where the iPhone is. Every iPhone gets every warning, wherever it is; one
+   for its own area is the loud one. It shows within a few seconds.
+3. Open the phone app, turn on **Use the internet** in Settings, and pick the town
+   where the iPhone is (the iPhone uses its GPS). Calls for help are shared within the
+   same or a neighbouring area of about 40 × 20 km. Send a call for help from the
+   iPhone: it appears under **Calls for help** on the phone app's **Now**.
+4. Send a call for help from the phone app: the iPhone shows it.
+5. Cancel the warning in the warning app: it goes from the iPhone.
 
 ## Desktop apps (no browser)
 

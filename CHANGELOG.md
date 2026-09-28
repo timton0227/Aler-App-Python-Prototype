@@ -24,6 +24,22 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.9 README and wrap-up — 2026-09-28
+- What:
+  - `README.md`:
+    - "What it covers" lists the internet link, and "Not covered" no longer lists Nostr;
+    - the warning console row names **Send over the internet**, and the status bar sentence names the internet;
+    - "What travels how" gains an internet column;
+    - a new section, "The internet and iPhones": the two switches, what goes to public relays, why only a Debug iPhone build trusts the development key, the websockets library, the live check, and the steps of the iPhone check (step 15.8).
+  - Both packaged apps rebuilt with `packaging/build_mac.sh`.
+  - Step 15.8, the check with an iPhone, stays open: it needs the user's iPhone.
+- Ported from: not applicable.
+- Differences from Swift: not applicable.
+- Verified by:
+  - `python3 -m pytest -q` — 588 passed (with `packaging/.venv-mac`).
+  - `packaging/build_mac.sh` — both finished apps pass their self-check: "31 imports of phone_app.py load; 996 towns ...; 326 relays" and "33 imports of warning_app.py ...".
+  - Both pages run from source and checked in a browser at 1400 × 900: the warning app's sidebar switch and status bar ("Internet off", then "Internet on"), and the phone app's Settings switch with its words about public servers, "How you're connected" and the status bar.
+
 ## 15.7 Live check with the real relays — 2026-09-28
 - What: `tools/nostr_live_check.py`, which checks the internet link against the real relays.
   1. With no options: one short-lived event (kind 20001, which relays pass on but do not keep) to the 4 built-in relays, with each relay's answer. A relay that accepts it has checked the event ID and the BIP-340 signature made here.
