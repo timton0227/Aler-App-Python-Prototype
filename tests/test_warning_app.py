@@ -199,6 +199,83 @@ def test_cancelling_reaches_phone_apps(app, heard):
     assert wait_for(lambda: any(isinstance(wire.decode(x), wire.AlertCancellation) for x in heard))
 
 
+# --- The internet (Nostr relays) ---
+
+
+@pytest.fixture
+def relay(monkeypatch):
+    """A relay inside the tests, which the warning app's internet link uses instead of
+    the real ones."""
+    pytest.importorskip("websockets")
+    from fake_relay import FakeRelay
+
+    r = FakeRelay()
+    monkeypatch.setenv("ALERTMESH_NOSTR_RELAYS", r.url)
+    import streamlit as st
+
+    st.cache_resource.clear()  # a new internet link, which reads the relay's address
+    yield r
+    st.cache_resource.clear()
+    r.close()
+
+
+def alert_events(relay):
+    from alertmesh import nostr
+
+    return [wire.decode(nostr.payload_of(nostr.Event.from_dict(e), 1403)) for e in relay.events if e["kind"] == 1403]
+
+
+def test_the_internet_is_off_until_switched_on(app):
+    assert app.toggle(key="internet_on").value is False
+    assert "Internet off" in " ".join(m.value for m in app.markdown)
+    fill_warning(app)
+    button(app, "Send warning…").click().run()
+    assert "public relays" not in app.warning[0].value
+
+
+def test_switched_on_a_warning_and_its_cancellation_go_to_the_relays(relay):
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    at.toggle(key="internet_on").set_value(True).run()
+    assert not at.exception
+    fill_warning(at)
+    button(at, "Send warning…").click().run()
+    assert "public relays" in at.warning[0].value  # the confirmation says where it goes
+    button(at, "Send warning").click().run()
+    assert wait_for(lambda: len(alert_events(relay)) == 1)
+    [real] = alert_events(relay)
+    assert wire.verify_pinned(real) and real.headline == "Bushfire near Katherine - leave now"
+    assert abs(real.issued_at - time.time() * 1000) < 60_000  # the real-time copy, as for phone apps
+    button(at, "Cancel warning").click().run()
+    next(b for b in at.button if (b.key or "").startswith("cancel_yes_")).click().run()
+    assert wait_for(lambda: any(isinstance(x, wire.AlertCancellation) for x in alert_events(relay)))
+    tags = [e["tags"] for e in relay.events]
+    assert tags[0] == tags[1]  # the cancellation carries the warning's area and expiry
+
+
+def test_switching_on_sends_the_warnings_already_live(relay):
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    fill_warning(at)
+    send(at)
+    assert relay.events == []
+    at.toggle(key="internet_on").set_value(True).run()
+    assert wait_for(lambda: len(alert_events(relay)) == 1)
+
+
+def test_the_status_bar_says_how_many_relays_took_the_last_warning(relay):
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    at.toggle(key="internet_on").set_value(True).run()
+    fill_warning(at)
+    send(at)
+    assert wait_for(lambda: relay.events)
+    time.sleep(0.5)
+    at.run()
+    bar = next(m.value for m in at.markdown if "am-statusbar" in m.value)
+    assert "Internet on · 1 of 1 relays connected · last warning taken by 1 of 1" in bar
+
+
 # --- Hub board ---
 
 

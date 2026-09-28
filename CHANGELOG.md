@@ -24,6 +24,25 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 15.5 Warning app sends warnings over the internet — 2026-09-28
+- What:
+  - `alertmesh/internet.py`:
+    - `RelayChoice` picks relays as the iPhone app does: a warning goes to the built-in relays and the geo relays of each area cell; `geo(cell)` gives the relays nearest a cell (used for calls for help in 15.6). With `ALERTMESH_NOSTR_RELAYS` set, only those relays are used.
+    - `WarningSender.send(payload)` publishes a warning or cancellation as a kind 1403 event while switched on. It keeps each warning's area and expiry, so its cancellation is tagged the same way. `status()` says how many relays took the last warning.
+  - `warning_app.py`:
+    - a "Send over the internet" switch in the sidebar, off at start. It is greyed out, with the reason, without the websockets library;
+    - it sends the same real-time copies that go to phone apps on the local network, not the simulated town's (which are dated 2023, so phones would drop them as expired). Turning it on also sends the warnings already live, and brings the relay list up to date;
+    - the confirmation says the warning also goes to public relays when the switch is on;
+    - the status bar shows the internet: off, or how many relays are connected and how many took the last warning. It redraws itself every 2 seconds, because relays answer after the page has run.
+  - `tests/conftest.py` names a relay address where nothing listens, so no test can reach the real relays.
+- Ported from: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (`publish`), `AlertMesh/App/AppRuntime.swift` (the `relays` each bridge uses); tests from `OfficialAlertBridgeTests.swift`.
+- Differences from Swift:
+  - The Mac console passes a cancellation's area and expiry in; here the sender remembers them from the warning it sent before.
+  - The Mac console always publishes when it has relays. Here it is a switch, off at start, because the warnings go to public servers.
+- Verified by:
+  - `python3 -m pytest tests/test_internet.py tests/test_warning_app.py` — 9 and 18 passed (with websockets). The app tests switch the link on against a relay inside the tests, send a warning and cancel it, and check what the relay received.
+  - `python3 -m pytest -q` — 570 passed with `packaging/.venv-mac`; 554 passed and 5 skipped with Streamlit 1.51 and no websockets.
+
 ## 15.4 Relay link — 2026-09-28
 - What: `alertmesh/relays.py`, `RelayPool`: connections to Nostr relays over WebSockets.
   - `publish(event, urls)` sends an event to those relays, now or once each can be reached, and keeps each relay's answer (`results`: accepted or not, and why).

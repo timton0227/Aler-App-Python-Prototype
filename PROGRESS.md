@@ -28,8 +28,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 12 Desktop app | 4 | 5 |
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
-| 15 Internet link: warnings and calls for help reach iPhones | 4 | 9 |
-| **All** | **80** | **88** |
+| 15 Internet link: warnings and calls for help reach iPhones | 5 | 9 |
+| **All** | **81** | **88** |
 
 **Next step:** 12.4
 
@@ -403,7 +403,7 @@ switch in each app, **off** until turned on. The tests never use the real relays
       Swift: `AlertMesh/Nostr/NostrRelayManager.swift` (connect, publish, subscribe, reconnect)
       Done when: the link connects to each relay, publishes, subscribes, hands every event to a handler, reconnects after a drop, and reports how many relays are connected; tested against a relay run inside the tests
       Verify: `python3 -m pytest tests/test_relays.py`
-- [ ] 15.5 Warning app sends warnings over the internet
+- [x] 15.5 Warning app sends warnings over the internet
       Swift: `AlertMesh/AlertMesh/Services/OfficialAlertBridge.swift` (`publish`), `AlertMesh/App/AppRuntime.swift`
       Done when: with "Send over the internet" on, every warning, update and cancellation from the console is published to the built-in relays and the geo relays of its area, as the Mac console does; a cancellation carries its warning's area and expiry; the status bar says how many relays took it; off by default
       Verify: `python3 -m pytest tests/test_relays.py tests/test_warning_app.py`

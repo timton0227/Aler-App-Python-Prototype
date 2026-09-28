@@ -14,15 +14,19 @@ Each warning goes two ways:
   centre (a Mac) in the middle. Time there only moves when you press a "+ minutes"
   button in the sidebar;
 - to real phone apps (phone_app.py) on the same local network or computer, signed
-  again with the real time (see `console.NetworkShare`).
+  again with the real time (see `console.NetworkShare`);
+- with "Send over the internet" on, the same real-time copies also go to public Nostr
+  relays, where iPhones running Alert Mesh and phone apps anywhere pick them up (see
+  `alertmesh.internet`).
 
 This is free and unencumbered software released into the public domain.
 """
 import html
+import threading
 
 import streamlit as st
 
-from alertmesh import hub, labels, lan, metrics, places, style, viz, world
+from alertmesh import hub, internet, labels, lan, metrics, places, style, viz, world
 from alertmesh.console import (
     AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, NetworkShare, outcome_text, toggle_area,
 )
@@ -47,8 +51,23 @@ def network() -> lan.Broadcaster:
 
 
 @st.cache_resource
+def internet_sender() -> internet.WarningSender:
+    """The internet link, off until switched on. One for the whole program."""
+    from alertmesh.relays import RelayPool
+
+    return internet.WarningSender(RelayPool(), internet.RelayChoice.from_environment())
+
+
+def share(payload: bytes) -> bool:
+    """Real phone apps get each warning on the local network and, when switched on, on
+    the internet. True if it went on the local network (the console's outcome line)."""
+    internet_sender().send(payload)
+    return network().send(payload)
+
+
+@st.cache_resource
 def network_share() -> NetworkShare:
-    return NetworkShare(network().send)
+    return NetworkShare(share)
 
 
 def new_town(scenario: metrics.Scenario) -> None:
@@ -94,8 +113,30 @@ def town_settings() -> None:
                                           share_moving=moving, bluetooth_range_m=reach, speed_mps=s.speed_mps,
                                           seed=int(seed)))
                 st.rerun()
-        st.caption("A simulated town, plus real phone apps on this network. Nothing here uses the real internet.")
+        st.caption("A simulated town, plus real phone apps on this network. Nothing here uses the real internet "
+                   "unless \"Send over the internet\" is on.")
         st.caption(places.CREDIT)
+
+
+def set_internet() -> None:
+    sender = internet_sender()
+    sender.enabled = state.internet_on
+    if sender.enabled:
+        # Warnings already live go out too, and the relay list is brought up to date.
+        for payload in network().live():
+            sender.send(payload)
+        threading.Thread(target=sender.choice.refresh, name="relay-list", daemon=True).start()
+
+
+def internet_switch() -> None:
+    sender = internet_sender()
+    state.internet_on = sender.enabled  # the same for every browser tab
+    st.sidebar.toggle("Send over the internet", key="internet_on", on_change=set_internet,
+                      disabled=not sender.pool.available,
+                      help="Also send each warning to public Nostr relays, as the Bureau's Mac does. iPhones "
+                           "running Alert Mesh (a Debug build) and phone apps anywhere get it. Anyone can read "
+                           "what is sent there." if sender.pool.available
+                      else "Needs the websockets library: python3 -m pip install -r requirements.txt")
 
 
 def clock_box() -> None:
@@ -110,17 +151,34 @@ def clock_box() -> None:
                           help=f"Let {minutes} simulated minutes pass")
 
 
+def internet_words(sender: internet.WarningSender) -> tuple[bool, str]:
+    if not sender.pool.available:
+        return False, "Internet off · needs the websockets library"
+    if not sender.enabled:
+        return False, "Internet off"
+    connected, total = sender.pool.status()
+    words = f"Internet on · {connected} of {total} relays connected" if total else "Internet on"
+    taken = sender.status()
+    if taken is not None:
+        words += f" · last warning taken by {taken[0]} of {taken[1]}"
+    return connected > 0, words
+
+
+@st.fragment(run_every=2)
 def status_bar() -> None:
+    """Redrawn every 2 seconds on its own: relays answer after the page has run."""
     on = network().status == "on"
     words = ("Local network on · warnings go to phone apps on this network" if on
              else f"Local network {network().status}")
-    style.status_bar([(on, words)], "Signed with the development key")
+    style.status_bar([(on, words), internet_words(internet_sender())], "Signed with the development key")
 
 
 # --- Warning console (IssueWarningView) -----------------------------------------
 
 CONFIRM_BODY = ("It goes to nearby devices over Bluetooth and to phones in the area over the internet, and "
                 "to phone apps on this network. Phones treat it as an official warning.")
+CONFIRM_INTERNET = ("**\"Send over the internet\" is on:** it also goes to public relays, where iPhones and "
+                    "phone apps anywhere get it.")
 
 
 def draft_from_form() -> WarningDraft:
@@ -268,7 +326,8 @@ def console_tab() -> None:
         else:
             verb = "Update this" if updating else "Send this"
             where = "on every phone in the area?" if updating else "to every phone in the area?"
-            st.warning(f"**{verb} {level} {where}**\n\n{CONFIRM_BODY}")
+            body = CONFIRM_BODY + ("\n\n" + CONFIRM_INTERNET if internet_sender().enabled else "")
+            st.warning(f"**{verb} {level} {where}**\n\n{body}")
             with st.container(horizontal=True):
                 for draw in style.button_order(
                         lambda: st.button("Send update" if updating else "Send warning", type="primary", on_click=send),
@@ -385,6 +444,7 @@ PAGES = [(CONSOLE, ":material/edit_note:"), (MAP, ":material/map:"), (BOARD, ":m
 view = style.nav(PAGES, {}, "Warnings")
 style.shortcuts(style.nav_shortcuts(PAGES))  # ⌘1-3 (Ctrl on Windows) for the tabs
 town_settings()
+internet_switch()
 clock_box()
 status_bar()
 style.page_title(view)
