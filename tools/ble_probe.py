@@ -42,6 +42,11 @@ from alertmesh.signer import OfficialAlertSigner, WarningDraft, new_alert_id  # 
 ANNOUNCE_EVERY_S = 10
 SCAN_S = 10
 MAX_DEVICES = 3
+APPLE = 76  # Apple's Bluetooth company ID
+# An iPhone app in the background hides its service from Macs' scans (iOS moves it to
+# an "overflow" area only iPhones read), but its service is still there once connected:
+# Apple devices this close are connected to and checked.
+CLOSE_DBM = -60
 SHORT = "Hello from a laptop running the Alert Mesh prototype"
 LONG = ("This is a longer message from the laptop, sent to check that compressed packets work: "
         "flood water is over the causeway, take the high road north to the school instead.")
@@ -147,8 +152,15 @@ async def run(seconds: float, send_warning: bool) -> int:
     print(f"Compression matches Apple's: {bitchat.APPLE_COMPRESSION_OK}")
     print(f"Scanning {SCAN_S} s for devices with the Alert Mesh app open ...")
 
-    found = await BleakScanner.discover(timeout=SCAN_S, return_adv=True, service_uuids=[service])
-    devices = sorted(found.values(), key=lambda d: -d[1].rssi)[:MAX_DEVICES]
+    found = await BleakScanner.discover(timeout=SCAN_S, return_adv=True)
+    devices = sorted((d for d in found.values() if service in [u.lower() for u in d[1].service_uuids]),
+                     key=lambda d: -d[1].rssi)[:MAX_DEVICES]
+    if not devices:
+        close = sorted((d for d in found.values() if APPLE in d[1].manufacturer_data and d[1].rssi > CLOSE_DBM),
+                       key=lambda d: -d[1].rssi)[:MAX_DEVICES]
+        print(f"None advertising it; checking {len(close)} Apple device(s) close by (an app in the background "
+              "hides its service) ...")
+        devices = close
     if not devices:
         print("None found. Is the iPhone app open, with Bluetooth on, and a Debug build?")
         return 1
@@ -158,6 +170,10 @@ async def run(seconds: float, send_warning: bool) -> int:
         client = BleakClient(device, timeout=15)
         try:
             await client.connect()
+            if bitchat.CHARACTERISTIC_UUID not in [c.uuid.lower() for s in client.services for c in s.characteristics]:
+                print("  not running the Alert Mesh app (or a Release build); left alone")
+                await client.disconnect()
+                continue
             stream = bitchat.NotificationStream(time.monotonic)
             label = device.address[-5:]
 

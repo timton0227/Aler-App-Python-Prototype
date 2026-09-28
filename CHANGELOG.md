@@ -158,6 +158,14 @@ simplified, left out, or behaves differently from the app.
 - Ported from: new (it follows `BLEService+LinkLayerCentralRole.swift`: connect, discover, subscribe, then announce).
 - Differences from Swift: not applicable.
 - Verified by: a dry run of its packet handling (it verifies its own announce and compressed message); `python3 -m pytest -q` — 685 passed (`packaging/.venv-mac`).
+- First run with the user's iPhone (Debug build), 2026-09-28, from a small packaged copy of the probe (macOS lets a packaged app use Bluetooth once allowed; Claude's own shell may not):
+  - Found nothing at first: with the iPhone app in the background, iOS hides its service from Macs' scans. Connecting to the closest Apple device showed the app's service all the same.
+  - The probe now does that by itself: when no device advertises the service, it connects to Apple devices closer than -60 dBm, and keeps only those with the app's characteristic.
+  - Then, with the 512-byte link, every packet was sent whole:
+    - The iPhone's announces arrived, and every signature checked. So did those of a second iPhone ("Thai Bui"), relayed through the first with TTL 6.
+    - The laptop's announce, a short message and a long compressed message were each written and acknowledged.
+    - The iPhone then sent the laptop catch-up requests, which it sends only to a peer it has accepted.
+  - Still to confirm on the iPhone's screen: the laptop in its list of people nearby, both messages in its public chat, and a message typed on the iPhone arriving at the laptop.
 - Follow-up after a code review:
   - `bitchat.frame_length` returns None for an empty buffer instead of failing. Its only caller never passes one, so this changed no behaviour.
   - The probe reports a packet it cannot encode instead of stopping with an error.
