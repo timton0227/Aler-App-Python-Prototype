@@ -29,9 +29,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| 16 One Bluetooth mesh with iPhones | 5 | 10 |
+| 16 One Bluetooth mesh with iPhones | 6 | 10 |
 | 17 Where you are: a real position for the phone app | 6 | 7 |
-| **All** | **95** | **105** |
+| **All** | **96** | **105** |
 
 **Next step:** 12.4
 
@@ -461,7 +461,7 @@ iPhone, is done with step 16.10.
       Swift: `AlertMesh/Services/BLE/BLEService.swift` (receive and relay), `BLEIngressPacketGuard.swift`, `BLEAnnounceHandlingPolicy.swift`, `BLEPublicMessagePolicy.swift`, `BLEReceivePipeline.swift`, `AlertMesh/Services/RelayController.swift`
       Done when: `alertmesh/node.py` sends and takes the iPhone's packets: announces every 15 seconds or so and at once on a new link; public chat as plain text checked against the sender's announced key; warnings and reports as before; laptop-only private messages under their own type; leave; the iPhone's checks (clock within 2 minutes, duplicates, announce rules); relaying as the iPhone does
       Verify: `python3 -m pytest tests/test_node.py tests/test_internet.py tests/test_phone_app.py`
-- [ ] 16.6 Phone app: iPhones and laptops in one list
+- [x] 16.6 Phone app: iPhones and laptops in one list
       Done when: Chat lists iPhones and laptops nearby by name; "Message" is offered only for laptops; the message limit follows step 16.2
       Verify: `python3 -m pytest tests/test_phone_app.py`
 - [ ] 16.7 Bluetooth link in both roles (`alertmesh/ble.py`)

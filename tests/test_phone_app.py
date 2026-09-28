@@ -9,7 +9,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from streamlit.testing.v1 import AppTest
 
-from alertmesh import bitchat, geohash, phone, places, position, reports, signer, wire
+from alertmesh import bitchat, geohash, node, phone, places, position, reports, signer, wire
 from alertmesh.chat import Identity
 from alertmesh.bitchat import MessageType, Packet
 from alertmesh.node import NEARBY
@@ -33,7 +33,7 @@ class Clock:
 
 
 class Air:
-    """Records what the phone sends; `neighbours` laptops are "in range"."""
+    """Records what the phone sends; one device is "in range"."""
 
     status = "on"
 
@@ -316,7 +316,7 @@ def test_page_opens_on_now_with_three_tabs_in_the_sidebar(app):
 def test_status_bar_shows_bluetooth_and_the_local_network_on_every_tab(me, app):
     for view in ("Now", "Report", "Chat"):
         show(app, view)
-        assert "Bluetooth on · 1 laptop nearby" in page(app) and "Local network off" in page(app)
+        assert "Bluetooth on · 1 device nearby" in page(app) and "Local network off" in page(app)
 
 
 def test_i_need_help_bar_is_on_now_only(app):
@@ -557,7 +557,7 @@ def test_page_shows_the_block_what_to_do_and_the_full_warning(me, app):
 
 
 def test_page_says_how_you_are_connected(me, app):
-    assert "How you're connected" in page(app) and "1 laptop nearby can pass warnings to you" in page(app)
+    assert "How you're connected" in page(app) and "1 device nearby can pass warnings to you" in page(app)
 
 
 def test_calling_for_help_from_the_page(me, app):
@@ -670,8 +670,36 @@ def test_private_conversation_with_someone_in_range(me, app):
     assert bob.open(packet.payload).text == "just to you"
 
 
+
+def test_iphones_and_laptops_are_listed_together(me, app):
+    announce(me, Identity("9vision"), laptop=False)
+    announce(me, Identity("Bob"))
+    show(app, "Chat")
+    assert "9vision · <span class=\"am-muted\">iPhone, Nearby only</span>" in page(app)
+    assert button(app, "Message Bob")
+    assert not [b for b in app.button if b.label == "Message 9vision"]
+    assert any("private chat is laptop to laptop" in c.value for c in app.caption)
+
+
+def test_an_iphones_call_for_help_offers_no_private_message(me, app):
+    iphone = Identity("9vision")
+    announce(me, iphone, laptop=False)
+    arrive(me, MessageType.COMMUNITY_REPORT,
+           reports.encode(reports.ReportAuthor("9vision", iphone.signing_seed).sos(me.geohash, "", NOW)), iphone)
+    app.run()
+    assert "9vision needs help" in page(app)
+    assert not [b for b in app.button if b.label == "Message 9vision"]
+
+
+def test_an_iphones_nearby_message_shows_with_its_name(me, app):
+    iphone = Identity("9vision")
+    announce(me, iphone, laptop=False)
+    arrive(me, MessageType.MESSAGE, "Checking from iphone".encode(), iphone)
+    show(app, "Chat")
+    assert '<span class="am-from">9vision</span><span class="am-bub">Checking from iphone</span>' in page(app)
+
 def test_too_long_message_is_refused_with_a_reason(me, app):
     show(app, "Chat")
     app.chat_input(key="chat_text").set_value("😀" * 100).run()
-    assert any("at most 280 bytes" in w.value for w in app.warning)
+    assert any(f"at most {node.TEXT_MAX_BYTES} bytes" in w.value for w in app.warning)
     assert not [f for f in me.node.link.packets if f.type == MessageType.MESSAGE]

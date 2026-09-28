@@ -24,6 +24,18 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.6 Phone app: iPhones and laptops in one list — 2026-09-28
+- What, in `phone_app.py`:
+  - **Chat → People nearby** lists iPhones and laptops together. A laptop has a "Message" button; an iPhone shows as "name · iPhone, Nearby only", with a note that private chat is laptop to laptop.
+  - A call for help offers "Message" only when its author is a laptop in range.
+  - A private conversation can be written to only while that laptop is in range.
+  - Nearby says iPhones read it too.
+  - The message limit comes from `node.TEXT_MAX_BYTES`: 280 bytes, or 99 when this computer's compression does not match Apple's (step 16.2). So does the "Not sent" warning.
+  - The page counts "devices" instead of "laptops": the status bar ("Bluetooth on · 2 devices nearby") and "How you're connected". The call for help, "I'm safe", "No current warnings" and the module docstring now speak of phones and laptops.
+- Ported from: `AlertMesh/Views/ChatInboxView.swift` (Nearby and the people in range).
+- Differences from Swift: the iPhone offers private chat with everyone, over Noise; laptops only with laptops.
+- Verified by: `python3 -m pytest tests/test_phone_app.py` — 59 passed, 1 skipped (3 new: iPhones and laptops listed together, no private message from an iPhone's call for help, an iPhone's Nearby message with its name); `python3 -m pytest -q` — 783 passed (`packaging/.venv-mac`); 762 passed, 10 skipped (Anaconda 3.13).
+
 ## 16.5 The mesh node on the iPhone's packets — 2026-09-28
 - What: `alertmesh/node.py` now sends and takes the iPhone app's packets (`alertmesh/bitchat.py`) instead of the laptops' own frames.
   - **Sending:**

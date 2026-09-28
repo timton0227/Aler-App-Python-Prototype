@@ -16,9 +16,11 @@ Like the iPhone app, three tabs, here in a sidebar, in the iPhone app's look
 - Chat: Nearby, where everyone in range reads along, and private conversations
   (ChatInboxView).
 
-Messages travel laptop to laptop over real Bluetooth, hopping through laptops in
-between. Official warnings arrive from the warning app over the local network, and
-are passed on over Bluetooth to laptops that have no network. With "Use the internet"
+Messages travel over real Bluetooth in the iPhone app's own format, so laptops and
+iPhones running Alert Mesh share one mesh, hopping through the devices in between;
+private messages stay laptop to laptop. Official warnings arrive from the warning app
+over the local network, and are passed on over Bluetooth to devices that have no
+network. With "Use the internet"
 on in Settings, warnings and calls for help also come and go over Nostr relays, as on
 the iPhone, so the phone app and iPhones running Alert Mesh see each other's.
 
@@ -33,8 +35,7 @@ import importlib.util
 import streamlit as st
 
 from alertmesh import hub, labels, location, notifications, phone, pinmap, places, position, reports, style
-from alertmesh.chat import TEXT_MAX_BYTES
-from alertmesh.node import NEARBY
+from alertmesh.node import NEARBY, TEXT_MAX_BYTES
 from alertmesh.proximity import Urgency, sos_urgency
 from alertmesh.reports import ReportKind, ReportSeverity
 from alertmesh.wire import HazardType
@@ -101,7 +102,7 @@ def bluetooth_words() -> tuple[bool, str]:
     if bluetooth != "on":
         return False, "Bluetooth off" + (f": {reason.strip()}" if reason.strip() else "")
     count = p.node.link.neighbours()
-    return True, f"Bluetooth on · {count} {'laptop' if count == 1 else 'laptops'} nearby"
+    return True, f"Bluetooth on · {count} {'device' if count == 1 else 'devices'} nearby"
 
 
 def network_words() -> tuple[bool, str]:
@@ -349,16 +350,16 @@ def sos_sheet() -> None:
     if mine is not None:
         st.markdown(hub.one_line(f"""
 <div class="am-status-title am-t-e">Your call for help is out</div>
-<div class="am-muted">It keeps travelling between laptops until {labels.clock(mine.expires_at)}. """
+<div class="am-muted">It keeps travelling between phones and laptops until {labels.clock(mine.expires_at)}. """
                                  """Send it again whenever new people come near.</div>"""), unsafe_allow_html=True)
         st.button("Send it again", key="sos_again", on_click=p.send_sos, args=(mine.note,), width="stretch")
         st.caption("Sends it again. Everyone sees the same call for help, not a second one.")
         st.button("I'm safe now", key="sos_safe", type="primary", on_click=lambda: (p.send_safe(), close_sos()),
                   width="stretch")
-        st.caption("Tells every laptop that got your call for help that you are okay, and stops it spreading.")
+        st.caption("Tells every phone and laptop that got your call for help that you are okay, and stops it spreading.")
         return
     st.markdown(hub.one_line(f"""
-<p class="am-muted" style="font-size:14.5px">This tells every laptop near you that you need help, and they """
+<p class="am-muted" style="font-size:14.5px">This tells every phone and laptop near you that you need help, and they """
                              f"""pass it on until it reaches someone with a signal.</p>
 <p class="am-warnline">This is not 000. If you have any phone signal at all, call emergency services first.</p>
 <p class="am-muted" style="font-size:14px">It says you are {style.esc(place_words(p.geohash))}, """
@@ -379,7 +380,7 @@ def my_call_for_help() -> None:
         return
     st.markdown(hub.one_line(f"""
 <div class="am-card am-help"><div class="am-who">{style.HELP_ICON}Your call for help is out</div>
-<div class="am-muted">It keeps travelling between laptops until {labels.clock(mine.expires_at)}. """
+<div class="am-muted">It keeps travelling between phones and laptops until {labels.clock(mine.expires_at)}. """
                              f"""It says you are {style.esc(place_words(mine.geohash))}.</div></div>"""),
                 unsafe_allow_html=True)
     with st.container(horizontal=True):
@@ -432,7 +433,7 @@ def status_block(now: phone.NowStatus) -> None:
         st.markdown(hub.one_line("""
 <div class="am-card"><div class="am-status-title am-clear">No current warnings</div>
 <div class="am-muted">Keep Bluetooth on. A warning reaches this laptop over the local network, or from any """
-                                 """laptop in range that has it.</div></div>"""), unsafe_allow_html=True)
+                                 """phone or laptop in range that has it.</div></div>"""), unsafe_allow_html=True)
         return
     if now.kind is phone.NowKind.ELSEWHERE:
         count = len(now.others)
@@ -482,7 +483,7 @@ def calls_for_help_section(helps) -> None:
     """Calls for help from people nearby, red-bordered, with "Message" when that person
     is in range."""
     st.markdown('<div class="am-section">Calls for help</div>', unsafe_allow_html=True)
-    in_range = {peer.key for peer in p.node.nearby_peers()}
+    laptops = {peer.key for peer in p.node.nearby_peers() if peer.is_laptop}  # private chat is laptop to laptop
     for report in helps:
         name = report.author_nickname or "Someone"
         note = f'<div class="am-note">{style.esc(report.note)}</div>' if report.note else ""
@@ -491,7 +492,7 @@ def calls_for_help_section(helps) -> None:
 <div class="am-muted">{style.esc(places.label(report.geohash) or report.geohash)} · {labels.clock(report.created_at)}</div>
 </div>"""), unsafe_allow_html=True)
         key = report.author_signing_key.hex()
-        if key in in_range:
+        if key in laptops:
             st.button(f"Message {name}", key=f"help_msg_{key}_{report.report_id.hex()}", on_click=message_person,
                       args=(key,))
 
@@ -501,14 +502,14 @@ def connection_section() -> None:
     on, _ = bluetooth_words()
     count = p.node.link.neighbours() if on else 0
     if not on:
-        bluetooth = "Bluetooth is off, so no laptop nearby can pass warnings to you"
+        bluetooth = "Bluetooth is off, so no phone or laptop nearby can pass warnings to you"
     elif count == 0:
-        bluetooth = "No laptops nearby yet"
+        bluetooth = "No phones or laptops nearby yet"
     else:
-        bluetooth = f"{count} {'laptop' if count == 1 else 'laptops'} nearby can pass warnings to you"
+        bluetooth = f"{count} {'device' if count == 1 else 'devices'} nearby can pass warnings to you"
     network_on, _ = network_words()
     network = ("Official warnings arrive over the local network" if network_on
-               else "Local network off: warnings arrive only from laptops nearby")
+               else "Local network off: warnings arrive only from phones and laptops nearby")
     internet_on, _ = internet_words()
     if p.profile.internet and p.internet_available:
         internet = ("Warnings and calls for help also arrive over the internet" if internet_on
@@ -520,7 +521,8 @@ def connection_section() -> None:
 <div class="am-row">{style.APP_ICON}{bluetooth}</div>
 <div class="am-row">{style.APP_ICON}{network}</div>
 <div class="am-row">{style.APP_ICON}{internet}</div>
-<div class="am-muted">Warnings travel laptop to laptop over Bluetooth. They keep arriving with no internet.</div>
+<div class="am-muted">Warnings travel between phones and laptops over Bluetooth. They keep arriving with no """
+                             """internet.</div>
 </div>"""), unsafe_allow_html=True)
 
 
@@ -633,7 +635,7 @@ def conversation_name(key: str) -> str:
         return "Nearby"
     peer = p.node.peers.get(key)
     if peer:
-        return peer.announce.nickname or "Someone"
+        return peer.nickname or "Someone"
     entries = p.node.chats.conversations.get(key)
     incoming = [e for e in entries.entries if not e.outgoing] if entries else []
     return incoming[-1].message.sender_nickname if incoming else "Someone"
@@ -663,21 +665,29 @@ def chat_view() -> None:
         people = [peer for peer in p.node.nearby_peers()]
         st.markdown('<div class="am-listhead">People nearby</div>', unsafe_allow_html=True)
         if not people:
-            st.caption("Nobody yet. Other laptops running the phone app appear here when they are within "
-                       "Bluetooth range, or in range of a laptop that is.")
+            st.caption("Nobody yet. iPhones running Alert Mesh and laptops running the phone app appear here "
+                       "when they are within Bluetooth range, or in range of one that is.")
         for peer in people:
-            st.button(f"Message {peer.announce.nickname or 'Someone'}", key=f"msg_{peer.key}",
-                      icon=":material/chat_bubble:", on_click=open_conversation, args=(peer.key,))
+            name = peer.nickname or "Someone"
+            if peer.is_laptop:
+                st.button(f"Message {name}", key=f"msg_{peer.key}", icon=":material/chat_bubble:",
+                          on_click=open_conversation, args=(peer.key,), help="A laptop: private chat works")
+            else:
+                st.markdown(f'<div class="am-row">{style.esc(name)} · <span class="am-muted">iPhone, Nearby '
+                            f'only</span></div>', unsafe_allow_html=True)
+        if any(not peer.is_laptop for peer in people):
+            st.caption("iPhones read and write in Nearby. Their private messages are encrypted in a way laptops "
+                       "do not speak, so private chat is laptop to laptop.")
 
     with right:
         key = state.chat_with
         p.node.mark_read(key)
         if key == NEARBY:
-            who_reads = ("Everyone in Bluetooth range reads this, including through other laptops. "
-                         "Messages are signed, so nobody can change them on the way.")
+            who_reads = ("Everyone in Bluetooth range reads this, iPhones too, including through the devices in "
+                         "between. Messages are signed, so nobody can change them on the way.")
         else:
-            who_reads = (f"Only {conversation_name(key)} can read this. Laptops in between pass it on without "
-                         "being able to open it.")
+            who_reads = (f"Only {conversation_name(key)} can read this. Phones and laptops in between pass it on "
+                         "without being able to open it.")
         st.markdown(f'<div class="am-convhead"><b>{style.esc(conversation_name(key))}</b>'
                     f'<span>{style.esc(who_reads)}</span></div>', unsafe_allow_html=True)
         entries = conversations[key].entries if key in conversations else []
@@ -689,11 +699,12 @@ def chat_view() -> None:
                     (e.outgoing, "you" if e.outgoing else e.message.sender_key.hex(),
                      "You" if e.outgoing else (e.message.sender_nickname or "Someone"),
                      e.message.text, e.message.sent_at) for e in entries]), unsafe_allow_html=True)
-        reachable = key == NEARBY or any(peer.key == key for peer in p.node.nearby_peers())
+        reachable = key == NEARBY or any(peer.key == key and peer.is_laptop for peer in p.node.nearby_peers())
         text = st.chat_input(f"Message {conversation_name(key)}" if reachable else "Not in range right now",
                              key="chat_text", max_chars=TEXT_MAX_BYTES, disabled=not reachable)
         if text and p.node.say(text, None if key == NEARBY else key) is None:
-            st.warning("Not sent: a message is at most 280 bytes (about 280 letters, fewer with emoji).")
+            st.warning(f"Not sent: a message is at most {TEXT_MAX_BYTES} bytes (about {TEXT_MAX_BYTES} letters, "
+                       "fewer with emoji).")
         elif text:
             st.rerun()
 
