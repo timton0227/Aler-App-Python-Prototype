@@ -24,6 +24,26 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## 16.3 Announce, leave, catch-up request, fragments — 2026-09-28
+- What, in `alertmesh/bitchat.py`:
+  - `Announcement`, `encode_announcement`, `decode_announcement`: nickname, X25519 ("Noise") key, Ed25519 key, and the optional neighbours, capabilities and bridge cell. TLVs with 1-byte lengths; unknown ones are skipped.
+    - Laptops add TLV 0x70 ("takes laptop-to-laptop private messages"), which iPhones skip.
+    - `SAFE_NICKNAME_BYTES` is 26, so our announce stays under the compression threshold even where the compression self-check fails.
+  - Leave needs no payload of its own (an empty packet of type 0x03).
+  - `RequestSync`, `encode_request_sync`, `decode_request_sync`, `catch_up_request`: the catch-up request. An empty filter (P 7, M 1, as the iPhone sends when it holds nothing) asks for announces, public messages, warnings and reports.
+  - `split`, `FragmentAssembler`, `chunk_size_for`: fragments.
+    - `split` cuts a packet too big for a link into fragments: 8-byte fragment ID, index, total, original type, then a slice of the whole packet. Each fragment carries the original's sender, time, TTL and route, and is unsigned.
+    - Put back together in any order, keyed by sender and fragment ID. Unfinished ones are dropped after 30 s, and at most 128 are held.
+    - Chunks are never under 64 bytes.
+  - `NotificationStream`: notifications read as one stream and cut into packets by their headers. It skips padding and stray bytes, and drops a packet still incomplete 250 ms after it started.
+- Ported from: `AlertMesh/Protocols/Packets.swift` (`AnnouncementPacket`), `AlertMesh/Models/RequestSyncPacket.swift`, `AlertMesh/Sync/SyncTypeFlags.swift`, `AlertMesh/Sync/GossipSyncManager.swift` (the empty request), `AlertMesh/Services/BLE/BLEOutboundFragmentPlanner.swift`, `BLEFragmentAssemblyBuffer.swift`, `BLEFragmentHandler.swift`, `BLEOutboundPacketPolicy.swift` (chunk size), `AlertMesh/Services/NotificationStreamAssembler.swift`. Tests from `PacketsTests.swift`, `RequestSyncPacketFragmentFilterTests.swift`, `BLEOutboundFragmentPlannerTests.swift`, `BLEFragmentAssemblyBufferTests.swift`, `NotificationStreamAssemblerTests.swift`.
+- Differences from Swift:
+  - The laptop marker TLV (0x70) is ours.
+  - Capabilities are kept as raw bytes: the laptops advertise none and read none.
+  - The catch-up request also asks for announces and public messages (bits 0 and 1), so a laptop that arrives late sees who is near and the recent chat.
+  - These are app-target types in Swift, which the Swift cross-check package cannot reach. They are checked by the ported test cases, and against a real iPhone in step 16.4.
+- Verified by: `python3 -m pytest tests/test_bitchat.py` — 97 passed; `python3 -m pytest -q` — 685 passed (`packaging/.venv-mac`); 665 passed, 9 skipped (Anaconda 3.13).
+
 ## 16.2 Cross-check with Swift — 2026-09-28
 - What:
   - `tools/bitchat_check/`: a small Swift program built on the iPhone app's own BitFoundation package (by path; it builds in its own `.build/`, never inside `../alert-mesh`) and Apple's CryptoKit. It encodes, signs, decodes and verifies packets on request.

@@ -29,8 +29,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done and verified · `[!]` bloc
 | 13 Two apps: phone app and warning app | 8 | 9 |
 | 14 Desktop look: the iPhone app's style, on Mac and Windows | 6 | 7 |
 | 15 Internet link: warnings and calls for help reach iPhones | 8 | 9 |
-| 16 One Bluetooth mesh with iPhones | 2 | 10 |
-| **All** | **86** | **98** |
+| 16 One Bluetooth mesh with iPhones | 3 | 10 |
+| **All** | **87** | **98** |
 
 **Next step:** 12.4
 
@@ -449,7 +449,7 @@ iPhone, is done with step 16.10.
 - [x] 16.2 Cross-check with Swift
       Done when: a small Swift package built on the app's BitFoundation decodes and verifies packets made in Python, and Python decodes and verifies packets made in Swift; Python's compression is compared with Apple's, and the answer is kept as test data that the apps check when they start (if they differ, messages stay under 100 bytes, where nothing is compressed)
       Verify: `python3 tools/cross_check_bitchat.py` (Mac with Swift)
-- [ ] 16.3 Announce, leave, catch-up request, fragments
+- [x] 16.3 Announce, leave, catch-up request, fragments
       Swift: `AlertMesh/Protocols/Packets.swift` (announce), `AlertMesh/Models/RequestSyncPacket.swift`, `AlertMesh/Services/BLE/BLEOutboundFragmentPlanner.swift`, `BLEFragmentAssemblyBuffer.swift`, `AlertMesh/Services/NotificationStreamAssembler.swift`
       Done when: announces (nickname, X25519 key, Ed25519 key, and our "laptop" marker the iPhone skips), leave and catch-up requests are made and read; long packets are cut into fragments and put back together; a stream of notifications is cut back into packets
       Verify: `python3 -m pytest tests/test_bitchat.py`

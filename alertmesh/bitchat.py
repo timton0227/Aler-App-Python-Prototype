@@ -35,6 +35,7 @@ bytes. On the air only encrypted types are padded; the signed bytes always are.
 This is free and unencumbered software released into the public domain.
 """
 import hashlib
+import os
 import zlib
 from dataclasses import dataclass, replace
 from enum import IntEnum
@@ -380,11 +381,383 @@ def dedup_key(packet: Packet) -> str:
     return f"{packet.sender_id.hex()}-{packet.timestamp}-{packet.type}-{digest}"
 
 
+
+# --- Announce (AlertMesh/Protocols/Packets.swift, AnnouncementPacket) --------------------
+#
+# TLVs with a 1-byte type and a 1-byte length. The iPhone needs the first three, and
+# skips types it does not know, so laptops add one of their own: 0x70, "this device
+# takes laptop-to-laptop private messages".
+
+
+class AnnounceTLV(IntEnum):
+    NICKNAME = 0x01
+    NOISE_KEY = 0x02  # X25519; the laptop's chat key
+    SIGNING_KEY = 0x03  # Ed25519
+    NEIGHBORS = 0x04  # peer IDs, 8 bytes each, at most 10
+    CAPABILITIES = 0x05
+    BRIDGE_GEOHASH = 0x06
+    LAPTOP = 0x70  # ours
+
+
+LAPTOP_MARKER = b"\x01"  # version 1 of the laptop private-message format
+
+
+@dataclass(frozen=True)
+class Announcement:
+    nickname: str
+    noise_key: bytes
+    signing_key: bytes
+    neighbors: tuple[bytes, ...] = ()
+    capabilities: bytes | None = None
+    bridge_geohash: str | None = None
+    laptop: bool = False  # sent by a laptop: it can take private messages
+
+
+def encode_announcement(a: Announcement) -> bytes | None:
+    nickname = a.nickname.encode()
+    if len(nickname) > 255 or len(a.noise_key) > 255 or len(a.signing_key) > 255:
+        return None
+    out = bytearray()
+    for kind, value in ((AnnounceTLV.NICKNAME, nickname), (AnnounceTLV.NOISE_KEY, a.noise_key),
+                        (AnnounceTLV.SIGNING_KEY, a.signing_key)):
+        out += bytes([kind, len(value)]) + value
+    neighbors = b"".join(a.neighbors[:10])
+    if neighbors and len(neighbors) % 8 == 0:
+        out += bytes([AnnounceTLV.NEIGHBORS, len(neighbors)]) + neighbors
+    if a.capabilities is not None:
+        if len(a.capabilities) > 255:
+            return None
+        out += bytes([AnnounceTLV.CAPABILITIES, len(a.capabilities)]) + a.capabilities
+    if a.bridge_geohash:
+        cell = a.bridge_geohash.encode()
+        if len(cell) <= 12:
+            out += bytes([AnnounceTLV.BRIDGE_GEOHASH, len(cell)]) + cell
+    if a.laptop:
+        out += bytes([AnnounceTLV.LAPTOP, len(LAPTOP_MARKER)]) + LAPTOP_MARKER
+    return bytes(out)
+
+
+def decode_announcement(data: bytes) -> Announcement | None:
+    """None without a nickname (valid UTF-8), a noise key and a signing key."""
+    fields: dict = {}
+    offset = 0
+    while offset + 2 <= len(data):
+        kind, length = data[offset], data[offset + 1]
+        offset += 2
+        if offset + length > len(data):
+            return None
+        value = data[offset:offset + length]
+        offset += length
+        if kind == AnnounceTLV.NICKNAME:
+            try:
+                fields["nickname"] = value.decode()
+            except UnicodeDecodeError:
+                fields.pop("nickname", None)
+        elif kind == AnnounceTLV.NOISE_KEY:
+            fields["noise_key"] = value
+        elif kind == AnnounceTLV.SIGNING_KEY:
+            fields["signing_key"] = value
+        elif kind == AnnounceTLV.NEIGHBORS and length and length % 8 == 0:
+            fields["neighbors"] = tuple(value[i:i + 8] for i in range(0, length, 8))
+        elif kind == AnnounceTLV.CAPABILITIES:
+            fields["capabilities"] = value
+        elif kind == AnnounceTLV.BRIDGE_GEOHASH and length <= 12:
+            try:
+                fields["bridge_geohash"] = value.decode()
+            except UnicodeDecodeError:
+                pass
+        elif kind == AnnounceTLV.LAPTOP and value == LAPTOP_MARKER:
+            fields["laptop"] = True
+    if not {"nickname", "noise_key", "signing_key"} <= fields.keys():
+        return None
+    return Announcement(**fields)
+
+
+# --- Catch-up request (AlertMesh/Models/RequestSyncPacket.swift, SyncTypeFlags.swift) ---
+#
+# "Send me what you hold that is not in this filter." TLVs with a 1-byte type and a
+# 2-byte length. The filter is a Golomb-coded set of what the asker already has; an
+# empty one (M = 1, no data) asks for everything, as the iPhone itself does when it
+# holds nothing. The iPhone answers with its held packets, TTL 0, the RSR flag set.
+
+SYNC_BITS = {MessageType.ANNOUNCE: 0, MessageType.MESSAGE: 1, MessageType.LEAVE: 2,
+             MessageType.NOISE_HANDSHAKE: 3, MessageType.NOISE_ENCRYPTED: 4, MessageType.FRAGMENT: 5,
+             MessageType.REQUEST_SYNC: 6, MessageType.FILE_TRANSFER: 7,
+             MessageType.OFFICIAL_ALERT: 11, MessageType.COMMUNITY_REPORT: 12}
+GCS_MAX_P = 32
+GCS_P = 7  # GCSFilter.deriveP(targetFpr: 0.01)
+SYNC_MAX_ACCEPT_BYTES = 1024
+
+
+def sync_types(*types: MessageType) -> int:
+    return sum(1 << SYNC_BITS[t] for t in set(types))
+
+
+# What a laptop asks for on a new link: people nearby and their recent public chat, and
+# the warnings and reports the other device holds.
+CATCH_UP_TYPES = sync_types(MessageType.ANNOUNCE, MessageType.MESSAGE, MessageType.OFFICIAL_ALERT,
+                            MessageType.COMMUNITY_REPORT)
+
+
+@dataclass(frozen=True)
+class RequestSync:
+    p: int
+    m: int
+    data: bytes
+    types: int | None = None  # SYNC_BITS; None means announces and messages
+    since: int | None = None  # ms
+    fragment_filter: str | None = None
+
+
+def catch_up_request(types: int = CATCH_UP_TYPES) -> RequestSync:
+    return RequestSync(GCS_P, 1, b"", types)
+
+
+def _tlv16(kind: int, value: bytes) -> bytes:
+    return bytes([kind]) + len(value).to_bytes(2, "big") + value
+
+
+def _types_bytes(types: int) -> bytes:
+    out = types.to_bytes(8, "little").rstrip(b"\x00")
+    return out
+
+
+def encode_request_sync(r: RequestSync) -> bytes:
+    out = _tlv16(0x01, bytes([r.p & 0xFF])) + _tlv16(0x02, r.m.to_bytes(4, "big")) + _tlv16(0x03, r.data)
+    if r.types:
+        out += _tlv16(0x04, _types_bytes(r.types))
+    if r.since is not None:
+        out += _tlv16(0x05, r.since.to_bytes(8, "big"))
+    if r.fragment_filter is not None:
+        out += _tlv16(0x06, r.fragment_filter.encode())
+    return out
+
+
+def decode_request_sync(data: bytes, max_accept: int = SYNC_MAX_ACCEPT_BYTES) -> RequestSync | None:
+    fields: dict = {}
+    offset = 0
+    while offset + 3 <= len(data):
+        kind = data[offset]
+        length = int.from_bytes(data[offset + 1:offset + 3], "big")
+        offset += 3
+        if offset + length > len(data):
+            return None
+        value = data[offset:offset + length]
+        offset += length
+        if kind == 0x01 and length == 1:
+            fields["p"] = value[0]
+        elif kind == 0x02 and length == 4:
+            fields["m"] = int.from_bytes(value, "big")
+        elif kind == 0x03:
+            if length > max_accept:
+                return None
+            fields["data"] = value
+        elif kind == 0x04 and 1 <= length <= 8:
+            fields["types"] = int.from_bytes(value, "little") & sum(1 << b for b in SYNC_BITS.values())
+        elif kind == 0x05 and length == 8:
+            fields["since"] = int.from_bytes(value, "big")
+        elif kind == 0x06 and length <= max_accept:
+            try:
+                fields["fragment_filter"] = value.decode()
+            except UnicodeDecodeError:
+                pass
+    if not {"p", "m", "data"} <= fields.keys() or not 1 <= fields["p"] <= GCS_MAX_P or fields["m"] <= 0:
+        return None
+    return RequestSync(**fields)
+
+
+# --- Fragments (BLEOutboundFragmentPlanner.swift, BLEFragmentAssemblyBuffer.swift) ------
+#
+# A packet too big for a link goes as several FRAGMENT packets. Each payload is
+#     fragment ID 8 | index 2 | total 2 | original type 1 | a slice of the whole packet
+# and the fragments carry the original's sender, time, TTL and route, unsigned. The
+# whole packet is checked (signature and all) once it is put back together.
+
+FRAGMENT_ID_SIZE = 8
+FRAGMENT_HEADER_SIZE = 13
+MIN_CHUNK = 64
+MAX_FRAGMENTS = 10_000
+FRAGMENT_LIFETIME_S = 30.0  # TransportConfig.bleFragmentLifetimeSeconds
+MAX_ASSEMBLIES = 128  # TransportConfig.bleMaxInFlightAssemblies
+MAX_ASSEMBLED_BYTES = 1024 * 1024  # FileTransferLimits.maxPayloadBytes
+LINK_OVERHEAD = 42  # BLEOutboundPacketPolicy: chunk = max(64, link limit - 42)
+
+
+def chunk_size_for(link_limit: int) -> int:
+    return max(MIN_CHUNK, link_limit - LINK_OVERHEAD)
+
+
+def split(packet: Packet, chunk_size: int, fragment_id: bytes | None = None) -> list[Packet]:
+    """The packet (already signed) as fragments of at most `chunk_size` bytes of it."""
+    whole = encode(packet)
+    if whole is None:
+        return []
+    chunk_size = max(MIN_CHUNK, chunk_size)
+    fragment_id = fragment_id or os.urandom(FRAGMENT_ID_SIZE)
+    pieces = [whole[i:i + chunk_size] for i in range(0, len(whole), chunk_size)]
+    return [Packet(MessageType.FRAGMENT, packet.sender_id, packet.timestamp,
+                   fragment_id + index.to_bytes(2, "big") + len(pieces).to_bytes(2, "big") + bytes([packet.type])
+                   + piece, packet.ttl, packet.recipient_id, None, 2 if packet.route else 1, packet.route,
+                   packet.is_rsr)
+            for index, piece in enumerate(pieces)]
+
+
+@dataclass(frozen=True)
+class FragmentHeader:
+    key: tuple[bytes, bytes]  # (sender, fragment ID)
+    index: int
+    total: int
+    original_type: int
+    data: bytes
+
+
+def fragment_header(packet: Packet) -> FragmentHeader | None:
+    payload = packet.payload
+    if len(payload) < FRAGMENT_HEADER_SIZE:
+        return None
+    index, total = int.from_bytes(payload[8:10], "big"), int.from_bytes(payload[10:12], "big")
+    if not (0 < total <= MAX_FRAGMENTS and 0 <= index < total):
+        return None
+    return FragmentHeader((packet.sender_id, payload[:8]), index, total, payload[12], payload[13:])
+
+
+class FragmentAssembler:
+    """Puts fragments back together. `add` returns the whole packet's bytes when the
+    last piece arrives. Unfinished packets are dropped after 30 seconds, and at most
+    128 are held at once (the oldest goes first)."""
+
+    def __init__(self, clock):
+        self.clock = clock  # seconds
+        self._pieces: dict[tuple, dict[int, bytes]] = {}
+        self._started: dict[tuple, float] = {}
+
+    def add(self, packet: Packet) -> bytes | None:
+        header = fragment_header(packet)
+        if header is None:
+            return None
+        now = self.clock()
+        for key in [k for k, t in self._started.items() if now - t > FRAGMENT_LIFETIME_S]:
+            self._drop(key)
+        if header.key not in self._pieces:
+            if len(self._pieces) >= MAX_ASSEMBLIES:
+                self._drop(min(self._started, key=self._started.get))
+            self._pieces[header.key], self._started[header.key] = {}, now
+        pieces = self._pieces[header.key]
+        limit = MAX_FRAMED_BYTES if header.original_type in (MessageType.FILE_TRANSFER,
+                                                             MessageType.NOISE_ENCRYPTED) else MAX_ASSEMBLED_BYTES
+        if sum(map(len, pieces.values())) + len(header.data) > limit:
+            self._drop(header.key)
+            return None
+        pieces[header.index] = header.data
+        if len(pieces) != header.total:
+            return None
+        self._drop(header.key)
+        return b"".join(pieces[i] for i in range(header.total))
+
+    def _drop(self, key) -> None:
+        self._pieces.pop(key, None)
+        self._started.pop(key, None)
+
+
+# --- Notifications as a stream (AlertMesh/Services/NotificationStreamAssembler.swift) --
+#
+# Notifications from an iPhone are read as one stream of bytes and cut into packets by
+# their headers, so a packet split over two notifications, or two packets in one, both
+# come out right. Padding between packets is skipped; a packet still incomplete after
+# 250 ms is dropped.
+
+STREAM_STALL_S = 0.25  # TransportConfig.bleAssemblerStallResetMs
+STREAM_HARD_CAP = 8 * 1024 * 1024  # TransportConfig.bleNotificationAssemblerHardCapBytes
+
+
+def frame_length(buffer: bytes) -> int | None:
+    """The length of the packet at the start of `buffer`, from its header; None when
+    too little has arrived to tell, 0 when the header is not a packet's."""
+    version = buffer[0]
+    header_size = V2_HEADER_SIZE if version == 2 else V1_HEADER_SIZE
+    prefix = header_size + SENDER_ID_SIZE
+    if len(buffer) < prefix:
+        return None
+    flags = buffer[11]
+    length = int.from_bytes(buffer[12:16] if version == 2 else buffer[12:14], "big")
+    total = prefix + length
+    if flags & Flags.HAS_RECIPIENT:
+        total += RECIPIENT_ID_SIZE
+    if flags & Flags.HAS_SIGNATURE:
+        total += SIGNATURE_SIZE
+    if version >= 2 and flags & Flags.HAS_ROUTE:
+        at = prefix + (RECIPIENT_ID_SIZE if flags & Flags.HAS_RECIPIENT else 0)
+        if len(buffer) <= at:
+            return None
+        total += 1 + buffer[at] * SENDER_ID_SIZE
+    if flags & Flags.IS_COMPRESSED and length < (4 if version == 2 else 2):
+        return 0
+    return total if 0 < total <= STREAM_HARD_CAP else 0
+
+
+class NotificationStream:
+    def __init__(self, clock):
+        self.clock = clock  # seconds
+        self._buffer = b""
+        self._waiting_since: float | None = None
+        self._waiting_for = 0
+
+    def _skip_padding(self) -> bool:
+        if not self._buffer or self._buffer[0] in (1, 2):
+            return False
+        n = self._buffer[0]
+        if n == 0 or n > len(self._buffer) or self._buffer[:n] != bytes([n]) * n:
+            return False
+        self._buffer = self._buffer[n:]
+        self._waiting_since, self._waiting_for = None, 0
+        return True
+
+    def append(self, chunk: bytes) -> list[bytes]:
+        """Whole packets that `chunk` completes, in order."""
+        if not chunk:
+            return []
+        self._buffer += chunk
+        if len(self._buffer) > STREAM_HARD_CAP:
+            self._reset()
+            return []
+        frames = []
+        now = self.clock()
+        while len(self._buffer) >= V1_HEADER_SIZE + SENDER_ID_SIZE:
+            if self._buffer[0] not in (1, 2):
+                if not self._skip_padding():
+                    self._buffer = self._buffer[1:]  # not the start of a packet
+                    self._waiting_since, self._waiting_for = None, 0
+                continue
+            length = frame_length(self._buffer)
+            if length is None:
+                break
+            if length == 0:
+                self._reset()
+                break
+            if len(self._buffer) < length:
+                if self._waiting_since is None or length != self._waiting_for:
+                    self._waiting_since, self._waiting_for = now, length
+                elif now - self._waiting_since >= STREAM_STALL_S:
+                    self._reset()
+                break
+            frames.append(self._buffer[:length])
+            self._buffer = self._buffer[length:]
+            self._waiting_since, self._waiting_for = None, 0
+            self._skip_padding()
+        self._skip_padding()
+        if self._buffer and not any(self._buffer):
+            self._reset()
+        return frames
+
+    def _reset(self) -> None:
+        self._buffer, self._waiting_since, self._waiting_for = b"", None, 0
+
+
 # True when this computer compresses as Apple does. When it does not, the phone app
 # keeps what it signs under the compression threshold (MESSAGE_MAX_BYTES), so nothing
 # it signs is ever compressed.
 APPLE_COMPRESSION_OK = compress(_APPLE_SAMPLE[0]) == _APPLE_SAMPLE[1]
-# Chat text and nickname limits that keep a signed payload uncompressed (an announce is
-# 70 bytes plus the nickname).
+# Chat text and nickname limits that keep a signed payload uncompressed (our announce is
+# 73 bytes plus the nickname: three TLVs and the laptop marker).
 SAFE_MESSAGE_BYTES = COMPRESSION_THRESHOLD - 1
-SAFE_NICKNAME_BYTES = COMPRESSION_THRESHOLD - 1 - 70
+SAFE_NICKNAME_BYTES = COMPRESSION_THRESHOLD - 1 - 73

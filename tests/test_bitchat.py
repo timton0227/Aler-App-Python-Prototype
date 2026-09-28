@@ -347,3 +347,252 @@ def test_compression_matches_apple_when_the_self_check_says_so():
 def test_what_the_phone_app_signs_stays_uncompressed_under_the_safe_limits():
     assert not bitchat.should_compress(b"x" * bitchat.SAFE_MESSAGE_BYTES)
     assert bitchat.SAFE_MESSAGE_BYTES == 99
+
+
+# --- Announce ---------------------------------------------------------------------------
+# Ported from: ../alert-mesh/AlertMeshTests/Protocols/PacketsTests.swift
+
+KEY_A, KEY_B = b"\x11" * 32, b"\x22" * 32
+
+
+def tlv(kind, value):
+    return bytes([kind, len(value)]) + value
+
+
+def test_announcement_round_trips_neighbors_and_skips_unknown_tlvs():
+    neighbors = tuple(bytes([i]) * 8 for i in range(12))
+    encoded = bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B, neighbors)) + tlv(0xFF, b"\xab")
+    decoded = bitchat.decode_announcement(encoded)
+    assert (decoded.nickname, decoded.noise_key, decoded.signing_key) == ("alice", KEY_A, KEY_B)
+    assert len(decoded.neighbors) == 10 and decoded.neighbors[0] == neighbors[0] and decoded.neighbors[-1] == neighbors[9]
+
+
+def test_announcement_encode_rejects_oversized_fields_and_skips_invalid_neighbor_groups():
+    assert bitchat.encode_announcement(bitchat.Announcement("a" * 256, KEY_A, KEY_B)) is None
+    assert bitchat.encode_announcement(bitchat.Announcement("alice", b"\x55" * 256, KEY_B)) is None
+    assert bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, b"\x66" * 256)) is None
+    assert (bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B, (b"\x01\x02\x03",)))
+            == bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B)))
+
+
+def test_announcement_decode_rejects_missing_fields_and_truncation():
+    assert bitchat.decode_announcement(tlv(1, b"alice") + tlv(2, KEY_A)) is None
+    valid = bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B))
+    assert bitchat.decode_announcement(valid[:-1]) is None
+    assert bitchat.decode_announcement(tlv(1, b"\xff\xfe") + tlv(2, KEY_A) + tlv(3, KEY_B)) is None  # not UTF-8
+
+
+def test_announcement_decode_ignores_invalid_neighbor_lengths():
+    encoded = bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B)) + tlv(4, b"\x99" * 7)
+    assert bitchat.decode_announcement(encoded).neighbors == ()
+
+
+def test_announcement_capabilities_survive_as_bytes():
+    plain = bitchat.encode_announcement(bitchat.Announcement("alice", KEY_A, KEY_B))
+    assert bitchat.decode_announcement(plain).capabilities is None
+    assert bitchat.decode_announcement(plain + tlv(5, b"\x80\x01")).capabilities == b"\x80\x01"
+
+
+def test_the_laptop_marker_round_trips_and_is_the_last_tlv():
+    a = bitchat.Announcement("Laptop", KEY_A, KEY_B, laptop=True)
+    encoded = bitchat.encode_announcement(a)
+    assert encoded.endswith(tlv(0x70, b"\x01"))
+    assert bitchat.decode_announcement(encoded) == a
+    assert not bitchat.decode_announcement(encoded[:-3]).laptop  # an iPhone's announce
+    assert not bitchat.decode_announcement(encoded[:-1] + b"\x02").laptop  # a later format we do not know
+
+
+def test_our_announce_stays_uncompressed_up_to_the_safe_nickname():
+    a = bitchat.Announcement("n" * bitchat.SAFE_NICKNAME_BYTES, KEY_A, KEY_B, laptop=True)
+    assert len(bitchat.encode_announcement(a)) == bitchat.COMPRESSION_THRESHOLD - 1
+
+
+# --- Catch-up request ---------------------------------------------------------------------
+# Ported from: ../alert-mesh/AlertMeshTests/Sync/RequestSyncPacketFragmentFilterTests.swift and
+# the RequestSyncPacket / SyncTypeFlags wire rules.
+
+
+def test_the_catch_up_request_is_an_empty_filter_for_people_chat_warnings_and_reports():
+    raw = bitchat.encode_request_sync(bitchat.catch_up_request())
+    assert raw == bytes.fromhex("010001" "07" "020004" "00000001" "030000" "040002" "0318")
+    decoded = bitchat.decode_request_sync(raw)
+    assert (decoded.p, decoded.m, decoded.data) == (7, 1, b"")
+    assert decoded.types == (1 << 0) | (1 << 1) | (1 << 11) | (1 << 12)
+
+
+def test_request_sync_round_trips_since_and_fragment_filter():
+    r = bitchat.RequestSync(8, 1000, b"\x12\x34", bitchat.sync_types(MessageType.OFFICIAL_ALERT), 1_790_000_000_000,
+                            "0011223344556677")
+    assert bitchat.decode_request_sync(bitchat.encode_request_sync(r)) == r
+
+
+def test_request_sync_decode_rejects_bad_parameters_and_ignores_unknown_tlvs():
+    good = bitchat.encode_request_sync(bitchat.catch_up_request())
+    assert bitchat.decode_request_sync(good + b"\x7f\x00\x01\x00") is not None
+    assert bitchat.decode_request_sync(good[:-1]) is None  # truncated
+    for p, m in ((0, 1), (33, 1), (7, 0)):
+        assert bitchat.decode_request_sync(bitchat.encode_request_sync(bitchat.RequestSync(p, m, b""))) is None
+    too_big = bitchat.RequestSync(7, 10, b"\x00" * 1025)
+    assert bitchat.decode_request_sync(bitchat.encode_request_sync(too_big)) is None
+    oversized_filter = bitchat.RequestSync(7, 1, b"", None, None, "a" * 1025)
+    assert bitchat.decode_request_sync(bitchat.encode_request_sync(oversized_filter)).fragment_filter is None
+
+
+# --- Fragments -------------------------------------------------------------------------
+# Ported from: ../alert-mesh/AlertMeshTests/Services/BLEOutboundFragmentPlannerTests.swift and
+# BLEFragmentAssemblyBufferTests.swift.
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def big_packet(size=600):
+    identity = Identity("Big", bytes(range(64)))
+    return identity.sign_packet(packet(os.urandom(size), type=MessageType.OFFICIAL_ALERT, ttl=7,
+                                       sender_id=identity.peer_id)), identity
+
+
+def test_split_preserves_the_packet_and_copies_sender_time_ttl():
+    original, identity = big_packet()
+    fragments = bitchat.split(original, 150, fragment_id=b"\x42" * 8)
+    whole = bitchat.encode(original)
+    assert len(fragments) == -(-len(whole) // 150)
+    for i, f in enumerate(fragments):
+        assert (f.type, f.sender_id, f.timestamp, f.ttl, f.signature) == (0x20, original.sender_id, NOW, 7, None)
+        assert f.payload[:8] == b"\x42" * 8
+        assert int.from_bytes(f.payload[8:10], "big") == i and int.from_bytes(f.payload[10:12], "big") == len(fragments)
+        assert f.payload[12] == MessageType.OFFICIAL_ALERT
+    assembler = bitchat.FragmentAssembler(Clock())
+    results = [assembler.add(bitchat.decode(bitchat.encode(f))) for f in reversed(fragments)]
+    assert results[:-1] == [None] * (len(fragments) - 1) and results[-1] == whole
+    back = bitchat.decode(results[-1])
+    assert back.payload == original.payload and bitchat.verify(back, identity.signing_key)
+
+
+def test_chunks_are_never_below_64_bytes():
+    original, _ = big_packet(300)
+    assert all(len(f.payload) - 13 <= 64 for f in bitchat.split(original, 10))
+    assert bitchat.chunk_size_for(80) == 64 and bitchat.chunk_size_for(182) == 140
+
+
+def test_route_aware_fragments_use_version_two():
+    original = packet(os.urandom(300), version=2, route=(bytes(8),))
+    assert all(f.version == 2 and f.route == (bytes(8),) for f in bitchat.split(original, 100))
+
+
+def fragment(fid=b"\x01" * 8, index=0, total=2, data=b"x", sender=SENDER, kind=2):
+    return packet(fid + index.to_bytes(2, "big") + total.to_bytes(2, "big") + bytes([kind]) + data,
+                  type=MessageType.FRAGMENT, sender_id=sender)
+
+
+def test_duplicates_do_not_complete_early_and_order_does_not_matter():
+    assembler = bitchat.FragmentAssembler(Clock())
+    assert assembler.add(fragment(index=1, data=b"B")) is None
+    assert assembler.add(fragment(index=1, data=b"B")) is None
+    assert assembler.add(fragment(index=0, data=b"A")) == b"AB"
+
+
+def test_same_fragment_id_from_two_senders_stays_apart():
+    assembler = bitchat.FragmentAssembler(Clock())
+    assembler.add(fragment(index=0, data=b"A"))
+    assert assembler.add(fragment(index=1, data=b"Z", sender=b"\x99" * 8)) is None
+    assert assembler.add(fragment(index=1, data=b"B")) == b"AB"
+
+
+@pytest.mark.parametrize("bad", [fragment(total=0), fragment(index=2, total=2), fragment(total=10_001),
+                                 packet(b"\x01" * 12, type=MessageType.FRAGMENT)])
+def test_invalid_fragment_headers_are_refused(bad):
+    assert bitchat.fragment_header(bad) is None
+    assert bitchat.FragmentAssembler(Clock()).add(bad) is None
+
+
+def test_unfinished_packets_expire_after_30_seconds():
+    clock = Clock()
+    assembler = bitchat.FragmentAssembler(clock)
+    assembler.add(fragment(index=0, data=b"A"))
+    clock.now += 31
+    assert assembler.add(fragment(index=1, data=b"B")) is None  # its first half is gone
+    assert assembler.add(fragment(index=0, data=b"A")) == b"AB"
+
+
+def test_at_most_128_assemblies_the_oldest_goes_first():
+    clock = Clock()
+    assembler = bitchat.FragmentAssembler(clock)
+    for i in range(129):
+        clock.now += 0.001
+        assembler.add(fragment(fid=i.to_bytes(8, "big"), index=0, data=b"A"))
+    assert assembler.add(fragment(fid=(0).to_bytes(8, "big"), index=1, data=b"B")) is None  # evicted
+    assert assembler.add(fragment(fid=(128).to_bytes(8, "big"), index=1, data=b"B")) == b"AB"
+
+
+def test_an_assembly_over_the_size_limit_is_dropped(monkeypatch):
+    monkeypatch.setattr(bitchat, "MAX_ASSEMBLED_BYTES", 10)
+    assembler = bitchat.FragmentAssembler(Clock())
+    assert assembler.add(fragment(index=0, total=3, data=b"12345678")) is None
+    assert assembler.add(fragment(index=1, total=3, data=b"12345")) is None  # 13 > 10: dropped
+    assert assembler.add(fragment(index=2, total=3, data=b"1")) is None
+
+
+# --- Notifications as a stream ---------------------------------------------------------------
+# Ported from: ../alert-mesh/AlertMeshTests/NotificationStreamAssemblerTests.swift
+
+
+def stream_packet(ts=0x0102030405):
+    return packet(b"\xde\xad\xbe\xef", type=MessageType.MESSAGE, timestamp=ts)
+
+
+def test_one_frame_across_chunks():
+    frame = bitchat.encode(stream_packet())
+    stream = bitchat.NotificationStream(Clock())
+    assert stream.append(frame[:20]) == []
+    assert stream.append(frame[20:]) == [frame]
+    assert bitchat.NotificationStream(Clock()).append(frame) == [frame]
+
+
+def test_several_frames_in_order():
+    one, two = bitchat.encode(stream_packet(0xABC)), bitchat.encode(stream_packet(0xDEF))
+    stream = bitchat.NotificationStream(Clock())
+    assert stream.append((one + two)[:20]) == []
+    assert stream.append((one + two)[20:]) == [one, two]
+
+
+def test_a_stray_byte_before_a_frame_is_dropped():
+    frame = bitchat.encode(stream_packet(0xF00))
+    assert bitchat.NotificationStream(Clock()).append(b"\x00" + frame) == [frame]
+
+
+def test_padding_between_frames_is_skipped():
+    one = bitchat.encode(stream_packet(0x111), padding=True)
+    two = bitchat.encode(stream_packet(0x222), padding=True)
+    stream = bitchat.NotificationStream(Clock())
+    [first] = stream.append(one)
+    [second] = stream.append(two)
+    assert bitchat.decode(first).timestamp == 0x111 and bitchat.decode(second).timestamp == 0x222
+
+
+def test_a_frame_still_incomplete_after_250_ms_is_dropped():
+    clock = Clock()
+    frame = bitchat.encode(packet(b"x" * 60, type=MessageType.MESSAGE))
+    later = bitchat.encode(stream_packet(0x2))
+    stream = bitchat.NotificationStream(clock)
+    assert stream.append(frame[:25]) == []
+    clock.now += 0.1
+    assert stream.append(frame[25:30]) == []  # still waiting
+    clock.now += 0.3
+    assert stream.append(frame[30:35]) == []  # waited too long: thrown away
+    assert stream.append(later) == [later]
+
+
+def test_a_compressed_frame_comes_through_whole():
+    text = ("Flood water over the causeway, take the high road north to the school. " * 20).encode()
+    frame = bitchat.encode(packet(text, type=MessageType.MESSAGE))
+    stream = bitchat.NotificationStream(Clock())
+    got = []
+    for i in range(0, len(frame), 30):
+        got += stream.append(frame[i:i + 30])
+    assert got == [frame] and bitchat.decode(got[0]).payload == text
