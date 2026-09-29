@@ -93,6 +93,14 @@ class WarningSender:
             self.last_event, self.last_relays = event, relays
         return True
 
+    def learn(self, payload: bytes) -> None:
+        """Remember a warning's area and end without sending it, so its cancellation can
+        go online (a warning an earlier run of the warning app sent)."""
+        item = wire.decode(payload)
+        if isinstance(item, wire.OfficialAlert):
+            with self._lock:
+                self._areas[item.alert_id] = (tuple(item.area_cells), item.expires_at)
+
     def status(self) -> tuple[int, int] | None:
         """(relays that took the last warning, relays it went to), or None before any."""
         with self._lock:

@@ -39,6 +39,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from collections import deque
 
 from alertmesh import bitchat
@@ -61,7 +62,12 @@ DEVICE_GONE_S = 30.0
 CONNECT_TIMEOUT_S = 10.0
 # After a device fails to connect, leave it alone this long before trying again.
 RETRY_AFTER_S = 15.0
-# A device checked and found not to run Alert Mesh is not checked again for this long.
+# An Apple device being checked (it may be an iPhone with the app in the background) that
+# failed to connect is tried again after this long: not soon, as most such devices are
+# not ours, but not 5 minutes either, or an iPhone that was slow once stays unlinked.
+CHECK_AGAIN_S = 60.0
+# A device checked and found not to run Alert Mesh is not checked again for this long,
+# unless it starts offering the service (its app was opened).
 NOT_OURS_S = 300.0
 CONNECT_EVERY_S = 1.0
 
@@ -139,6 +145,13 @@ class BleLink:
         if self._loop is not None and self._queue is not None:
             self._loop.call_soon_threadsafe(self._queue.put_nowait, raw)
 
+    def full_status(self) -> str:
+        """`status`, and why devices cannot connect to this laptop when it is not offering
+        the service: then only iPhones with the app open, or very close, are linked."""
+        if self.status == "on" and isinstance(self.advertising, str):
+            return f"on: {self.advertising}"
+        return self.status
+
     def neighbours(self) -> int:
         """Devices linked right now, either way (one linked both ways may count twice)."""
         with self._lock:
@@ -175,6 +188,14 @@ class BleLink:
             self.advertising = f"not offering the service: {error}"
 
     async def _advertise(self) -> None:
+        if sys.platform == "win32":  # bless cannot be used on Windows (alertmesh/ble_windows.py)
+            from alertmesh.ble_windows import Peripheral
+
+            peripheral = Peripheral(self.service, bitchat.CHARACTERISTIC_UUID, self.received)
+            await peripheral.start()
+            self._server = peripheral
+            return
+
         from bless import BlessServer, GATTAttributePermissions, GATTCharacteristicProperties
 
         server = BlessServer(name=self.name)
@@ -221,8 +242,9 @@ class BleLink:
                        for address, (device, seen, advertises, rssi) in self._devices.items()
                        if now - seen <= DEVICE_GONE_S and address not in self._connections
                        and address not in self._trying
-                       and now - self._failed.get(address, -RETRY_AFTER_S) >= RETRY_AFTER_S
-                       and now - self._not_ours.get(address, -NOT_OURS_S) >= NOT_OURS_S]
+                       and now - self._failed.get(address, -CHECK_AGAIN_S)
+                       >= (RETRY_AFTER_S if advertises else CHECK_AGAIN_S)
+                       and (advertises or now - self._not_ours.get(address, -NOT_OURS_S) >= NOT_OURS_S)]
             room = MAX_CONNECTIONS - len(self._connections) - len(self._trying)
         # Devices that advertise the service first, then the closest others.
         targets.sort(key=lambda t: (not t[2], -t[3]))
@@ -245,9 +267,7 @@ class BleLink:
             await client.start_notify(bitchat.CHARACTERISTIC_UUID,
                                       lambda _, data, c=connection: self._notified(c, bytes(data)))
         except Exception as error:  # out of range, turned off, or refused: try again later
-            self._failed[address] = now
-            if not advertises:
-                self._not_ours[address] = now  # an Apple device being checked that does not answer: not soon
+            self._failed[address] = now  # tried again after RETRY_AFTER_S, or CHECK_AGAIN_S if being checked
             self.events.append(f"{address[-5:]}: could not connect ({type(error).__name__})")
             return False
         finally:
@@ -260,9 +280,13 @@ class BleLink:
 
     def check_centrals(self) -> None:
         """Devices subscribed to our notifications. bless keeps them in a private field;
-        without it, the link still works but new subscribers are not greeted at once."""
-        delegate = getattr(self._server, "peripheral_manager_delegate", None)
-        subscribed = set(getattr(delegate, "_central_subscriptions", None) or {})
+        without it, the link still works but new subscribers are not greeted at once.
+        On Windows, ble_windows.Peripheral says who they are."""
+        if hasattr(self._server, "subscribers"):
+            subscribed = self._server.subscribers()
+        else:
+            delegate = getattr(self._server, "peripheral_manager_delegate", None)
+            subscribed = set(getattr(delegate, "_central_subscriptions", None) or {})
         with self._lock:
             new = subscribed - self._centrals
             self._centrals = subscribed
@@ -301,6 +325,8 @@ class BleLink:
 
     async def _notify(self, raw: bytes) -> int:
         """Send a packet to every subscribed device by notifying, in pieces they can take."""
+        if hasattr(self._server, "notify"):  # Windows: each subscriber's own limit is known
+            return await self._server.notify(lambda limit: pieces(raw, limit))
         characteristic = self._server.get_characteristic(bitchat.CHARACTERISTIC_UUID)
         for piece in pieces(raw, NOTIFY_LIMIT):
             characteristic.value = bytearray(piece)
@@ -357,7 +383,7 @@ def child_main(name: str = "AlertMesh") -> None:
     def report() -> None:
         while True:
             write(NEIGHBOURS, link.neighbours().to_bytes(2, "big"))
-            write(STATUS, link.status.encode()[:500])
+            write(STATUS, link.full_status().encode()[:500])
             time.sleep(STATUS_EVERY_S)
 
     threading.Thread(target=report, daemon=True).start()
@@ -404,21 +430,24 @@ class BluetoothProcess:
     def _listen(self) -> None:
         while (message := _read_message(self._process.stdout)) is not None:
             kind, data = message
-            if kind == FRAME:
-                self.on_frame(data)
-            elif kind == NEIGHBOURS:
-                self._neighbours = int.from_bytes(data, "big")
-            elif kind == STATUS:
-                self.status = data.decode(errors="replace")
-            elif kind == LINK:
-                self.on_link()
+            try:
+                if kind == FRAME:
+                    self.on_frame(data)
+                elif kind == NEIGHBOURS:
+                    self._neighbours = int.from_bytes(data, "big")
+                elif kind == STATUS:
+                    self.status = data.decode(errors="replace")
+                elif kind == LINK:
+                    self.on_link()
+            except Exception:  # one bad packet must not stop this thread: nothing would be heard again
+                traceback.print_exc()
         code = self._process.wait()
         self._neighbours = 0
         if code == -signal.SIGABRT:
             self.status = ("off: macOS stopped Bluetooth because this program is not allowed to use it. "
                            "Run from VS Code or the packaged app, and allow Bluetooth in System Settings "
                            "> Privacy & Security > Bluetooth.")
-        elif self.status in ("starting", "on"):
+        elif self.status == "starting" or self.status.partition(":")[0] == "on":
             self.status = f"off: Bluetooth stopped (exit code {code})"
 
 

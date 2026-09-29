@@ -353,6 +353,33 @@ def test_a_packet_more_than_2_minutes_off_our_clock_is_dropped(radio, clock, ske
     assert len(a.peers) == 1
 
 
+def test_a_laptop_clock_135_s_fast_is_noticed(radio, clock):
+    """Found on a Windows laptop: its clock was 135 s fast, so it dropped every iPhone packet
+    (and the iPhones dropped its own), with nothing to say why."""
+    (a,) = line(radio, clock, "A")
+    assert a.clock_ahead_ms is None
+    for i in range(node.CLOCK_SAMPLES_NEEDED):
+        a.receive(packet_from(IPHONE, MessageType.MESSAGE, f"hi {i}".encode(), NOW - 135_000 + i))
+    assert a.clock_ahead_ms == pytest.approx(135_000, abs=10)
+    clock.now_ms += node.CLOCK_SAMPLE_WINDOW_MS + 1  # the old drops no longer count
+    assert a.clock_ahead_ms is None
+
+
+def test_packets_on_time_raise_no_clock_warning(radio, clock):
+    (a,) = line(radio, clock, "A")
+    for i in range(10):
+        a.receive(packet_from(IPHONE, MessageType.MESSAGE, f"hi {i}".encode(), NOW - 100_000 + i))
+    assert a.clock_ahead_ms is None
+
+
+def test_a_few_devices_with_wrong_clocks_either_way_raise_no_clock_warning(radio, clock):
+    """Some fast, some slow: their clocks are wrong, not necessarily ours."""
+    (a,) = line(radio, clock, "A")
+    for i, skew in enumerate([-200_000, 200_000, -300_000, 300_000]):
+        a.receive(packet_from(IPHONE, MessageType.MESSAGE, f"hi {i}".encode(), NOW + skew))
+    assert a.clock_ahead_ms is None
+
+
 def test_an_announce_whose_sender_is_not_its_key_is_dropped(radio, clock):
     (a,) = line(radio, clock, "A")
     other = Identity("Other")

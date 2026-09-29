@@ -291,6 +291,47 @@ def test_the_board_is_empty_then_shows_the_warning(app):
     assert "Bushfire near Katherine - leave now" in board
 
 
+def test_a_warning_can_be_cancelled_after_the_app_is_closed_and_opened_again(heard):
+    """Closing the app used to forget its warnings, so phones kept them with no way to
+    cancel them. Opening the app again now lists them, with Cancel."""
+    import streamlit as st
+
+    from alertmesh import phone
+
+    st.cache_resource.clear()
+    (phone.home_folder() / "warnings-sent.json").unlink(missing_ok=True)
+    first = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    first.run()
+    fill_warning(first)
+    send(first)
+    [sent] = first.session_state.world.live_warnings()
+
+    st.cache_resource.clear()  # the program ends; a new one starts
+    again = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    again.run()
+    assert not again.exception and again.session_state.world.live_warnings() == []
+    assert "Sent before this window was opened" in " ".join(m.value for m in again.markdown)
+    again.button(key=f"earlier_{sent.alert_id.hex()}").click().run()
+    again.button(key=f"earlier_yes_{sent.alert_id.hex()}").click().run()
+    assert not again.exception
+    assert wait_for(lambda: any(isinstance(c := wire.decode(x), wire.AlertCancellation)
+                                and c.alert_id == sent.alert_id for x in heard))
+    assert "Sent before this window was opened" not in " ".join(m.value for m in again.markdown)
+    st.cache_resource.clear()
+
+
+def test_a_warning_can_be_cancelled_by_its_id(app, heard):
+    alert_id = bytes(range(16))
+    app.text_input(key="c_cancel_id").input(alert_id.hex()).run()
+    button(app, "Cancel this warning").click().run()
+    assert not app.exception and "Cancellation sent" in app.info[0].value
+    assert wait_for(lambda: any(isinstance(c := wire.decode(x), wire.AlertCancellation) and c.alert_id == alert_id
+                                for x in heard))
+    app.text_input(key="c_cancel_id").input("not an id").run()
+    button(app, "Cancel this warning").click().run()
+    assert "32 letters and digits" in app.info[0].value
+
+
 def test_a_new_town_withdraws_the_old_towns_warnings(app, heard):
     fill_warning(app)
     send(app)

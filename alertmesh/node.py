@@ -37,9 +37,11 @@ reads from another.
 This is free and unencumbered software released into the public domain.
 """
 import hashlib
+import logging
 import random
+import statistics
 import threading
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 
 from alertmesh import bitchat, chat, reports, wire
@@ -57,6 +59,13 @@ MAX_PACKET_BYTES = (bitchat.V1_HEADER_SIZE + bitchat.SENDER_ID_SIZE + bitchat.RE
 SEEN_CAPACITY = 1000
 # A packet whose time is further than this from our clock is dropped (BLEIngressPacketGuard).
 MAX_CLOCK_SKEW_MS = 120_000
+# iPhones drop ours by the same rule, so a laptop clock over 2 minutes off hears nobody and
+# is heard by nobody, silently. When at least this many packets in the last few minutes
+# were dropped for their time, all off the same way, this laptop's clock is the likely cause.
+CLOCK_SAMPLES_NEEDED = 3
+CLOCK_SAMPLE_WINDOW_MS = 180_000
+
+log = logging.getLogger(__name__)
 # An announce older than this is not taken (BLEPacketFreshnessPolicy), nor a Nearby
 # message older than 6 hours (TransportConfig.publicMessageMaxAge).
 ANNOUNCE_MAX_AGE_MS = 900_000
@@ -190,6 +199,8 @@ class Node:
         # its signed bytes: the internet link puts calls for help online from here.
         self.on_report = None
         self._seen: OrderedDict[str, None] = OrderedDict()
+        # (when, how far our clock is ahead of the packet's) for packets dropped for their time.
+        self._clock_samples: deque[tuple[int, int]] = deque(maxlen=20)
         self._fragments = bitchat.FragmentAssembler(lambda: self.clock() / 1000)
         self._next_announce = None
         self._last_link_announce = None
@@ -335,6 +346,18 @@ class Node:
                 for payload in self.reports.sync_candidates():
                     self._send(MessageType.COMMUNITY_REPORT, payload, ttl=1)
 
+    @property
+    def clock_ahead_ms(self) -> int | None:
+        """How far this laptop's clock seems ahead of the devices nearby (negative: behind),
+        or None when nothing says it is off. Only from packets dropped for their time: the
+        clock itself is left to the system to set."""
+        with self._lock:
+            now = self.clock()
+            recent = [ahead for when, ahead in self._clock_samples if now - when <= CLOCK_SAMPLE_WINDOW_MS]
+        if len(recent) < CLOCK_SAMPLES_NEEDED or not (all(a > 0 for a in recent) or all(a < 0 for a in recent)):
+            return None
+        return int(statistics.median(recent))
+
     def nearby_peers(self) -> list[Peer]:
         """People heard from recently, newest first. Others are kept for their chats."""
         with self._lock:
@@ -376,7 +399,11 @@ class Node:
         a catch-up answer nobody asked for."""
         if packet.sender_id == self.peer_id or packet.is_rsr:
             return False
-        if abs(packet.timestamp - self.clock()) > MAX_CLOCK_SKEW_MS:
+        now = self.clock()
+        if abs(packet.timestamp - now) > MAX_CLOCK_SKEW_MS:
+            self._clock_samples.append((now, now - packet.timestamp))
+            log.info("dropped a packet from %s: its time is %+.0f s from this computer's clock",
+                     packet.sender_id.hex(), (packet.timestamp - now) / 1000)
             return False
         key = bitchat.dedup_key(packet)
         if key in self._seen:
@@ -428,8 +455,10 @@ class Node:
     def _take_announce(self, packet: Packet, now: int) -> bool:
         a = bitchat.decode_announcement(packet.payload)
         if a is None or bitchat.peer_id(a.noise_key) != packet.sender_id:
+            log.info("dropped an announce from %s: unreadable, or its ID is not its key's", packet.sender_id.hex())
             return False
         if now - packet.timestamp > ANNOUNCE_MAX_AGE_MS or not bitchat.verify(packet, a.signing_key):
+            log.info("dropped an announce from %s: too old or badly signed", packet.sender_id.hex())
             return False
         key = a.signing_key.hex()
         if self._peer_keys.setdefault(packet.sender_id, key) != key:
@@ -448,6 +477,8 @@ class Node:
             return True  # a message for one device: not ours to read
         peer = self._known(packet)
         if peer is None or now - packet.timestamp > MESSAGE_MAX_AGE_MS or not bitchat.verify(packet, peer.signing_key):
+            log.info("dropped a Nearby message from %s: %s", packet.sender_id.hex(),
+                     "no announce from them yet" if peer is None else "too old or badly signed")
             return False
         try:
             text = packet.payload.decode()

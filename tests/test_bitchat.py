@@ -497,6 +497,15 @@ def test_duplicates_do_not_complete_early_and_order_does_not_matter():
     assert assembler.add(fragment(index=0, data=b"A")) == b"AB"
 
 
+def test_fragments_that_disagree_on_the_count_start_again_instead_of_failing():
+    """Fragments are unsigned: piece 2 of 3, then piece 0 of 2 with the same ID, used to
+    raise KeyError, which stopped the phone app hearing anything over Bluetooth."""
+    assembler = bitchat.FragmentAssembler(Clock())
+    assert assembler.add(fragment(index=2, total=3, data=b"X")) is None
+    assert assembler.add(fragment(index=0, data=b"A")) is None  # total 2: starts again
+    assert assembler.add(fragment(index=1, data=b"B")) == b"AB"
+
+
 def test_same_fragment_id_from_two_senders_stays_apart():
     assembler = bitchat.FragmentAssembler(Clock())
     assembler.add(fragment(index=0, data=b"A"))

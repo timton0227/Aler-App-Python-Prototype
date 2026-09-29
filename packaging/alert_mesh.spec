@@ -70,10 +70,13 @@ def app(start, page, name, bundle_id, packages, plist, leave_out=()):
 # it keeps its permissions.
 # Location Services (the pin map works everywhere; this Mac's own position only on a Mac).
 LOCATION = ["CoreLocation"] if sys.platform == "darwin" else []
+# bless offers the Bluetooth service on a Mac; on Windows alertmesh/ble_windows.py does,
+# with the WinRT packages bleak brings.
+PERIPHERAL = [] if sys.platform == "win32" else ["bless"]
 WHERE_WORDS = ("Alert Mesh uses your location to tell which warnings cover you, and to show people who come "
                "to help where you are. It is only ever sent as a rough area, to about 150 metres.")
 app("start_phone.py", "phone_app.py", "Alert Mesh", "au.alertmesh.prototype",
-    ["streamlit", "pydeck", "bleak", "bless", "websockets", "certifi", *LOCATION],
+    ["streamlit", "pydeck", "bleak", *PERIPHERAL, "websockets", "certifi", *LOCATION],
     # Without this, macOS stops the app the moment it touches Bluetooth.
     {"NSBluetoothAlwaysUsageDescription": "Alert Mesh finds laptops nearby and passes messages, "
                                           "calls for help and warnings between them over Bluetooth.",

@@ -319,6 +319,18 @@ def test_status_bar_shows_bluetooth_and_the_local_network_on_every_tab(me, app):
         assert "Bluetooth on · 1 device nearby" in page(app) and "Local network off" in page(app)
 
 
+def test_a_wrong_clock_is_shown_instead_of_bluetooth_on(me, app):
+    """Every packet nearby is dropped when this computer's clock is over 2 minutes off, and
+    the iPhones drop ours: "Bluetooth on" would hide that nothing gets through."""
+    for i in range(3):
+        packet = Packet(MessageType.MESSAGE, SOMEONE.peer_id, NOW - 135_000 + i, b"hi", 7)
+        me.node.receive(bitchat.encode(SOMEONE.sign_packet(packet)))
+    assert "about 2 min fast" in me.clock_warning
+    app.run()
+    assert "clock is wrong" in page(app) and "Bluetooth on ·" not in page(app)
+    assert "Set the time automatically" in page(app)
+
+
 def test_i_need_help_bar_is_on_now_only(app):
     assert button(app, "I need help").key == "need_help"
     show(app, "Chat")

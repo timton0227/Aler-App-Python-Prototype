@@ -101,8 +101,12 @@ def bluetooth_words() -> tuple[bool, str]:
     bluetooth, _, reason = p.bluetooth_status.partition(":")
     if bluetooth != "on":
         return False, "Bluetooth off" + (f": {reason.strip()}" if reason.strip() else "")
+    if p.clock_warning:  # everything sent or heard is dropped: not really on
+        return False, "Bluetooth: this computer's clock is wrong"
     count = p.node.link.neighbours()
-    return True, f"Bluetooth on · {count} {'device' if count == 1 else 'devices'} nearby"
+    # "on: why": scanning works, but devices cannot connect to this laptop (ble.BleLink.full_status).
+    problem = f" · {reason.strip()}" if reason.strip() else ""
+    return True, f"Bluetooth on · {count} {'device' if count == 1 else 'devices'} nearby{problem}"
 
 
 def network_words() -> tuple[bool, str]:
@@ -421,7 +425,8 @@ def warning_detail(item: phone.WarningView) -> None:
 <div class="am-action" style="margin-bottom:12px">{style.esc(alert.action_text) or "Follow advice from emergency services."}</div>
 <div class="am-muted">{labels.proximity(item.decision)} · {labels.until(alert.expires_at, p.clock())}</div>
 <div class="am-muted">{loud}{labels.REASON_TEXT[item.decision.reason.kind]}.</div>
-<div class="am-muted">Issued {labels.clock(alert.issued_at)} · area {", ".join(alert.area_cells)}</div>"""),
+<div class="am-muted">Issued {labels.clock(alert.issued_at)} · area {", ".join(alert.area_cells)}</div>
+<div class="am-muted" style="font-size:11px">Warning ID {alert.alert_id.hex()}</div>"""),
                 unsafe_allow_html=True)
     st.button("Close", type="primary", on_click=close_warning)
 
@@ -501,7 +506,9 @@ def connection_section() -> None:
     """How you're connected, in plain counts (NowView.connectionSection)."""
     on, _ = bluetooth_words()
     count = p.node.link.neighbours() if on else 0
-    if not on:
+    if p.clock_warning:
+        bluetooth = style.esc(p.clock_warning)
+    elif not on:
         bluetooth = "Bluetooth is off, so no phone or laptop nearby can pass warnings to you"
     elif count == 0:
         bluetooth = "No phones or laptops nearby yet"

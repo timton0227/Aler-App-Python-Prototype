@@ -15,9 +15,11 @@ local network (`NetworkShare`).
 
 This is free and unencumbered software released into the public domain.
 """
+import json
 import time
 from dataclasses import dataclass
 from enum import Enum, IntEnum
+from pathlib import Path
 
 from alertmesh import geohash, wire
 from alertmesh.signer import (
@@ -171,6 +173,39 @@ def _real_clock_ms() -> int:
     return int(time.time() * 1000)
 
 
+class SentRecord:
+    """The real copies still out, kept in a file (JSON: event ID -> signed bytes, in hex).
+
+    Phones keep a warning until it ends or is cancelled, which can be days. Without a
+    record, closing the warning app forgot every warning it had sent, and a warning could
+    then never be cancelled: phones kept showing it until it ran out.
+    """
+
+    def __init__(self, path: Path, now_ms=_real_clock_ms):
+        self.path = Path(path)
+        self._now_ms = now_ms
+
+    def load(self) -> list[OfficialAlert]:
+        """The warnings still live, as signed. A broken or missing file is an empty record."""
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            payloads = [bytes.fromhex(v) for v in data.values()] if isinstance(data, dict) else []
+        except (OSError, ValueError, TypeError, AttributeError):
+            return []
+        now = self._now_ms()
+        items = [wire.decode(p) for p in payloads]
+        return [a for a in items if isinstance(a, OfficialAlert) and wire.verify_pinned(a) and a.expires_at > now]
+
+    def save(self, alerts) -> None:
+        now = self._now_ms()
+        data = {a.alert_id.hex(): wire.encode(a).hex() for a in alerts if a.expires_at > now}
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(data), encoding="utf-8")
+        except OSError:
+            pass  # the warnings still go out; only the record for next time is lost
+
+
 class NetworkShare:
     """Sends each console action to real phone apps too (the warning app's Wi-Fi link).
 
@@ -181,19 +216,26 @@ class NetworkShare:
     the real copy, and "send again" repeats the same real bytes.
 
     `send(payload) -> bool` puts the signed bytes on the network (`lan.Broadcaster.send`).
+    With a `record` (SentRecord), every real copy still out is kept in a file. The ones
+    left by an earlier run are listed by `earlier()` and can still be cancelled.
     """
 
-    def __init__(self, send, now_ms=_real_clock_ms, signer: OfficialAlertSigner | None = None):
+    def __init__(self, send, now_ms=_real_clock_ms, signer: OfficialAlertSigner | None = None,
+                 record: SentRecord | None = None):
         self._send = send
         self._now_ms = now_ms
         self._signer = signer or OfficialAlertSigner()
+        self._record = record
         self._real: dict[bytes, OfficialAlert] = {}  # event ID -> the real copy last sent
         self._simulated_version: dict[bytes, int] = {}  # event ID -> the town's version it copies
+        for alert in record.load() if record else []:
+            self._real[alert.alert_id] = alert  # no town version: sent by an earlier run
 
     def __call__(self, item) -> bool:
         if isinstance(item, AlertCancellation):
             real = self._real.pop(item.alert_id, None)
             self._simulated_version.pop(item.alert_id, None)
+            self._save()
             return real is not None and self._cancel(real)
         held = self._real.get(item.alert_id)
         if held is not None and self._simulated_version.get(item.alert_id) == item.issued_at:
@@ -205,14 +247,52 @@ class NetworkShare:
                                  next_issued_at(self._now_ms(), held.issued_at if held else None))
         self._real[item.alert_id] = real
         self._simulated_version[item.alert_id] = item.issued_at
+        self._save()
         return self._send(wire.encode(real))
 
+    def now_ms(self) -> int:
+        """The real clock the copies are signed with."""
+        return self._now_ms()
+
+    def earlier(self) -> list[OfficialAlert]:
+        """Warnings an earlier run of the warning app sent that are still live on phones:
+        the simulated town that sent them is gone, so only their real copies are left."""
+        now = self._now_ms()
+        return sorted((a for i, a in self._real.items() if i not in self._simulated_version and a.expires_at > now),
+                      key=lambda a: (-int(a.severity), -a.issued_at))
+
+    def cancel_earlier(self, alert_id: bytes) -> bool:
+        """Cancel one warning from `earlier()` on every phone app and iPhone it reached."""
+        real = self._real.pop(alert_id, None)
+        self._simulated_version.pop(alert_id, None)
+        self._save()
+        return real is not None and self._cancel(real)
+
+    def cancel_by_id(self, alert_id: bytes) -> bool:
+        """Cancel a warning known only by its event ID (sent before the record was kept,
+        or by another computer with the development key). A phone takes the cancellation
+        if it is later than the version it holds, which "now" is."""
+        if len(alert_id) != wire.ALERT_ID_LENGTH:
+            return False
+        if alert_id in self._real:
+            return self.cancel_earlier(alert_id)
+        cancellation = self._signer.cancel(alert_id, self._now_ms())
+        return self._send(wire.encode(cancellation))
+
     def withdraw_all(self) -> None:
-        """Cancel every real copy still out: the town they belonged to is gone."""
-        for real in self._real.values():
-            self._cancel(real)
-        self._real.clear()
+        """Cancel every real copy of the town's warnings still out: the town they belonged
+        to is gone (a new town, or a new browser tab). Warnings from an earlier run are
+        left to the operator (`earlier()`)."""
+        for alert_id in list(self._simulated_version):
+            real = self._real.pop(alert_id, None)
+            if real is not None:
+                self._cancel(real)
         self._simulated_version.clear()
+        self._save()
+
+    def _save(self) -> None:
+        if self._record is not None:
+            self._record.save(self._real.values())
 
     def _cancel(self, real: OfficialAlert) -> bool:
         cancellation = self._signer.cancel(real.alert_id, next_issued_at(self._now_ms(), real.issued_at))

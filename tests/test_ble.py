@@ -196,6 +196,30 @@ def test_an_apple_device_that_does_not_answer_is_not_tried_again_soon():
     assert len(FakeClient.made) == 1
 
 
+def test_an_apple_device_that_did_not_answer_is_checked_again_after_a_minute():
+    """An iPhone with the app in the background that was slow once must not stay
+    unlinked for 5 minutes (a warning then took over 5 minutes to reach an iPhone)."""
+    clock = Clock()
+    link = link_with(lambda d, cb: FakeClient(d, cb, fail=len(FakeClient.made) == 0), clock)
+    link.seen(Device("iphone"), Advert(apple=True))
+    asyncio.run(link.connect_some())
+    clock.now += ble.CHECK_AGAIN_S
+    link.seen(Device("iphone"), Advert(apple=True))
+    assert asyncio.run(link.connect_some()) == 1
+    assert ble.CHECK_AGAIN_S < ble.NOT_OURS_S
+
+
+def test_a_device_found_not_ours_is_linked_as_soon_as_it_offers_the_service():
+    """Checked while the app was closed, then the app was opened: linked at once."""
+    clock = Clock()
+    link = link_with(lambda d, cb: FakeClient(d, cb, ours=len(FakeClient.made) > 0), clock)
+    link.seen(Device("iphone"), Advert(apple=True))
+    assert asyncio.run(link.connect_some()) == 0
+    clock.now += 1
+    link.seen(Device("iphone"), Advert([SERVICE], apple=True))
+    assert asyncio.run(link.connect_some()) == 1
+
+
 def test_several_devices_are_tried_at_once():
     started = []
 
@@ -305,6 +329,54 @@ def test_without_blesss_private_field_the_link_still_works():
     assert link.neighbours() == 0
 
 
+class FakeWindowsPeripheral:
+    """ble_windows.Peripheral as the link sees it: who is subscribed, and a notify that
+    cuts each packet to every subscriber's own limit."""
+
+    def __init__(self, limits):
+        self.limits = limits  # subscriber -> how much one notification carries
+        self.sent = {s: [] for s in limits}
+
+    def subscribers(self):
+        return set(self.limits)
+
+    async def notify(self, split):
+        for subscriber, limit in self.limits.items():
+            self.sent[subscriber] += split(limit)
+        return len(self.limits)
+
+
+def test_on_windows_subscribers_are_greeted_counted_and_notified():
+    """Before, the link read only bless's Mac-only field, so on Windows no subscriber was
+    ever counted, greeted or sent anything."""
+    links = []
+    link = link_with(links=links)
+    link._server = FakeWindowsPeripheral({"iphone": 182, "laptop": 500})
+    link.check_centrals()
+    assert links == [1] and link.neighbours() == 2
+    raw = packet(400)
+    assert asyncio.run(link.deliver(raw)) == 2
+    assert all(len(n) <= 182 for n in link._server.sent["iphone"]) and whole(link._server.sent["iphone"]) == raw
+    assert link._server.sent["laptop"] == [raw]
+
+
+def test_the_status_says_when_devices_cannot_connect_to_this_laptop():
+    link = link_with()
+    link.status = "on"
+    assert link.full_status() == "on"
+    link.advertising = "not offering the service: refused"
+    assert link.full_status() == "on: not offering the service: refused"
+    link.status = "Bluetooth stopped: gone"
+    assert link.full_status() == "Bluetooth stopped: gone"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the WinRT peripheral is Windows only")
+def test_the_windows_peripheral_imports():
+    from alertmesh import ble_windows
+
+    assert ble_windows.Peripheral(SERVICE, bitchat.CHARACTERISTIC_UUID, print).subscribers() == set()
+
+
 # --- Receiving
 
 
@@ -387,6 +459,26 @@ def test_bluetooth_process_that_ends_says_so():
     process = ble.BluetoothProcess(lambda f: None, [sys.executable, "-c", "raise SystemExit(3)"])
     assert wait_for(lambda: process.status.startswith("off"))
     assert "exit code 3" in process.status
+
+
+def test_a_packet_that_breaks_the_handler_does_not_stop_the_listening():
+    """Before, one exception in the node ended the reader thread, and nothing arriving over
+    Bluetooth was heard again while the status still said "on"."""
+    got = []
+
+    def handler(frame):
+        if frame == b"olleh":
+            raise KeyError("bad packet")
+        got.append(frame)
+
+    process = ble.BluetoothProcess(handler, [sys.executable, "-c", ECHO])
+    try:
+        assert wait_for(lambda: process.status == "on")
+        process.send(b"hello")
+        process.send(b"again")
+        assert wait_for(lambda: got == [b"niaga"])
+    finally:
+        process.stop()
 
 
 def test_bluetooth_command():

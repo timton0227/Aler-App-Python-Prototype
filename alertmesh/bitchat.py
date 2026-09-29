@@ -644,6 +644,7 @@ class FragmentAssembler:
         self.clock = clock  # seconds
         self._pieces: dict[tuple, dict[int, bytes]] = {}
         self._started: dict[tuple, float] = {}
+        self._totals: dict[tuple, int] = {}
 
     def add(self, packet: Packet) -> bytes | None:
         header = fragment_header(packet)
@@ -652,10 +653,15 @@ class FragmentAssembler:
         now = self.clock()
         for key in [k for k, t in self._started.items() if now - t > FRAGMENT_LIFETIME_S]:
             self._drop(key)
+        # Fragments are not signed: one that disagrees on how many pieces there are starts
+        # the packet again, or a mix of pieces could not be put back together.
+        if header.key in self._pieces and self._totals.get(header.key) != header.total:
+            self._drop(header.key)
         if header.key not in self._pieces:
             if len(self._pieces) >= MAX_ASSEMBLIES:
                 self._drop(min(self._started, key=self._started.get))
             self._pieces[header.key], self._started[header.key] = {}, now
+            self._totals[header.key] = header.total
         pieces = self._pieces[header.key]
         limit = MAX_FRAMED_BYTES if header.original_type in (MessageType.FILE_TRANSFER,
                                                              MessageType.NOISE_ENCRYPTED) else MAX_ASSEMBLED_BYTES
@@ -671,6 +677,7 @@ class FragmentAssembler:
     def _drop(self, key) -> None:
         self._pieces.pop(key, None)
         self._started.pop(key, None)
+        self._totals.pop(key, None)
 
 
 # --- Notifications as a stream (AlertMesh/Services/NotificationStreamAssembler.swift) --

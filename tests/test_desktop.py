@@ -36,7 +36,10 @@ def test_two_apps_each_with_its_page_and_title():
     assert (PHONE.file, PHONE.title) == ("phone_app.py", "Alert Mesh")
     assert (WARNING.file, WARNING.title) == ("warning_app.py", "Alert Mesh Warnings")
     assert PHONE.path.exists() and WARNING.path.exists()
-    assert "bless" in PHONE.also_needs and "alertmesh.ble" in PHONE.also_needs
+    assert "alertmesh.ble" in PHONE.also_needs
+    # What offers the Bluetooth service: bless, or on Windows our own WinRT code.
+    assert ("alertmesh.ble_windows" if sys.platform == "win32" else "bless") in PHONE.also_needs
+    assert (sys.platform == "win32") == ("bless" not in PHONE.also_needs)
     for page in (PHONE, WARNING):  # the internet link's parts, loaded only when it starts
         assert "websockets.sync.client" in page.also_needs and "alertmesh.relays" in page.also_needs
     assert "pydeck" in PHONE.also_needs  # the pin map

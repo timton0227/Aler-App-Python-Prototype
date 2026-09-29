@@ -10,9 +10,9 @@ import pytest
 
 from alertmesh import geohash, wire
 from alertmesh.alert_store import AlertStore, IngestResult
-from alertmesh.console import (AREA_SIZE_NAMES, Action, AreaSize, Console, IssueError, NetworkShare, Outcome,
+from alertmesh.console import (AREA_SIZE_NAMES, Action, AreaSize, Console, IssueError, NetworkShare, Outcome, SentRecord,
                                corners, outcome_text, toggle_area)
-from alertmesh.signer import Problem, WarningDraft
+from alertmesh.signer import HOUR_MS, Problem, WarningDraft
 from alertmesh.wire import HazardType, Severity
 
 NOW_MS = 1_700_000_000_000
@@ -247,6 +247,49 @@ def test_withdraw_all_cancels_what_is_still_out(recorder):
     for payload in sent[2:]:
         phone_store.ingest_payload(payload)
     assert len(sent) == 4 and phone_store.live_alerts() == []
+
+
+def test_warnings_sent_can_be_cancelled_after_the_app_is_opened_again(recorder, tmp_path):
+    """Closing the warning app used to forget every warning it had sent: phones kept
+    showing them, and nothing could cancel them until they ran out."""
+    console, _, sent, clock, phone_store = shared_console(recorder)
+    record = SentRecord(tmp_path / "sent.json", now_ms=lambda: clock["now"])
+    console._share = NetworkShare(lambda p: sent.append(p) or True, now_ms=lambda: clock["now"], record=record)
+    alert = console.issue(draft())
+    phone_store.ingest_payload(sent[-1])
+
+    # The app is closed and opened again: a new share, reading the same record.
+    clock["now"] += 60_000
+    again = NetworkShare(lambda p: sent.append(p) or True, now_ms=lambda: clock["now"], record=record)
+    assert [a.alert_id for a in again.earlier()] == [alert.alert_id]
+    again.withdraw_all()  # a new town does not cancel them: the operator decides
+    assert [a.alert_id for a in again.earlier()] == [alert.alert_id]
+    assert again.cancel_earlier(alert.alert_id)
+    assert phone_store.ingest_payload(sent[-1]) is IngestResult.ACCEPTED
+    assert phone_store.live_alerts() == [] and again.earlier() == []
+    assert NetworkShare(sent.append, now_ms=lambda: clock["now"], record=record).earlier() == []  # kept that way
+
+
+def test_ended_warnings_and_a_broken_record_are_not_listed(tmp_path):
+    clock = {"now": REAL_MS}
+    record = SentRecord(tmp_path / "sent.json", now_ms=lambda: clock["now"])
+    share = NetworkShare(lambda p: True, now_ms=lambda: clock["now"], record=record)
+    share(wire.decode(wire.encode(make_console(Recorder()).issue(draft()))))
+    clock["now"] += 8 * 24 * HOUR_MS  # past the longest a warning lives
+    assert NetworkShare(lambda p: True, now_ms=lambda: clock["now"], record=record).earlier() == []
+    (tmp_path / "sent.json").write_text("{not json")
+    assert record.load() == []
+
+
+def test_a_warning_with_no_record_can_be_cancelled_by_its_id(recorder):
+    console, share, sent, clock, phone_store = shared_console(recorder)
+    alert = console.issue(draft())
+    phone_store.ingest_payload(sent[-1])
+    forgetful = NetworkShare(lambda p: sent.append(p) or True, now_ms=lambda: clock["now"] + 1000)
+    assert forgetful.cancel_by_id(alert.alert_id)
+    assert phone_store.ingest_payload(sent[-1]) is IngestResult.ACCEPTED
+    assert phone_store.live_alerts() == []
+    assert forgetful.cancel_by_id(b"short") is False
 
 
 def test_cancelling_something_never_shared_sends_nothing():

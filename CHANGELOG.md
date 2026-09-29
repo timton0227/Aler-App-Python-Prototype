@@ -24,6 +24,38 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## Windows fixes: Bluetooth with iPhones, clock check, cancelling warnings — 2026-09-29
+Not a PROGRESS step: found testing the phone app and warning app on a Windows laptop with two iPhones and the Swift app on a Mac. Chat did not reach the iPhones or the Mac, nothing from them reached the laptop, a warning took over 5 minutes to arrive, and warnings could not be cancelled after the warning app was reopened.
+- What:
+  - **The laptop's clock.** It was 135 s fast. iPhones drop packets more than 2 minutes off their clock, and so does the node, so nothing got through either way, silently.
+    - `Node.clock_ahead_ms` works out how far off the clock is from packets dropped for their time: at least 3 in 3 minutes, all off the same way.
+    - The phone app then says "Bluetooth: this computer's clock is wrong" instead of "Bluetooth on", and says where to set the time.
+    - The node logs what it drops and why to `alert-mesh-bluetooth.log` in the temporary folder.
+  - **Offering the service on Windows (`alertmesh/ble_windows.py`).** `bless` 0.3 cannot be installed or imported on Windows: it pins WinRT packages no longer on PyPI and imports `pysetupdi`, which is not on PyPI. So the laptop never advertised, and an iPhone whose app was in the background could not link to it. The new module offers the service with the WinRT packages bleak brings: it takes writes and notifies each subscriber within that device's own limit.
+    - `requirements.txt` installs `bless` everywhere but Windows.
+    - `desktop.py --check` and the PyInstaller spec follow.
+  - `alertmesh/ble.py`:
+    - On Windows, subscribers are counted, greeted and notified (before, only bless's Mac-only field was read).
+    - An Apple device that failed to connect is tried again after 60 s instead of 5 minutes.
+    - A device found not to run the app is linked at once when it starts offering the service.
+    - The status says when devices cannot connect to this laptop.
+    - An exception while handling one packet no longer ends the reader thread.
+  - `alertmesh/bitchat.py`: fragments that disagree on how many pieces there are start the packet again. Before, they could raise `KeyError`, which stopped Bluetooth reception.
+  - `alertmesh/lan.py`: an oversize datagram (`WSAEMSGSIZE` on Windows) no longer ends the listening thread.
+  - **Cancelling warnings after the warning app is reopened.**
+    - `console.SentRecord` keeps the real copies still out in `warnings-sent.json`, in the app folder. `NetworkShare` loads them, and the console lists them under "Sent before this window was opened", each with Cancel warning.
+    - A new town no longer withdraws them; it withdraws only its own.
+    - "Cancel a warning by its ID" cancels a warning with no record: the phone app shows each warning's ID in its full view.
+    - `internet.WarningSender.learn` remembers an earlier warning's area, so its cancellation also goes online.
+  - Tests use their own empty app folder (`ALERTMESH_HOME` in `tests/conftest.py`).
+- Ported from: new. The clock rule follows `BLEIngressPacketGuard`; the peripheral side follows `BLEService+LinkLayerPeripheralRole.swift`.
+- Differences from Swift: none in what goes on the air. The clock warning and the warning record are the laptop's own.
+- Verified by:
+  - `python -m pytest -q` on Windows 11, Python 3.13: 801 passed, 6 skipped, 3 failed. The 3 are unrelated to these changes and not changed by them: the profile's POSIX file mode, the macOS-only location switch, and a subprocess test run with an empty `PATH`.
+  - `ble_windows.Peripheral` started advertising on this laptop (status STARTED).
+  - With the app running, the log showed packets from two devices nearby dropped at -124 s and -135 s: the clock, confirmed.
+  - Not yet checked by hand after setting the clock: chat both ways with iPhones and the Mac.
+
 ## 18.1 Stand on its own — 2026-09-28
 - What:
   - The prototype moved out of the Swift app's repository into its own, with its history (`git subtree split`). Claude trailers were taken off the old commit messages on the way.

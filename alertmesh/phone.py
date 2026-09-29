@@ -20,9 +20,11 @@ from the mesh.
 This is free and unencumbered software released into the public domain.
 """
 import json
+import logging
 import os
 import platform
 import sys
+import tempfile
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -107,6 +109,25 @@ def _fix_from(data) -> position.Fix | None:
     except (KeyError, TypeError, ValueError):
         pass
     return None
+
+
+LOG_FILE = "alert-mesh-bluetooth.log"
+
+
+def _log_to_file() -> None:
+    """What the mesh node drops, and why, into a file in the temporary folder (next to
+    desktop.py's alert-mesh-server.log): packets refused for their time, from nobody
+    announced, or badly signed are otherwise silent."""
+    logger = logging.getLogger("alertmesh")
+    if any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+        return
+    try:
+        handler = logging.FileHandler(Path(tempfile.gettempdir()) / LOG_FILE, encoding="utf-8")
+    except OSError:
+        return
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s: %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 class NoLink:
@@ -250,6 +271,7 @@ class Phone:
 
     def start(self, bluetooth: bool = True, wifi: bool = True, internet: bool = True,
               locate: bool = True) -> "Phone":
+        _log_to_file()
         if bluetooth:
             from alertmesh.ble import BluetoothProcess
 
@@ -288,6 +310,19 @@ class Phone:
     @property
     def bluetooth_status(self) -> str:
         return getattr(self.node.link, "status", "off")
+
+    @property
+    def clock_warning(self) -> str | None:
+        """Words for a clock over 2 minutes off, or None. Phones and laptops nearby then
+        drop everything this laptop sends, and it drops theirs, with nothing else to say so."""
+        ahead = self.node.clock_ahead_ms
+        if ahead is None:
+            return None
+        minutes = max(1, round(abs(ahead) / 60_000))
+        where = ("Windows Settings > Time & language" if sys.platform == "win32"
+                 else "System Settings > General > Date & Time" if sys.platform == "darwin" else "the system settings")
+        return (f"This computer's clock is about {minutes} min {'fast' if ahead > 0 else 'slow'}, so phones "
+                f"nearby ignore it. Set the time automatically in {where}.")
 
     # --- Who and where ---
 

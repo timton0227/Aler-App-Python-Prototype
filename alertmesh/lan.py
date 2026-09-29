@@ -34,6 +34,7 @@ PORT = 47147  # ALERTMESH_LAN_PORT overrides it (the tests use their own)
 MAGIC = b"AMW1"  # Alert Mesh warning, format 1
 MAX_PACKET_BYTES = 1024
 REPEAT_S = 30.0
+WSAEMSGSIZE = 10040  # Windows: "a message sent on a datagram socket was larger than the buffer"
 
 
 def configured_port() -> int:
@@ -158,7 +159,11 @@ class Listener:
         while True:
             try:
                 data, _ = self._socket.recvfrom(MAX_PACKET_BYTES + 1)
-            except OSError:
+            except OSError as error:
+                # Windows refuses a datagram bigger than the buffer (WSAEMSGSIZE) where
+                # others cut it short: one oversize packet must not end the listening.
+                if getattr(error, "winerror", None) == WSAEMSGSIZE:
+                    continue
                 return  # closed
             payload = payload_of(data)
             if payload is not None:

@@ -26,9 +26,9 @@ import threading
 
 import streamlit as st
 
-from alertmesh import hub, internet, labels, lan, metrics, places, style, viz, world
+from alertmesh import hub, internet, labels, lan, metrics, phone, places, style, viz, wire, world
 from alertmesh.console import (
-    AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, NetworkShare, outcome_text, toggle_area,
+    AREA_SIZE_NAMES, PROBLEM_TEXT, AreaSize, IssueError, NetworkShare, SentRecord, outcome_text, toggle_area,
 )
 from alertmesh.signer import DURATION_RANGE, WarningDraft
 from alertmesh.wire import ACTION_TEXT_MAX_BYTES, HEADLINE_MAX_BYTES, HazardType, Severity
@@ -65,9 +65,19 @@ def share(payload: bytes) -> bool:
     return network().send(payload)
 
 
+SENT_FILE = "warnings-sent.json"
+
+
 @st.cache_resource
 def network_share() -> NetworkShare:
-    return NetworkShare(share)
+    """One for the whole program. Every real copy still out is kept in a file, so a
+    warning can still be cancelled after the app is closed and opened again."""
+    share_ = NetworkShare(share, record=SentRecord(phone.home_folder() / SENT_FILE))
+    for alert in share_.earlier():
+        payload = wire.encode(alert)
+        internet_sender().learn(payload)  # so its cancellation can go online too
+        network().send(payload)  # repeated on the local network again, for phone apps started later
+    return share_
 
 
 def new_town(scenario: metrics.Scenario) -> None:
@@ -372,6 +382,74 @@ def live_list() -> None:
             st.button("Send again", key=f"resend_{key}", on_click=w.console.resend, args=(alert,))
             st.button("Cancel warning", key=f"cancel_{key}",
                       on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
+    earlier_list()
+    cancel_by_id()
+
+
+def cancel_earlier(alert_id: bytes) -> None:
+    state.c_cancelling = None
+    ok = network_share().cancel_earlier(alert_id)
+    state.c_cancel_note = ("Cancellation sent to phone apps on this network" if ok
+                           else "Cancellation signed, but the local network would not take it")
+
+
+def earlier_list() -> None:
+    """Warnings an earlier run of this app sent that phones still hold. Their simulated
+    town is gone, so they can only be cancelled (updating needs the town)."""
+    alerts = network_share().earlier()
+    if not alerts:
+        return
+    st.markdown('<div class="am-section">Sent before this window was opened</div>', unsafe_allow_html=True)
+    st.caption("Still live on phone apps and iPhones that got them. Cancel them here.")
+    for alert in alerts:
+        level = style.LEVEL[alert.severity]
+        st.markdown(hub.one_line(f"""
+<div class="am-card am-other" style="margin-bottom:0"><span class="am-colourbar am-bar-{level}"></span><div>
+<div class="am-level am-t-{level}">{style.symbol(alert.severity, "var(--am-card)")}{labels.title(alert)}</div>
+<div class="am-headline">{style.esc(alert.headline)}</div>
+<div class="am-muted">{labels.until(alert.expires_at, network_share().now_ms())} · {", ".join(alert.area_cells)}</div>
+</div></div>"""), unsafe_allow_html=True)
+        key = alert.alert_id.hex()
+        if state.c_cancelling == alert.alert_id:
+            st.warning("**Cancel this warning on every phone?**")
+            with st.container(horizontal=True):
+                for draw in style.button_order(
+                        lambda: st.button("Cancel warning", key=f"earlier_yes_{key}", type="primary",
+                                          on_click=cancel_earlier, args=(alert.alert_id,)),
+                        lambda: st.button("Keep it", key=f"earlier_no_{key}",
+                                          on_click=lambda: state.update(c_cancelling=None))):
+                    draw()
+        else:
+            st.button("Cancel warning", key=f"earlier_{key}",
+                      on_click=lambda a=alert: state.update(c_cancelling=a.alert_id))
+
+
+def send_cancel_by_id() -> None:
+    text = state.get("c_cancel_id", "").strip().lower()
+    try:
+        alert_id = bytes.fromhex(text)
+    except ValueError:
+        alert_id = b""
+    if len(alert_id) != wire.ALERT_ID_LENGTH:
+        state.c_cancel_note = "A warning ID is 32 letters and digits (0-9, a-f)."
+        return
+    ok = network_share().cancel_by_id(alert_id)
+    state.c_cancel_id = ""
+    state.c_cancel_note = ("Cancellation sent to phone apps on this network" if ok
+                           else "Cancellation signed, but the local network would not take it")
+
+
+def cancel_by_id() -> None:
+    """For a warning this app has no record of (sent before it kept one): its ID is at the
+    foot of the full warning on a phone app."""
+    note = state.pop("c_cancel_note", None)
+    if note:
+        st.info(note, icon=":material/cancel:")
+    with st.expander("Cancel a warning by its ID"):
+        st.caption("For a warning still on phones that this app does not list. Open the warning on a phone app: "
+                   "its ID is at the foot. Any warning signed with the development key can be cancelled this way.")
+        st.text_input("Warning ID", key="c_cancel_id", placeholder="32 letters and digits")
+        st.button("Cancel this warning", on_click=send_cancel_by_id)
 
 
 # --- Map ----------------------------------------------------------------------

@@ -75,11 +75,13 @@ class Page:
         return HERE / self.file
 
 
-# The radio libraries each system uses (bleak and bless pick one when first used).
+# The radio libraries each system uses (bleak picks one when first used). The service is
+# offered by bless, except on Windows, where bless cannot be used (alertmesh/ble_windows.py).
 _RADIO = {
-    "darwin": ("bleak.backends.corebluetooth.scanner", "bleak.backends.corebluetooth.client"),
-    "win32": ("bleak.backends.winrt.scanner", "bleak.backends.winrt.client"),
-}.get(sys.platform, ())
+    "darwin": ("bleak.backends.corebluetooth.scanner", "bleak.backends.corebluetooth.client", "bless"),
+    "win32": ("bleak.backends.winrt.scanner", "bleak.backends.winrt.client", "alertmesh.ble_windows",
+              "winrt.windows.devices.bluetooth.genericattributeprofile", "winrt.windows.storage.streams"),
+}.get(sys.platform, ("bless",))
 
 # The internet link loads these only when it starts, so the page's own imports do not show them.
 _INTERNET = ("alertmesh.relays", "alertmesh.internet", "websockets.sync.client", "certifi")
@@ -88,7 +90,7 @@ _WHERE = ("pydeck", *(("CoreLocation", "Foundation") if sys.platform == "darwin"
 
 PAGES = {
     "phone": Page("phone", "phone_app.py", "Alert Mesh", (1200, 760),
-                  ("alertmesh.ble", "alertmesh.lan", "bleak", "bless", *_RADIO, *_INTERNET, *_WHERE)),
+                  ("alertmesh.ble", "alertmesh.lan", "bleak", *_RADIO, *_INTERNET, *_WHERE)),
     "warning": Page("warning", "warning_app.py", "Alert Mesh Warnings", (1400, 900),
                     ("alertmesh.lan", *_INTERNET)),
 }
