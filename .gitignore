@@ -10,3 +10,9 @@ packaging/.venv-*/
 build/
 dist/
 .build/
+
+PROGRESS.md
+CHANGELOG.md
+.claude/
+CLAUDE.md
+CLAUDE.local.md
