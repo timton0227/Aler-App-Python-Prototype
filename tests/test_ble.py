@@ -360,6 +360,79 @@ def test_on_windows_subscribers_are_greeted_counted_and_notified():
     assert link._server.sent["laptop"] == [raw]
 
 
+class FakeCentral:
+    """A CBCentral: who it is, and how much one notification to it carries."""
+
+    def __init__(self, name, limit):
+        self.name, self.limit = name, limit
+
+    def identifier(self):
+        return type("U", (), {"UUIDString": lambda _: self.name})()
+
+    def maximumUpdateValueLength(self):  # noqa: N802
+        return self.limit
+
+
+class FakeCoreBluetooth:
+    """A bless server on a Mac, down to the CoreBluetooth objects ble_mac reads: the
+    characteristic's subscribed centrals, and a peripheral manager that can be full."""
+
+    def __init__(self, centrals, full_for=0):
+        self.centrals, self.full_for = centrals, full_for
+        self.sent = {c.name: [] for c in centrals}
+        self.characteristic = type("C", (), {"obj": type("O", (), {"subscribedCentrals": lambda _: self.centrals})()})()
+        manager = type("M", (), {"updateValue_forCharacteristic_onSubscribedCentrals_": self._update})()
+        self.peripheral_manager_delegate = type("D", (), {"peripheral_manager": manager})()
+
+    def get_characteristic(self, uuid):
+        return self.characteristic
+
+    def _update(self, value, characteristic, centrals):
+        if self.full_for:
+            self.full_for -= 1
+            return False
+        for central in centrals:
+            self.sent[central.name].append(bytes(value))
+        return True
+
+
+def test_on_a_mac_each_subscriber_is_notified_within_its_own_limit():
+    """Before, bless notified every subscriber at once, each piece cut to an assumed 182
+    bytes: too big for a device with a smaller link, and smaller than needed for the rest."""
+    from alertmesh.ble_mac import Peripheral
+
+    links = []
+    link = link_with(links=links)
+    radio = FakeCoreBluetooth([FakeCentral("iphone", 182), FakeCentral("older", 100), FakeCentral("mac", 512)])
+    link._server = Peripheral(radio, bitchat.CHARACTERISTIC_UUID)
+    link.check_centrals()
+    assert links == [1] and link.neighbours() == 3
+    raw = packet(400)
+    assert asyncio.run(link.deliver(raw)) == 3
+    for name, limit in (("iphone", 182), ("older", 100)):
+        assert all(len(n) <= limit for n in radio.sent[name]) and whole(radio.sent[name]) == raw
+    assert radio.sent["mac"] == [raw]
+
+
+def test_on_a_mac_a_full_radio_queue_is_waited_for():
+    from alertmesh.ble_mac import Peripheral
+
+    radio = FakeCoreBluetooth([FakeCentral("iphone", 182)], full_for=3)
+    link = link_with()
+    link._server = Peripheral(radio, bitchat.CHARACTERISTIC_UUID)
+    link.check_centrals()
+    raw = packet(10)
+    assert asyncio.run(link.deliver(raw)) == 1
+    assert radio.sent["iphone"] == [raw]
+
+
+def test_a_server_that_is_not_corebluetooth_is_used_as_bless_made_it():
+    from alertmesh.ble_mac import Peripheral
+
+    with pytest.raises(Exception):
+        Peripheral(FakeServer(subscribed=["central-1"]), bitchat.CHARACTERISTIC_UUID)
+
+
 def test_the_status_says_when_devices_cannot_connect_to_this_laptop():
     link = link_with()
     link.status = "on"

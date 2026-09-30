@@ -24,6 +24,21 @@ simplified, left out, or behaves differently from the app.
 
 ---
 
+## Mac parity for the Windows fixes — 2026-09-30
+Not a PROGRESS step: the Windows fixes below were checked only on Windows. Almost all of them are shared code, so a Mac gets them as they are; this entry checks them on a Mac and closes the gaps they left on the Mac side.
+- What:
+  - **Notifying each subscriber within its own limit (`alertmesh/ble_mac.py`).** On Windows, `ble_windows.Peripheral` sends each subscriber pieces sized to its own link. On a Mac, bless notified every subscriber at once, every piece cut to an assumed 182 bytes, and the link read subscribers from a private bless field. The new module reads both from CoreBluetooth on the server bless made: the characteristic's `subscribedCentrals`, and each central's `maximumUpdateValueLength`. It notifies each central on its own, waiting when the radio's queue is full, as before.
+    - `ble.BleLink._advertise` wraps the bless server with it on a Mac. If bless changes and the wrap fails, the link notifies everyone at 182 bytes, as before.
+    - `requirements.txt` pins `bless` below 0.4, as the link reads its CoreBluetooth objects.
+    - `desktop.py --check` imports `alertmesh.ble_mac` on a Mac.
+  - **Logs where a Mac user can find them.** On a Mac the temporary folder is a random path under `/var/folders`. `alert-mesh-bluetooth.log` and `alert-mesh-server.log` now go to `~/Library/Logs/Alert Mesh`, which Console shows (`phone.log_folder()`). Elsewhere they stay in the temporary folder. With `ALERTMESH_HOME`, the Bluetooth log goes to that folder, so each person's log is their own and the tests write nothing outside their folder.
+- Ported from: `BLEService+LinkLayerPeripheralRole.swift` (notify each subscribed central, sized to its `maximumUpdateValueLength`).
+- Differences from Swift: none in what goes on the air.
+- Verified by:
+  - `python -m pytest -q` on macOS, Python 3.13: 813 passed, 1 skipped (the WinRT peripheral import, Windows only). The 3 tests that failed on Windows pass here.
+  - `CoreBluetooth` has `CBMutableCharacteristic.subscribedCentrals`, `CBCentral.maximumUpdateValueLength` and `CBPeripheralManager.updateValue:forCharacteristic:onSubscribedCentrals:`, the names `ble_mac` uses.
+  - Not yet checked by hand on a Mac: the clock warning with the clock set 3 minutes fast, chat both ways with iPhones, cancelling a warning after the warning app is reopened, cancelling by ID, and a long message notified to an iPhone subscribed to the Mac.
+
 ## Windows fixes: Bluetooth with iPhones, clock check, cancelling warnings — 2026-09-29
 Not a PROGRESS step: found testing the phone app and warning app on a Windows laptop with two iPhones and the Swift app on a Mac. Chat did not reach the iPhones or the Mac, nothing from them reached the laptop, a warning took over 5 minutes to arrive, and warnings could not be cancelled after the warning app was reopened.
 - What:

@@ -270,8 +270,9 @@ To try the windows without building, install the build tools
   shows "Windows protected your PC", click **More info → Run anyway**.
 - Allow Bluetooth and the local network when asked.
 - Each app's page is only reachable from the computer running it, not from the network.
-- If the window says the page did not start, the details are in `alert-mesh-server.log`
-  in the computer's temporary folder (on a Mac: `open $TMPDIR`).
+- If the window says the page did not start, the details are in `alert-mesh-server.log`:
+  on a Mac in `~/Library/Logs/Alert Mesh` (Console shows it), on Windows in the temporary
+  folder. What Bluetooth drops, and why, is in `alert-mesh-bluetooth.log` next to it.
 
 ---
 

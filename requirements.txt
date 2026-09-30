@@ -11,7 +11,7 @@ pytest>=8.4           # tests that check the Python port against the Swift refer
 ipykernel>=6.31       # lets VS Code run demo.ipynb
 nbconvert>=7.16       # runs the notebook top to bottom as a check
 bleak>=3.0            # phone app: finds nearby laptops over Bluetooth and sends to them
-bless>=0.3; sys_platform != "win32"  # phone app: lets nearby devices find this one and send to it
+bless>=0.3,<0.4; sys_platform != "win32"  # phone app: lets nearby devices find this one and send to it (ble_mac reads its objects)
 # On Windows the same is done with WinRT (alertmesh/ble_windows.py): bless 0.3 needs packages
 # that are not on PyPI. These come with bleak; named here because the phone app uses them itself.
 winrt-Windows.Devices.Bluetooth.GenericAttributeProfile>=3; sys_platform == "win32"

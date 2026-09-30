@@ -115,6 +115,18 @@ def test_home_folder_can_be_moved(monkeypatch, tmp_path):
     assert phone.home_folder() == tmp_path
 
 
+def test_logs_go_where_they_can_be_found(monkeypatch, tmp_path):
+    """On a Mac the temporary folder is a random path under /var/folders: the logs go to
+    ~/Library/Logs, which Console shows. With ALERTMESH_HOME, each person's own folder."""
+    assert phone.log_folder() == phone.home_folder()  # tests set ALERTMESH_HOME
+    monkeypatch.delenv("ALERTMESH_HOME")
+    monkeypatch.setattr(phone.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(phone.sys, "platform", "darwin")
+    assert phone.log_folder() == tmp_path / "Library" / "Logs" / "Alert Mesh"
+    monkeypatch.setattr(phone.sys, "platform", "win32")
+    assert phone.log_folder() == phone.Path(phone.tempfile.gettempdir())
+
+
 # --- Engine ---
 
 

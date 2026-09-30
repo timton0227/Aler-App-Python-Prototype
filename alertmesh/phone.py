@@ -114,15 +114,27 @@ def _fix_from(data) -> position.Fix | None:
 LOG_FILE = "alert-mesh-bluetooth.log"
 
 
+def log_folder() -> Path:
+    """Where the logs go: on a Mac ~/Library/Logs/Alert Mesh, which Console shows (the
+    temporary folder there is a random path under /var/folders); elsewhere the temporary
+    folder. With ALERTMESH_HOME, that folder, so each person's log is their own."""
+    if os.environ.get("ALERTMESH_HOME"):
+        return Path(os.environ["ALERTMESH_HOME"])
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / APP_FOLDER
+    return Path(tempfile.gettempdir())
+
+
 def _log_to_file() -> None:
-    """What the mesh node drops, and why, into a file in the temporary folder (next to
+    """What the mesh node drops, and why, into a file in `log_folder()` (next to
     desktop.py's alert-mesh-server.log): packets refused for their time, from nobody
     announced, or badly signed are otherwise silent."""
     logger = logging.getLogger("alertmesh")
     if any(isinstance(h, logging.FileHandler) for h in logger.handlers):
         return
     try:
-        handler = logging.FileHandler(Path(tempfile.gettempdir()) / LOG_FILE, encoding="utf-8")
+        log_folder().mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(log_folder() / LOG_FILE, encoding="utf-8")
     except OSError:
         return
     handler.setFormatter(logging.Formatter("%(asctime)s %(name)s: %(message)s"))

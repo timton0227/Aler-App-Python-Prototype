@@ -40,6 +40,7 @@ def test_two_apps_each_with_its_page_and_title():
     # What offers the Bluetooth service: bless, or on Windows our own WinRT code.
     assert ("alertmesh.ble_windows" if sys.platform == "win32" else "bless") in PHONE.also_needs
     assert (sys.platform == "win32") == ("bless" not in PHONE.also_needs)
+    assert (sys.platform == "darwin") == ("alertmesh.ble_mac" in PHONE.also_needs)
     for page in (PHONE, WARNING):  # the internet link's parts, loaded only when it starts
         assert "websockets.sync.client" in page.also_needs and "alertmesh.relays" in page.also_needs
     assert "pydeck" in PHONE.also_needs  # the pin map

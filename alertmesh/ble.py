@@ -13,13 +13,14 @@ like the iPhone app:
   to them. An iPhone app in the background hides its service from a Mac's scan (iOS
   keeps it in an "overflow" area only iPhones read), so Apple devices this close are
   connected to once and kept if they have the characteristic;
-- **as a peripheral** (library `bless`) it offers the service: devices connected to it
-  write packets to the characteristic, and it sends packets to those subscribed by
-  notifying.
+- **as a peripheral** (library `bless`; on Windows `ble_windows`) it offers the service:
+  devices connected to it write packets to the characteristic, and it sends packets to
+  those subscribed by notifying.
 
 Each write or notification carries one whole packet, as on the iPhone. A packet too big
 for a link is cut into fragments first (bitchat.split), sized to that link: a
-connection says how much one write carries; a notification is assumed to carry 182
+connection says how much one write carries, and so does each subscriber (CoreBluetooth
+on a Mac, `ble_mac`; WinRT on Windows). Elsewhere a notification is assumed to carry 182
 bytes (bless does not say). Notifications that arrive are read as one stream and cut
 back into packets (bitchat.NotificationStream).
 
@@ -46,7 +47,7 @@ from alertmesh import bitchat
 
 # The smallest write every Bluetooth LE device must take (23-byte link, minus 3).
 MIN_WRITE = 20
-# What one notification is assumed to carry: bless does not say per device.
+# What one notification is assumed to carry where the system does not say per device.
 NOTIFY_LIMIT = 182
 # A notification the radio has no room for yet is tried again this often, this many
 # times (BLEService: 25 ms, 80 tries).
@@ -210,6 +211,13 @@ class BleLink:
         )
         await server.start()
         self._server = server  # kept, or advertising stops when it is collected
+        if sys.platform == "darwin":  # each subscriber's own limit, from CoreBluetooth (alertmesh/ble_mac.py)
+            from alertmesh.ble_mac import Peripheral
+
+            try:
+                self._server = Peripheral(server, bitchat.CHARACTERISTIC_UUID)
+            except Exception:  # bless changed: notify everyone at NOTIFY_LIMIT, as before
+                pass
 
     async def _keep_connecting(self) -> None:
         while True:
@@ -279,9 +287,9 @@ class BleLink:
         return True
 
     def check_centrals(self) -> None:
-        """Devices subscribed to our notifications. bless keeps them in a private field;
-        without it, the link still works but new subscribers are not greeted at once.
-        On Windows, ble_windows.Peripheral says who they are."""
+        """Devices subscribed to our notifications. On a Mac and Windows the peripheral
+        says who they are (ble_mac, ble_windows); elsewhere bless keeps them in a private
+        field, and without it the link still works but new subscribers are not greeted at once."""
         if hasattr(self._server, "subscribers"):
             subscribed = self._server.subscribers()
         else:
@@ -325,7 +333,7 @@ class BleLink:
 
     async def _notify(self, raw: bytes) -> int:
         """Send a packet to every subscribed device by notifying, in pieces they can take."""
-        if hasattr(self._server, "notify"):  # Windows: each subscriber's own limit is known
+        if hasattr(self._server, "notify"):  # Mac and Windows: each subscriber's own limit is known
             return await self._server.notify(lambda limit: pieces(raw, limit))
         characteristic = self._server.get_characteristic(bitchat.CHARACTERISTIC_UUID)
         for piece in pieces(raw, NOTIFY_LIMIT):

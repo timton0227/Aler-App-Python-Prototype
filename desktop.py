@@ -40,7 +40,10 @@ START_TIMEOUT_S = 60
 # `sys.frozen`; otherwise the files sit next to this one.
 FROZEN = getattr(sys, "frozen", False)
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-LOG = Path(tempfile.gettempdir()) / "alert-mesh-server.log"
+# On a Mac, in ~/Library/Logs/Alert Mesh, which Console shows, with the phone app's
+# Bluetooth log (alertmesh.phone.log_folder); elsewhere in the temporary folder.
+LOG = (Path.home() / "Library" / "Logs" / "Alert Mesh" if sys.platform == "darwin"
+       else Path(tempfile.gettempdir())) / "alert-mesh-server.log"
 # --check also writes its result here: a Windows window app has no text output to print to.
 CHECK_RESULT = Path(tempfile.gettempdir()) / "alert-mesh-check.txt"
 
@@ -78,7 +81,8 @@ class Page:
 # The radio libraries each system uses (bleak picks one when first used). The service is
 # offered by bless, except on Windows, where bless cannot be used (alertmesh/ble_windows.py).
 _RADIO = {
-    "darwin": ("bleak.backends.corebluetooth.scanner", "bleak.backends.corebluetooth.client", "bless"),
+    "darwin": ("bleak.backends.corebluetooth.scanner", "bleak.backends.corebluetooth.client", "bless",
+               "alertmesh.ble_mac"),
     "win32": ("bleak.backends.winrt.scanner", "bleak.backends.winrt.client", "alertmesh.ble_windows",
               "winrt.windows.devices.bluetooth.genericattributeprofile", "winrt.windows.storage.streams"),
 }.get(sys.platform, ("bless",))
@@ -230,6 +234,7 @@ def main(page: Page) -> None:
                  "  python3 -m pip install -r packaging/requirements-build.txt")
 
     port = free_port()
+    LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG, "w", encoding="utf-8") as log:
         extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
         server = subprocess.Popen(server_command(port, page), stdout=log, stderr=subprocess.STDOUT, **extra)
