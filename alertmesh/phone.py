@@ -34,6 +34,7 @@ from pathlib import Path
 from alertmesh import geohash, location, places, position, proximity
 from alertmesh.alert_store import _system_clock_ms
 from alertmesh.chat import Identity
+from alertmesh.database import DATABASE_FILE, Database
 from alertmesh.node import Node
 from alertmesh.reports import CommunityReport, ReportKind
 from alertmesh.wire import HazardType, OfficialAlert
@@ -198,7 +199,8 @@ class Phone:
         self.folder = folder or home_folder()
         self.profile = Profile.load(self.folder)
         self.clock = clock
-        self.node = Node(Identity(self.profile.nickname, self.profile.seed), NoLink(), clock)
+        self.db = Database(self.folder / DATABASE_FILE)
+        self.node = Node(Identity(self.profile.nickname, self.profile.seed), NoLink(), clock, db=self.db)
         self.wifi_status = "off"
         self.internet = None  # alertmesh.internet.PhoneLink, made by start_internet()
         self.location = None  # alertmesh.location.LocationProcess, made by start_location()

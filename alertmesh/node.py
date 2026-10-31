@@ -112,11 +112,15 @@ class Conversation:
 
 class ChatStore:
     """Conversations: Nearby, plus one per person written to or heard from privately
-    (the iPhone app's ChatInboxView). Each message is kept once."""
+    (the iPhone app's ChatInboxView). Each message is kept once. `db` is an
+    alertmesh.database.Database, or None to keep nothing on disk."""
 
-    def __init__(self):
+    def __init__(self, db=None):
         self.conversations: dict[str, Conversation] = {NEARBY: Conversation(NEARBY)}
         self._ids: set[bytes] = set()
+        self.db = db
+        if db is not None:
+            self._load()
 
     def add(self, key: str, message: ChatMessage, outgoing: bool, now_ms: int) -> bool:
         if message.message_id in self._ids:
@@ -125,16 +129,36 @@ class ChatStore:
         conversation = self.conversations.setdefault(key, Conversation(key))
         conversation.entries.append(ChatEntry(message, outgoing, now_ms))
         conversation.entries.sort(key=lambda e: (e.message.sent_at, e.received_at))
+        dropped = None
         if len(conversation.entries) > MAX_MESSAGES_PER_CONVERSATION:
             dropped = conversation.entries.pop(0)
             self._ids.discard(dropped.message.message_id)
         if not outgoing:
             conversation.unread += 1
+        if self.db is not None:
+            self.db.add_chat_message(key, message, outgoing, now_ms, conversation.unread,
+                                     dropped and dropped.message.message_id)
         return True
 
     def mark_read(self, key: str) -> None:
         if key in self.conversations:
             self.conversations[key].unread = 0
+            if self.db is not None:
+                self.db.set_unread(key, 0)
+
+    def _load(self) -> None:
+        for key, *fields, outgoing, received_at in self.db.chat_messages():
+            message = ChatMessage(*fields)
+            if message.message_id in self._ids:
+                continue
+            self._ids.add(message.message_id)
+            self.conversations.setdefault(key, Conversation(key)).entries.append(
+                ChatEntry(message, outgoing, received_at))
+        for conversation in self.conversations.values():
+            conversation.entries.sort(key=lambda e: (e.message.sent_at, e.received_at))
+        for key, unread in self.db.unread().items():
+            if key in self.conversations:
+                self.conversations[key].unread = unread
 
     @property
     def unread(self) -> int:
@@ -180,16 +204,18 @@ class Peer:
 
 
 class Node:
-    """One laptop. `link` sends packets; `clock` returns "now" in milliseconds."""
+    """One laptop. `link` sends packets; `clock` returns "now" in milliseconds; `db`
+    (an alertmesh.database.Database) keeps warnings, reports and chats over a restart."""
 
     def __init__(self, identity: Identity, link, clock=_system_clock_ms,
-                 publisher_key: bytes | None = wire.PINNED_PUBLIC_KEY, rng: random.Random | None = None):
+                 publisher_key: bytes | None = wire.PINNED_PUBLIC_KEY, rng: random.Random | None = None,
+                 db=None):
         self.identity = identity
         self.link = link
         self.clock = clock
-        self.alerts = AlertStore(publisher_key, clock)
-        self.reports = ReportStore(clock)
-        self.chats = ChatStore()
+        self.alerts = AlertStore(publisher_key, clock, db)
+        self.reports = ReportStore(clock, db)
+        self.chats = ChatStore(db)
         self.author = reports.ReportAuthor(identity.nickname, identity.signing_seed)
         self.peers: dict[str, Peer] = {}  # by signing key in hex
         self._peer_keys: dict[bytes, str] = {}  # sender ID -> signing key in hex (the first one seen)
