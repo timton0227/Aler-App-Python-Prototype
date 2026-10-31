@@ -10,6 +10,9 @@ Each author gets two separate quotas: 5 hazard reports and 2 check-ins (SOS or
 "safe"). With one shared counter, a person's own fifth hazard report would push out
 their SOS.
 
+Given a database (alertmesh/database.py), the store saves itself after each change and
+reads back what it kept when made, checking every signature again.
+
 This is free and unencumbered software released into the public domain.
 """
 from alertmesh import reports
@@ -39,11 +42,15 @@ def _key(report: CommunityReport) -> bytes:
 
 
 class ReportStore:
-    """One phone's community reports. `clock` returns "now" in milliseconds."""
+    """One phone's community reports. `clock` returns "now" in milliseconds. `db` is
+    an alertmesh.database.Database, or None to keep nothing on disk."""
 
-    def __init__(self, clock=_system_clock_ms):
+    def __init__(self, clock=_system_clock_ms, db=None):
         self.clock = clock
         self._reports: dict[bytes, tuple[CommunityReport, bytes]] = {}  # key -> (report, payload), oldest first
+        self.db = db
+        if db is not None:
+            self._load()
 
     # --- Ingest ---
 
@@ -75,6 +82,7 @@ class ReportStore:
                   if r.author_signing_key == author and _is_check_in(r.kind) == check_in]
         self._evict(bucket, MAX_CHECK_INS_PER_AUTHOR if check_in else MAX_HAZARD_REPORTS_PER_AUTHOR)
         self._evict(list(self._reports), MAX_REPORTS)
+        self._save()
         return IngestResult.ACCEPTED
 
     def ingest_payload(self, payload: bytes) -> IngestResult:
@@ -99,8 +107,21 @@ class ReportStore:
 
     def wipe(self) -> None:
         self._reports.clear()
+        self._save()
 
     # --- Internals ---
+
+    def _load(self) -> None:
+        """Read back what was kept, leaving out anything that no longer verifies or has run out."""
+        now = self.clock()
+        for key, payload in self.db.reports():
+            report = reports.decode(payload)
+            if report is not None and _key(report) == key and report.expires_at > now and reports.verify(report):
+                self._reports[key] = (report, payload)
+
+    def _save(self) -> None:
+        if self.db is not None:
+            self.db.save_reports([(k, p) for k, (_, p) in self._reports.items()])
 
     def _evict(self, candidates: list[bytes], keep: int) -> None:
         excess = len(candidates) - keep

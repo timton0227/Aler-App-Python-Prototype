@@ -7,6 +7,9 @@ version per event: a newer one replaces it, the same one is a duplicate, and an
 older one is refused. Every warning is checked against the publisher key before it
 is kept, and only what the store accepts may be passed on to other phones.
 
+Given a database (alertmesh/database.py), the store saves itself after each change and
+reads back what it kept when made, checking every signature again.
+
 This is free and unencumbered software released into the public domain.
 """
 import time
@@ -39,9 +42,10 @@ class AlertStore:
     """One phone's official warnings.
 
     `clock` returns "now" in milliseconds. The simulation passes its own clock.
+    `db` is an alertmesh.database.Database, or None to keep nothing on disk.
     """
 
-    def __init__(self, publisher_key: bytes | None = wire.PINNED_PUBLIC_KEY, clock=_system_clock_ms):
+    def __init__(self, publisher_key: bytes | None = wire.PINNED_PUBLIC_KEY, clock=_system_clock_ms, db=None):
         # None means nothing verifies and the store stays empty: a build with no
         # key shows no warnings rather than unverified ones.
         self.publisher_key = publisher_key
@@ -49,6 +53,9 @@ class AlertStore:
         self._alerts: dict[bytes, tuple[OfficialAlert, bytes]] = {}  # alert_id -> (alert, payload)
         # alert_id -> (cancellation, payload, retain_until, is_orphan), oldest first
         self._cancellations: dict[bytes, tuple[AlertCancellation, bytes, int, bool]] = {}
+        self.db = db
+        if db is not None:
+            self._load()
 
     # --- Ingest ---
 
@@ -57,10 +64,14 @@ class AlertStore:
         if self.publisher_key is None or not wire.verify(item, self.publisher_key):
             return IngestResult.REJECTED
         if isinstance(item, OfficialAlert):
-            return self._ingest_alert(item, wire.encode(item))
-        if isinstance(item, AlertCancellation):
-            return self._ingest_cancellation(item, wire.encode(item))
-        return IngestResult.REJECTED
+            result = self._ingest_alert(item, wire.encode(item))
+        elif isinstance(item, AlertCancellation):
+            result = self._ingest_cancellation(item, wire.encode(item))
+        else:
+            return IngestResult.REJECTED
+        if result == IngestResult.ACCEPTED:
+            self._save()
+        return result
 
     def ingest_payload(self, payload: bytes) -> IngestResult:
         """Decode wire bytes, then ingest. Malformed bytes are rejected."""
@@ -164,8 +175,30 @@ class AlertStore:
         """Panic wipe: drop every warning and cancellation."""
         self._alerts.clear()
         self._cancellations.clear()
+        self._save()
 
     # --- Internals ---
+
+    def _load(self) -> None:
+        """Read back what was kept. Anything that no longer verifies or has run out is
+        left out, and kept out at the next save."""
+        now = self.clock()
+        for alert_id, payload in self.db.alerts():
+            alert = wire.decode(payload)
+            if (isinstance(alert, OfficialAlert) and alert.alert_id == alert_id and alert.expires_at > now
+                    and self.publisher_key is not None and wire.verify(alert, self.publisher_key)):
+                self._alerts[alert_id] = (alert, payload)
+        for alert_id, payload, retain_until, is_orphan in self.db.cancellations():
+            cancellation = wire.decode(payload)
+            if (isinstance(cancellation, AlertCancellation) and cancellation.alert_id == alert_id
+                    and retain_until > now and alert_id not in self._alerts
+                    and self.publisher_key is not None and wire.verify(cancellation, self.publisher_key)):
+                self._cancellations[alert_id] = (cancellation, payload, retain_until, is_orphan)
+
+    def _save(self) -> None:
+        if self.db is not None:
+            self.db.save_alerts([(k, p) for k, (_, p) in self._alerts.items()],
+                                [(k, p, until, orphan) for k, (_, p, until, orphan) in self._cancellations.items()])
 
     def _prune(self, now: int) -> None:
         self._alerts = {k: v for k, v in self._alerts.items() if v[0].expires_at > now}
