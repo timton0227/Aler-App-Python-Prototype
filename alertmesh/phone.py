@@ -14,8 +14,9 @@ Saved between runs, in a folder of the person's own (`home_folder()`): the ident
 seed (so the same person keeps the same keys and conversations are not orphaned),
 nickname, town, whether to use the internet (off until the person turns it on: calls
 for help then go to public relays), whether to use this Mac's location, the pin, and
-the last fix (as a geohash only). Messages and warnings are not saved: they come back
-from the mesh.
+the last fix (as a geohash only), all in `phone.json`. Warnings, reports and chats are
+kept in `alertmesh.db` next to it (alertmesh/database.py), so they are still there
+after a restart.
 
 This is free and unencumbered software released into the public domain.
 """
@@ -34,7 +35,7 @@ from pathlib import Path
 from alertmesh import geohash, location, places, position, proximity
 from alertmesh.alert_store import _system_clock_ms
 from alertmesh.chat import Identity
-from alertmesh.database import DATABASE_FILE, Database
+from alertmesh.database import open_database
 from alertmesh.node import Node
 from alertmesh.reports import CommunityReport, ReportKind
 from alertmesh.wire import HazardType, OfficialAlert
@@ -199,8 +200,11 @@ class Phone:
         self.folder = folder or home_folder()
         self.profile = Profile.load(self.folder)
         self.clock = clock
-        self.db = Database(self.folder / DATABASE_FILE)
-        self.node = Node(Identity(self.profile.nickname, self.profile.seed), NoLink(), clock, db=self.db)
+        identity = Identity(self.profile.nickname, self.profile.seed)
+        self.db = open_database(self.folder)  # None when the file cannot be used: nothing kept
+        if self.db is not None:
+            self.db.claim(identity.signing_key)
+        self.node = Node(identity, NoLink(), clock, db=self.db)
         self.wifi_status = "off"
         self.internet = None  # alertmesh.internet.PhoneLink, made by start_internet()
         self.location = None  # alertmesh.location.LocationProcess, made by start_location()
@@ -320,6 +324,8 @@ class Phone:
             self.internet.pool.close()
         if self.location is not None:
             self.location.stop()
+        if self.db is not None:
+            self.db.close()  # last: the radio may still hand over a packet until it stops
 
     @property
     def bluetooth_status(self) -> str:

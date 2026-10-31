@@ -110,6 +110,10 @@ class Conversation:
     unread: int = 0
 
 
+def _entry_order(entry: ChatEntry):
+    return entry.message.sent_at, entry.received_at
+
+
 class ChatStore:
     """Conversations: Nearby, plus one per person written to or heard from privately
     (the iPhone app's ChatInboxView). Each message is kept once. `db` is an
@@ -123,12 +127,10 @@ class ChatStore:
             self._load()
 
     def add(self, key: str, message: ChatMessage, outgoing: bool, now_ms: int) -> bool:
-        if message.message_id in self._ids:
+        conversation = self._put(key, message, outgoing, now_ms)
+        if conversation is None:
             return False
-        self._ids.add(message.message_id)
-        conversation = self.conversations.setdefault(key, Conversation(key))
-        conversation.entries.append(ChatEntry(message, outgoing, now_ms))
-        conversation.entries.sort(key=lambda e: (e.message.sent_at, e.received_at))
+        conversation.entries.sort(key=_entry_order)
         dropped = None
         if len(conversation.entries) > MAX_MESSAGES_PER_CONVERSATION:
             dropped = conversation.entries.pop(0)
@@ -141,21 +143,28 @@ class ChatStore:
         return True
 
     def mark_read(self, key: str) -> None:
-        if key in self.conversations:
-            self.conversations[key].unread = 0
+        # The page calls this on every redraw of an open conversation: only a real
+        # change is written.
+        conversation = self.conversations.get(key)
+        if conversation is not None and conversation.unread:
+            conversation.unread = 0
             if self.db is not None:
                 self.db.set_unread(key, 0)
 
+    def _put(self, key: str, message: ChatMessage, outgoing: bool, received_at: int) -> Conversation | None:
+        """Add a message not seen before, unsorted. None if it was seen."""
+        if message.message_id in self._ids:
+            return None
+        self._ids.add(message.message_id)
+        conversation = self.conversations.setdefault(key, Conversation(key))
+        conversation.entries.append(ChatEntry(message, outgoing, received_at))
+        return conversation
+
     def _load(self) -> None:
         for key, *fields, outgoing, received_at in self.db.chat_messages():
-            message = ChatMessage(*fields)
-            if message.message_id in self._ids:
-                continue
-            self._ids.add(message.message_id)
-            self.conversations.setdefault(key, Conversation(key)).entries.append(
-                ChatEntry(message, outgoing, received_at))
+            self._put(key, ChatMessage(*fields), outgoing, received_at)
         for conversation in self.conversations.values():
-            conversation.entries.sort(key=lambda e: (e.message.sent_at, e.received_at))
+            conversation.entries.sort(key=_entry_order)
         for key, unread in self.db.unread().items():
             if key in self.conversations:
                 self.conversations[key].unread = unread

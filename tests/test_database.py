@@ -2,12 +2,13 @@
 import os
 import sqlite3
 
+import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from alertmesh import database, wire
 from alertmesh.alert_store import AlertStore, IngestResult
 from alertmesh.chat import Identity
-from alertmesh.database import Database
+from alertmesh.database import Database, NewerDatabaseError, open_database
 from alertmesh.node import NEARBY, ChatStore
 from alertmesh.phone import Phone
 from alertmesh.report_store import ReportStore
@@ -133,8 +134,84 @@ def test_phone_app_keeps_its_chats_in_its_own_folder(tmp_path):
     first = Phone(tmp_path, Clock())
     message = Identity("Them").message("Water's rising", BASE_MS)
     first.node.chats.add(NEARBY, message, False, BASE_MS)
-    assert [e.message for e in Phone(tmp_path, Clock()).node.chats.conversations[NEARBY].entries] == [message]
-    assert (tmp_path / database.DATABASE_FILE).exists()
+    first.stop()
+    again = Phone(tmp_path, Clock())
+    assert [e.message for e in again.node.chats.conversations[NEARBY].entries] == [message]
+    again.stop()
+
+
+def test_chats_of_another_identity_are_dropped(tmp_path):
+    """The profile was lost and a new one made: the old person's chats must not show as
+    this person's. Warnings and reports belong to nobody, so they stay."""
+    first = Phone(tmp_path, Clock())
+    first.node.chats.add(NEARBY, first.node.identity.message("I'm at the school", BASE_MS), True, BASE_MS)
+    first.node.alerts.db.save_reports([(b"k", b"p")])
+    first.stop()
+    (tmp_path / "phone.json").write_text("{broken")
+    again = Phone(tmp_path, Clock())
+    assert again.node.chats.conversations[NEARBY].entries == []
+    assert again.db.reports() == [(b"k", b"p")]
+    again.stop()
+
+
+def test_damaged_file_is_moved_aside_and_the_app_still_opens(tmp_path):
+    (tmp_path / database.DATABASE_FILE).write_bytes(b"not a database at all, just junk" * 10)
+    p = Phone(tmp_path, Clock())
+    assert p.db is not None and p.node.alerts.live_alerts() == []
+    assert len(list(tmp_path.glob(database.DATABASE_FILE + ".broken-*"))) == 1
+    p.stop()
+
+
+def test_newer_file_is_left_alone_and_nothing_is_kept_this_run(tmp_path):
+    with sqlite3.connect(tmp_path / database.DATABASE_FILE) as raw:
+        raw.execute(f"PRAGMA user_version = {database.SCHEMA_VERSION + 1}")
+    p = Phone(tmp_path, Clock())
+    assert p.db is None
+    p.node.chats.add(NEARBY, Identity("Them").message("hello", BASE_MS), False, BASE_MS)  # still works in memory
+    with sqlite3.connect(tmp_path / database.DATABASE_FILE) as raw:
+        assert raw.execute("PRAGMA user_version").fetchone()[0] == database.SCHEMA_VERSION + 1
+    p.stop()
+
+
+def test_stopped_phone_ignores_late_writes(tmp_path):
+    p = Phone(tmp_path, Clock())
+    p.stop()
+    # A radio thread finishing after the stop must not fail.
+    assert p.node.chats.add(NEARBY, Identity("Them").message("late", BASE_MS), False, BASE_MS)
+    assert p.db.chat_messages() == []
+
+
+# --- Writes
+
+
+def test_only_changed_rows_are_written(tmp_path):
+    clock = Clock()
+    db = open_db(tmp_path)
+    store = AlertStore(KEY, clock, db)
+    first, second = make_alert(), make_alert()
+    store.ingest(first)
+
+    def rowids():
+        with sqlite3.connect(tmp_path / database.DATABASE_FILE) as raw:
+            return dict(raw.execute("SELECT alert_id, rowid FROM alerts"))
+
+    before = rowids()
+    store.ingest(second)
+    after = rowids()
+    assert after[first.alert_id] == before[first.alert_id]  # untouched
+    store.ingest(make_cancellation(first.alert_id, BASE_MS + 1000))
+    assert set(rowids()) == {second.alert_id}
+
+
+def test_reading_a_conversation_again_writes_nothing(tmp_path, monkeypatch):
+    store = ChatStore(open_db(tmp_path))
+    store.add(NEARBY, Identity("Them").message("hello", BASE_MS), False, BASE_MS)
+    writes = []
+    monkeypatch.setattr(store.db, "set_unread", lambda *args: writes.append(args))
+    store.mark_read(NEARBY)
+    store.mark_read(NEARBY)
+    store.mark_read(NEARBY)
+    assert writes == [(NEARBY, 0)]
 
 
 # --- The file
@@ -149,9 +226,6 @@ def test_only_the_owner_can_read_the_file(tmp_path):
 def test_file_from_a_newer_version_is_refused(tmp_path):
     with sqlite3.connect(tmp_path / database.DATABASE_FILE) as raw:
         raw.execute(f"PRAGMA user_version = {database.SCHEMA_VERSION + 1}")
-    try:
+    with pytest.raises(NewerDatabaseError, match="newer"):
         open_db(tmp_path)
-    except RuntimeError as error:
-        assert "newer" in str(error)
-    else:
-        raise AssertionError("a newer file was opened")
+    assert open_database(tmp_path) is None
